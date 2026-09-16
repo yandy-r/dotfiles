@@ -1,7 +1,7 @@
 [tools]
 deno = "latest"
 go = "1.26"
-node = "latest"
+node = "lts"
 npm = "latest"
 pnpm = "latest"
 stripe = "latest"
