@@ -105,12 +105,22 @@ packages = ["mise", "rust", "lua"]
 [intents.ai]
 description = "AI coding assistants and CLIs"
 default = false
-packages = ["claude", "codex", "opencode", "fabric", "coderabbit"]
+packages = ["claude", "codex", "opencode", "opencode2", "fabric", "coderabbit"]
 
 [intents.cloud]
-description = "Cloud, IaC, and container CLIs"
+description = "Cloud, IaC, database, and container CLIs"
 default = false
-packages = ["aws-tools", "azure-cli", "hashicorp-tools", "container-tools", "turso"]
+packages = [
+    "aws-tools",
+    "azure-cli",
+    "hashicorp-tools",
+    "container-tools",
+    "turso",
+    "vercel",
+    "railway",
+    "stripe",
+    "neon",
+]
 
 [intents.git-tools]
 description = "Git and forge tooling (tea, lefthook)"
@@ -601,6 +611,18 @@ actions = ["update", "remove"]
 class = "rolling"
 justification = "vendor installer tracks latest (OPENCODE_VERSION defaults to latest)"
 
+# @opencode/cli is the OpenCode 2 CLI: it ships a distinct `opencode2` binary,
+# so it coexists with the opencode-ai CLI above instead of replacing it. `name`
+# (opencode2) doubles as the PATH probe while `names` carries the npm install
+# identifier. The npm `latest` tag is 2.0.5 and only moves forward, so a plain
+# `npm install -g` already satisfies the >= 2.0.5 floor without a spec string
+# that `npm update -g` / `npm uninstall -g` could not consume.
+[[package]]
+name = "opencode2"
+backend = "toolchain"
+tool = "npm"
+names = { npm = "@opencode/cli" }
+
 # fabric installs a binary whose name varies by platform: `fabric` via the
 # official installer / `go install .../cmd/fabric`, or `fabric-ai` via Homebrew
 # (macOS) and the AUR (Arch). The all-present `provides` model can't express
@@ -677,6 +699,35 @@ repo = "tursodatabase/turso-cli"
 tag = "v1.0.29"
 binary = "turso"
 checksums_asset = "checksums.txt"
+
+# Cloud service CLIs with official npm distributions. These toolchain entries
+# are OS-neutral: every supported host uses the same npm install path and mise
+# reshim makes their binaries visible when Node is managed by mise.
+[[package]]
+name = "vercel"
+backend = "toolchain"
+tool = "npm"
+
+[[package]]
+name = "railway"
+backend = "toolchain"
+tool = "npm"
+names = { npm = "@railway/cli" }
+
+[[package]]
+name = "stripe"
+backend = "toolchain"
+tool = "npm"
+names = { npm = "@stripe/cli" }
+
+# neonctl installs both `neon` and `neonctl`; use `neon` as the dotf package
+# name and explicit probe so intent naming matches the Neon product.
+[[package]]
+name = "neon"
+backend = "toolchain"
+tool = "npm"
+names = { npm = "neonctl" }
+provides = ["neon"]
 
 # git-tools intent
 [[package]]

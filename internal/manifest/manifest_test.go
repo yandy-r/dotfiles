@@ -761,6 +761,11 @@ func TestEmbeddedManifest_Phase3Migrations(t *testing.T) {
 		installName string
 	}{
 		{name: "codex", installName: "@openai/codex"},
+		{name: "opencode2", installName: "@opencode/cli"},
+		{name: "vercel", installName: "vercel"},
+		{name: "railway", installName: "@railway/cli"},
+		{name: "stripe", installName: "@stripe/cli"},
+		{name: "neon", installName: "neonctl"},
 		{name: "lefthook", installName: "lefthook"},
 	} {
 		t.Run(tc.name+" is a managed toolchain/npm package", func(t *testing.T) {
@@ -777,20 +782,26 @@ func TestEmbeddedManifest_Phase3Migrations(t *testing.T) {
 			if got := p.EffectiveClass(); got != manifest.ClassManaged {
 				t.Errorf("%s effective class = %q, want managed", tc.name, got)
 			}
+			installName := p.Name
+			if mapped := p.Names["npm"]; mapped != "" {
+				installName = mapped
+			}
+			if installName != tc.installName {
+				t.Errorf("%s npm install name = %q, want %q", tc.name, installName, tc.installName)
+			}
 		})
 	}
-
-	t.Run("codex maps its npm install identifier via names", func(t *testing.T) {
-		if got := byName["codex"].Names["npm"]; got != "@openai/codex" {
-			t.Errorf("codex names[npm] = %q, want @openai/codex", got)
-		}
-	})
 
 	// A migration changes the backend, not the intent: each tool must stay in the
 	// same opt-in intent it belonged to as a custom-script entry.
 	for _, tc := range []struct{ pkg, intent string }{
 		{pkg: "turso", intent: "cloud"},
+		{pkg: "vercel", intent: "cloud"},
+		{pkg: "railway", intent: "cloud"},
+		{pkg: "stripe", intent: "cloud"},
+		{pkg: "neon", intent: "cloud"},
 		{pkg: "codex", intent: "ai"},
+		{pkg: "opencode2", intent: "ai"},
 		{pkg: "lefthook", intent: "git-tools"},
 	} {
 		t.Run(tc.pkg+" stays in intent "+tc.intent, func(t *testing.T) {
