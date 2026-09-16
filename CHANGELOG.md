@@ -6,6 +6,30 @@ This project adheres to [Conventional Commits](https://www.conventionalcommits.o
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-16
+
+First stable release of `dotf`. Promotes the cross-platform provisioning pipeline after
+adding Fedora parity, governed package lifecycle operations, diagnostics and
+self-update, reproducible release locking, user overlays, KDE Plasma management, safer
+symlink backups, and broader native backend coverage. See
+[docs/releases/v0.3.0.md](docs/releases/v0.3.0.md) for full notes.
+
+### Features
+
+- Add first-class Fedora, Fedora Asahi, and RedHat-family provisioning.
+- Add package lifecycle, diagnostics, drift, lock/verify, and self-update commands.
+- Add KDE Plasma 6 capture, diff, and apply workflows.
+- Add native repository, font, git-clone, and GitHub release backends.
+- Add Vercel, Railway, Stripe, Neon, and OpenCode 2 npm-managed CLIs.
+- Add Herdr provisioning and `dotf deb` Debian-to-pacman conversion.
+
+### Fixes
+
+- Back up populated directory destinations before symlink replacement.
+- Repair Linux shell-module loading and reduce zsh startup latency.
+- Harden Fedora aarch64 package provisioning and prerelease bootstrap downloads.
+- Strip host-local Plasma values that caused persistent export drift.
+
 ## [0.2.0-beta] - 2026-07-03
 
 Second beta of `dotf`. Turns the provisioning path from a scaffold into a working
