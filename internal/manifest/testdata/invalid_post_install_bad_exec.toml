@@ -1,0 +1,7 @@
+# post_install run[0] must be path-contained to the clone dest: no ".." escape.
+[[package]]
+name = "tool"
+backend = "git-clone"
+url = "https://github.com/example/tool"
+dest = ".config/tool"
+post_install = [{ run = ["../../bin/install-evil.sh"] }]

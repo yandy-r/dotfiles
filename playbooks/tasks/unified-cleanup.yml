@@ -1,0 +1,31 @@
+---
+# Unified file management: check sources/destinations and clean up non-symlinks
+
+- name: Check source files exist before creating symlinks
+  ansible.builtin.stat:
+    path: '{{ dotfiles_dir }}/{{ item.src }}'
+  register: source_files_stat
+  loop: '{{ managed_symlink_configs }}'
+  loop_control:
+    label: '{{ item.src }}'
+
+- name: Check all existing destination files for cleanup
+  ansible.builtin.stat:
+    path: '{{ home_dir }}/{{ item.dest }}'
+  register: all_files_stat
+  loop: '{{ managed_symlink_configs }}'
+  loop_control:
+    label: '{{ item.dest }}'
+
+- name: Remove existing files and directories (if not symlinks and source exists)
+  ansible.builtin.file:
+    path: '{{ home_dir }}/{{ item.item.dest }}'
+    state: absent
+  when:
+    - not dry_run
+    - item.stat.exists
+    - not item.stat.islnk
+    - source_files_stat.results | selectattr('item.dest', 'equalto', item.item.dest) | map(attribute='stat.exists') | first | default(false)
+  loop: '{{ all_files_stat.results }}'
+  loop_control:
+    label: '{{ item.item.dest }}'

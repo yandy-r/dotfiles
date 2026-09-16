@@ -1,0 +1,61 @@
+search_mode = "daemon-fuzzy"
+# Atuin Configuration
+# See https://docs.atuin.sh/configuration/config for full documentation
+
+# Enable sync v2 for better performance
+[sync]
+records = true
+
+# Enable dotfiles management (aliases and env vars)
+[dotfiles]
+enabled = true
+
+# Search configuration
+[search]
+# Show inline results with 20 lines
+inline_height = 20
+
+# Exit search on scroll past boundaries
+[keys]
+scroll_exits = true
+
+# Statistics configuration
+[stats]
+# Common subcommands to track separately
+common_subcommands = [
+  "apt",
+  "brew",
+  "cargo",
+  "composer",
+  "dnf",
+  "docker",
+  "git",
+  "go",
+  "ip",
+  "kubectl",
+  "nix",
+  "nmcli",
+  "npm",
+  "pecl",
+  "pnpm",
+  "podman",
+  "port",
+  "systemctl",
+  "tmux",
+  "yarn",
+]
+
+# Common command prefixes to strip
+common_prefix = ["sudo"]
+
+# UI Configuration
+[ui]
+# Show preview of command
+show_preview = true
+
+[ai]
+enabled = true
+
+[daemon]
+enabled = true
+autostart = true

@@ -1,0 +1,6 @@
+# provides entries must be non-empty (whitespace-only counts as empty).
+[[package]]
+name = "blank"
+backend = "custom-script"
+script = "bin/install-blank.sh"
+provides = ["  "]

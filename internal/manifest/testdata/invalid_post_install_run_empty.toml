@@ -1,0 +1,7 @@
+# post_install step requires a non-empty run argv.
+[[package]]
+name = "tool"
+backend = "git-clone"
+url = "https://github.com/example/tool"
+dest = ".config/tool"
+post_install = [{ run = [] }]

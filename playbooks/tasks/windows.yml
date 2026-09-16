@@ -1,0 +1,25 @@
+---
+# Windows-specific configurations
+
+- name: Check Windows source files exist
+  ansible.builtin.stat:
+    path: '{{ dotfiles_dir }}/{{ item.src }}'
+  register: windows_src_check
+  loop: '{{ windows_configs }}'
+  when: ansible_facts["os_family"] == "Windows"
+  loop_control:
+    label: '{{ item.src }}'
+
+- name: Create symlinks for Windows configs
+  ansible.builtin.file:
+    src: '{{ dotfiles_dir }}/{{ item.item.src }}'
+    dest: '{{ home_dir }}/{{ item.item.dest }}'
+    state: link
+    force: '{{ force_symlinks }}'
+  when:
+    - not dry_run
+    - ansible_facts["os_family"] == "Windows"
+    - item.stat.exists
+  loop: '{{ windows_src_check.results | default([]) }}'
+  loop_control:
+    label: '{{ item.item.dest }}'

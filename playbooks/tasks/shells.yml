@@ -1,0 +1,70 @@
+---
+# Shell configurations: bash, zsh, and common files
+
+- name: Check bash source files exist
+  ansible.builtin.stat:
+    path: '{{ dotfiles_dir }}/{{ item.src }}'
+  register: bash_src_check
+  loop: '{{ bash_files }}'
+  loop_control:
+    label: '{{ item.src }}'
+
+- name: Create symlinks for bash files
+  ansible.builtin.file:
+    src: '{{ dotfiles_dir }}/{{ item.item.src }}'
+    dest: '{{ home_dir }}/{{ item.item.dest }}'
+    state: link
+    force: '{{ force_symlinks }}'
+  when:
+    - not dry_run
+    - item.stat.exists
+  loop: '{{ bash_src_check.results }}'
+  loop_control:
+    label: '{{ item.item.dest }}'
+  notify: shell config changed
+  tags: [bash]
+
+- name: Check zsh source files exist
+  ansible.builtin.stat:
+    path: '{{ dotfiles_dir }}/{{ item.src }}'
+  register: zsh_src_check
+  loop: '{{ zsh_files }}'
+  loop_control:
+    label: '{{ item.src }}'
+
+- name: Create symlinks for zsh files
+  ansible.builtin.file:
+    src: '{{ dotfiles_dir }}/{{ item.item.src }}'
+    dest: '{{ home_dir }}/{{ item.item.dest }}'
+    state: link
+    force: '{{ force_symlinks }}'
+  when:
+    - not dry_run
+    - item.stat.exists
+  loop: '{{ zsh_src_check.results }}'
+  loop_control:
+    label: '{{ item.item.dest }}'
+  notify: shell config changed
+  tags: [zsh]
+
+- name: Check common source files exist
+  ansible.builtin.stat:
+    path: '{{ dotfiles_dir }}/{{ item.src }}'
+  register: common_src_check
+  loop: '{{ common_files }}'
+  loop_control:
+    label: '{{ item.src }}'
+
+- name: Create symlinks for common files
+  ansible.builtin.file:
+    src: '{{ dotfiles_dir }}/{{ item.item.src }}'
+    dest: '{{ home_dir }}/{{ item.item.dest }}'
+    state: link
+    force: '{{ force_symlinks }}'
+  when:
+    - not dry_run
+    - item.stat.exists
+  loop: '{{ common_src_check.results }}'
+  loop_control:
+    label: '{{ item.item.dest }}'
+  tags: [common]

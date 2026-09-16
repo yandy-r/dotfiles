@@ -1,0 +1,144 @@
+[
+  // ============================================
+  // vscode-neovim Keybinding Overrides
+  // ============================================
+  // These keybindings disable VS Code's default behaviors when the Neovim
+  // extension is active, allowing Neovim to handle these keys instead.
+
+  // Ctrl+D: Disable multi-cursor select, let Neovim handle page down
+  {
+    "key": "ctrl+d",
+    "command": "-editor.action.addSelectionToNextFindMatch",
+    "when": "neovim.init && editorTextFocus"
+  },
+
+  // Ctrl+U: Disable undo, let Neovim handle page up
+  {
+    "key": "ctrl+u",
+    "command": "-cursorUndo",
+    "when": "neovim.init && editorTextFocus"
+  },
+
+  // Ctrl+A: Disable select all, let Neovim handle increment number
+  {
+    "key": "ctrl+a",
+    "command": "-editor.action.selectAll",
+    "when": "neovim.init && editorTextFocus"
+  },
+
+  // Ctrl+B: Disable toggle sidebar, let Neovim handle page back
+  {
+    "key": "ctrl+b",
+    "command": "-workbench.action.toggleSidebarVisibility",
+    "when": "neovim.init && editorTextFocus"
+  },
+
+  // Ctrl+E: Disable quick open recent, let Neovim handle scroll down
+  {
+    "key": "ctrl+e",
+    "command": "-workbench.action.quickOpenNavigateNextInFilePicker",
+    "when": "neovim.init && editorTextFocus"
+  },
+
+  // Ctrl+F: Disable find, let Neovim handle page forward
+  {
+    "key": "ctrl+f",
+    "command": "-actions.find",
+    "when": "neovim.init && editorTextFocus"
+  },
+
+  // Ctrl+Y: Disable redo, let Neovim handle scroll up/yank
+  {
+    "key": "ctrl+y",
+    "command": "-redo",
+    "when": "neovim.init && editorTextFocus"
+  },
+
+  // Ctrl+O: Disable file open, let Neovim handle jump back
+  {
+    "key": "ctrl+o",
+    "command": "-workbench.action.files.openFile",
+    "when": "neovim.init && editorTextFocus"
+  },
+
+  // Ctrl+I: Disable trigger suggest, let Neovim handle jump forward
+  {
+    "key": "ctrl+i",
+    "command": "-editor.action.triggerSuggest",
+    "when": "neovim.init && editorTextFocus"
+  },
+
+  // Ctrl+R: Disable search history, let Neovim handle redo
+  {
+    "key": "ctrl+r",
+    "command": "-workbench.action.openRecent",
+    "when": "neovim.init && editorTextFocus"
+  },
+
+  // Ctrl+W: Disable close editor, let Neovim handle window commands
+  {
+    "key": "ctrl+w",
+    "command": "-workbench.action.closeActiveEditor",
+    "when": "neovim.init && editorTextFocus"
+  },
+
+  // Ctrl+G: Disable go to line, let Neovim handle it
+  {
+    "key": "ctrl+g",
+    "command": "-workbench.action.gotoLine",
+    "when": "neovim.init && editorTextFocus"
+  },
+
+  // Ctrl+]: Disable indent line, let Neovim handle jump to definition
+  {
+    "key": "ctrl+]",
+    "command": "-editor.action.indentLines",
+    "when": "neovim.init && editorTextFocus"
+  },
+
+  // Ctrl+[: Disable outdent line, let Neovim handle escape
+  {
+    "key": "ctrl+[",
+    "command": "-editor.action.outdentLines",
+    "when": "neovim.init && editorTextFocus"
+  },
+
+  // ============================================
+  // Insert Mode Specific Overrides
+  // ============================================
+  // Some keys should work differently in insert mode
+
+  // Ctrl+H: Disable replace, let Neovim handle backspace in insert mode
+  {
+    "key": "ctrl+h",
+    "command": "-editor.action.startFindReplaceAction",
+    "when": "neovim.init && editorTextFocus"
+  },
+
+  // Ctrl+J: Disable join lines, let Neovim handle newline in insert mode
+  {
+    "key": "ctrl+j",
+    "command": "-editor.action.joinLines",
+    "when": "neovim.init && editorTextFocus"
+  }
+
+  // ============================================
+  // Preserve Some VS Code Shortcuts (Optional)
+  // ============================================
+  // Uncomment these if you want certain VS Code shortcuts to work
+  // even when Neovim is active
+
+  // Example: Use Ctrl+Shift+D for multi-cursor instead of Ctrl+D
+  // {
+  //   "key": "ctrl+shift+d",
+  //   "command": "editor.action.addSelectionToNextFindMatch",
+  //   "when": "editorTextFocus"
+  // }
+
+  // Example: Use Ctrl+Shift+F for find instead of Ctrl+F
+  // {
+  //   "key": "ctrl+shift+f",
+  //   "command": "actions.find",
+  //   "when": "editorTextFocus"
+  // }
+]

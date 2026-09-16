@@ -1,0 +1,7 @@
+ruff
+sqlfluff
+black
+cmakelang
+cmakelint
+ansible-lint
+pip

@@ -1,0 +1,4 @@
+{
+  "name": "dotfiles (Go + shell mono-repo)",
+  "install": "bash .cursor/install.sh"
+}

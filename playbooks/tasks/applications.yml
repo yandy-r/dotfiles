@@ -1,0 +1,24 @@
+---
+# Application configurations (nvim, wezterm, ghostty, mise, alacritty)
+
+- name: Check application source files exist
+  ansible.builtin.stat:
+    path: '{{ dotfiles_dir }}/{{ item.src }}'
+  register: app_src_check
+  loop: '{{ app_configs }}'
+  loop_control:
+    label: '{{ item.src }}'
+
+- name: Create symlinks for application configs
+  ansible.builtin.file:
+    src: '{{ dotfiles_dir }}/{{ item.item.src }}'
+    dest: '{{ home_dir }}/{{ item.item.dest }}'
+    state: link
+    force: '{{ force_symlinks }}'
+  when:
+    - not dry_run
+    - item.stat.exists
+  loop: '{{ app_src_check.results }}'
+  loop_control:
+    label: '{{ item.item.dest }}'
+  tags: [apps]

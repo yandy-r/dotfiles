@@ -1,0 +1,12 @@
+# SHA256 that isn't 64-char lowercase hex.
+
+[intents.base]
+description = "test"
+default = true
+packages = ["starship"]
+
+[[package]]
+name = "starship"
+backend = "script-url"
+url = "https://starship.rs/install.sh"
+sha256 = "not-a-valid-sha256"

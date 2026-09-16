@@ -1,0 +1,9 @@
+# github-release package pinning a sha256 without a tag: the checksum
+# would be verified against the floating releases/latest asset and break
+# on the next upstream release.
+[[package]]
+name = "eza"
+backend = "github-release"
+repo = "eza-community/eza"
+asset = "eza_x86_64-unknown-linux-gnu.tar.gz"
+sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

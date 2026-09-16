@@ -1,0 +1,74 @@
+# ShellCheck Configuration
+# ======================
+# This file configures ShellCheck behavior for shell scripts in this repository.
+# Placed at ${HOME}/.shellcheckrc via ansible-playbook playbooks/symlinks.yml
+
+# Disable specific checks that are commonly false positives or stylistic preferences
+# in dotfiles and shell configuration scripts.
+
+# SC2034: Variable appears unused
+# Common in shell configs where variables are exported or sourced by other scripts
+disable=SC2034
+
+# SC1090: Can't follow non-constant source
+# Common when sourcing files with dynamic paths or variables
+disable=SC1090
+
+# SC1091: Not following sourced file
+# Occurs when ShellCheck can't find or access sourced files
+disable=SC1091
+
+# SC2086: Double quote to prevent globbing and word splitting
+# Sometimes globbing is intentional, especially in wrapper scripts
+# Uncomment if you want to allow intentional word splitting:
+# disable=SC2086
+
+# SC2155: Declare and assign separately to avoid masking return values
+# Common pattern in shell scripts, not always problematic
+# Uncomment if this is a frequent issue:
+# disable=SC2155
+
+# SC2164: Use 'cd ... || exit' in case cd fails
+# Not always needed in interactive shell configurations
+# Uncomment if you handle cd failures differently:
+# disable=SC2164
+
+# SC2181: Check exit code directly with e.g. 'if mycmd;', not indirectly with $?
+# Style preference - some prefer explicit $? checks for clarity
+# Uncomment if you prefer using $?:
+# disable=SC2181
+
+# SC2206: Quote to prevent word splitting/globbing, or split robustly with mapfile or read -a
+# Sometimes array splitting is intentional
+# Uncomment if needed:
+# disable=SC2206
+
+# SC2059: Don't use variables in the printf format string
+# Sometimes necessary for dynamic formatting
+# Uncomment if needed:
+# disable=SC2059
+
+# SC2317: Command appears to be unreachable
+# Can trigger false positives in complex shell functions
+# Uncomment if needed:
+# disable=SC2317
+
+# Additional Options
+# ==================
+
+# Shell dialect (bash, sh, dash, ksh)
+# Uncomment and set if you want to enforce a specific shell:
+# shell=bash
+
+# Source path for ShellCheck to find sourced files
+# Uncomment and adjust if needed:
+# source-path=SCRIPTDIR
+
+# Enable all optional checks (use with caution)
+# Uncomment to enable:
+# enable=all
+
+# Exclude specific files or patterns
+# Uncomment and adjust as needed:
+# exclude-path=vendor/
+# exclude-path=third_party/

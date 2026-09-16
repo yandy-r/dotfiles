@@ -1,0 +1,84 @@
+# GoReleaser configuration for the dotf CLI -- Forgejo/Gitea release target.
+#
+# This is a mirror of .goreleaser.yml used by .forgejo/workflows/release.yml to
+# publish to the self-hosted Forgejo instance. Keep builds/archives/checksum/
+# changelog IN SYNC with .goreleaser.yml; the ONLY intended differences are the
+# `release` target (gitea instead of github) and the `gitea_urls` block.
+# Docs: https://goreleaser.com  --  schema version 2.
+version: 2
+
+project_name: dotf
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: dotf
+    main: ./cmd/dotf
+    binary: dotf
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - -s -w -X github.com/yandy-r/dotfiles/internal/version.Version={{.Version}} -X github.com/yandy-r/dotfiles/internal/version.Commit={{.ShortCommit}}
+
+archives:
+  - id: dotf
+    ids:
+      - dotf
+    # Deterministic, version-free name so the bootstrap shim can resolve
+    # /releases/latest/download/<name> without parsing a version.
+    name_template: "dotf_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE*
+      - README*
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot-{{ .ShortCommit }}"
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - "^style:"
+      - Merge pull request
+      - Merge branch
+
+# Publish to the Forgejo/Gitea instance the release workflow runs on. The URLs
+# are templated from env (set by .forgejo/workflows/release.yml) so the instance
+# hostname stays out of version control.
+gitea_urls:
+  api: "{{ .Env.GITEA_API_URL }}"
+  download: "{{ .Env.GITEA_DOWNLOAD_URL }}"
+
+release:
+  gitea:
+    owner: yandy
+    name: dotfiles
+  draft: false
+  prerelease: auto

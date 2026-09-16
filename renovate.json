@@ -1,0 +1,48 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Self-hosted Renovate config for the Forgejo origin. Full rationale and the maintainer activation steps live in docs/renovate.md (spike #58).",
+    "INERT until the maintainer creates a renovate-bot PAT, sets the RENOVATE_TOKEN secret, and enables .forgejo/workflows/renovate.yml. No token means no runs and no pull requests.",
+    "Manages gomod, npm, and GitHub-Actions-style action pins (the github-actions manager already covers .github/, .gitea/ and .forgejo/ workflows by default). It deliberately does NOT manage manifest/dotf.lock, which is owned by 'dotf lock'."
+  ],
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard"
+  ],
+  "enabledManagers": [
+    "gomod",
+    "npm",
+    "github-actions"
+  ],
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 2,
+  "schedule": [
+    "before 9am on monday"
+  ],
+  "packageRules": [
+    {
+      "description": "Force the conventional-commit type 'chore' for every dependency update so commits satisfy commitlint (type-enum) and stay out of release notes. Overrides the fix-for-runtime-deps rule pulled in by config:recommended.",
+      "matchPackageNames": [
+        "*"
+      ],
+      "semanticCommitType": "chore"
+    },
+    {
+      "description": "Group non-major npm dev-dependency bumps (linters, commit hooks, tsx) into a single low-noise pull request.",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "npm dev dependencies (non-major)"
+    }
+  ]
+}

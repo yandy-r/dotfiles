@@ -1,0 +1,367 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
+readonly SCRIPT_NAME
+readonly LOG_PREFIX="[ONEDRIVE-SHAREPOINT]"
+
+CONFIG_BASE="${XDG_CONFIG_HOME:-${HOME}/.config}"
+SYNC_BASE="${HOME}/SharePoint"
+PROFILE_NAME=""
+SITE_QUERY=""
+DRIVE_ID=""
+SYNC_DIR=""
+CONFDIR=""
+ENABLE_SERVICE=false
+INITIAL_SYNC=false
+FORCE=false
+DRY_RUN=false
+DEFAULT_SERVICE_WAS_ACTIVE=false
+ONEDRIVE_BIN=""
+
+usage() {
+    cat <<EOF
+Usage: $SCRIPT_NAME --name NAME [--site QUERY | --drive-id DRIVE_ID] [OPTIONS]
+
+Create a separate onedrive-abraunegg profile for syncing a SharePoint
+document library.
+
+Required:
+    --name NAME             Local profile name, for example Sales or Sales-Dev
+    --site QUERY            SharePoint library query passed to onedrive
+    --drive-id DRIVE_ID     Existing SharePoint drive_id; skips lookup
+
+Options:
+    --sync-dir DIR          Local sync directory (default: ~/SharePoint/NAME)
+    --confdir DIR           onedrive config directory (default: ~/.config/onedrive-SLUG)
+    --enable-service        Create, enable, and start a systemd user service
+    --initial-sync          Run one foreground sync after creating config
+    --force                 Overwrite an existing generated config or service
+    --dry-run               Show actions without changing files
+    -h, --help              Show this help message
+
+Examples:
+    $SCRIPT_NAME --name Sales --site Sales --enable-service
+    $SCRIPT_NAME --name Sales-Dev --drive-id 'b!example' --enable-service
+    $SCRIPT_NAME --name Ops --site Ops --sync-dir ~/SharePoint/Ops --initial-sync
+
+Notes:
+    If --site is used and the default onedrive.service is running, this script
+    temporarily stops it for the drive_id lookup and restarts it before exit.
+EOF
+    exit "${1:-0}"
+}
+
+log() {
+    echo "${LOG_PREFIX} $*" >&2
+}
+
+error_exit() {
+    log "ERROR: $1"
+    exit "${2:-1}"
+}
+
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+require_value() {
+    local option="$1"
+    local value="${2:-}"
+
+    [[ -n "$value" ]] || error_exit "${option} requires a value"
+}
+
+validate_config_value() {
+    local label="$1"
+    local value="$2"
+
+    case "$value" in
+        *$'\n'*|*$'\r'*|*\"*|*\\*)
+            error_exit "${label} cannot contain quotes, backslashes, or newlines"
+            ;;
+    esac
+}
+
+slugify() {
+    printf '%s' "$1" \
+        | tr '[:upper:]' '[:lower:]' \
+        | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//'
+}
+
+expand_path() {
+    local path="$1"
+    case "$path" in
+        \~) printf '%s\n' "$HOME" ;;
+        \~/*) printf '%s/%s\n' "$HOME" "${path#~/}" ;;
+        *) printf '%s\n' "$path" ;;
+    esac
+}
+
+systemd_escape_specifiers() {
+    printf '%s' "$1" | sed 's/%/%%/g'
+}
+
+run() {
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log "DRY-RUN: $*"
+        return 0
+    fi
+
+    "$@"
+}
+
+restart_default_service_if_needed() {
+    if [[ "$DEFAULT_SERVICE_WAS_ACTIVE" == "true" ]]; then
+        log "Restarting default onedrive.service"
+        run systemctl --user start onedrive.service || log "WARNING: failed to restart default onedrive.service"
+    fi
+}
+
+stop_default_service_for_lookup() {
+    if ! command_exists systemctl; then
+        return 0
+    fi
+
+    if systemctl --user is-active --quiet onedrive.service; then
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log "DRY-RUN: would temporarily stop default onedrive.service for SharePoint drive_id lookup"
+            return 0
+        fi
+
+        DEFAULT_SERVICE_WAS_ACTIVE=true
+        trap restart_default_service_if_needed EXIT
+        log "Stopping default onedrive.service for SharePoint drive_id lookup"
+        systemctl --user stop onedrive.service
+    fi
+}
+
+query_drive_id() {
+    local query="$1"
+    local output
+    local parsed_drive_id
+
+    stop_default_service_for_lookup
+
+    log "Querying SharePoint drive_id for: ${query}"
+    if ! output="$("$ONEDRIVE_BIN" --get-sharepoint-drive-id "$query" 2>&1)"; then
+        printf '%s\n' "$output" >&2
+        error_exit "SharePoint drive_id lookup failed"
+    fi
+
+    printf '%s\n' "$output" >&2
+
+    parsed_drive_id="$(printf '%s\n' "$output" | awk -F'drive_id:[[:space:]]*' '/drive_id:/ {print $2; exit}' | xargs)"
+    [[ -n "$parsed_drive_id" ]] || error_exit "Could not parse drive_id from onedrive output"
+
+    printf '%s\n' "$parsed_drive_id"
+}
+
+write_config() {
+    local config_file="${CONFDIR}/config"
+
+    if [[ -e "$config_file" && "$FORCE" != "true" ]]; then
+        error_exit "Config already exists: ${config_file}. Re-run with --force to overwrite."
+    fi
+
+    log "Creating config directory: ${CONFDIR}"
+    run mkdir -p "$CONFDIR"
+
+    log "Creating sync directory: ${SYNC_DIR}"
+    run mkdir -p "$SYNC_DIR"
+
+    log "Writing onedrive config: ${config_file}"
+    if [[ "$DRY_RUN" == "true" ]]; then
+        return 0
+    fi
+
+    umask 077
+    cat > "$config_file" <<EOF
+# Generated by ${SCRIPT_NAME}
+sync_dir = "${SYNC_DIR}"
+drive_id = "${DRIVE_ID}"
+disable_version_check = "true"
+EOF
+}
+
+write_service() {
+    local slug="$1"
+    local service_dir="${CONFIG_BASE}/systemd/user"
+    local service_name="onedrive-sharepoint-${slug}.service"
+    local service_file="${service_dir}/${service_name}"
+    local service_exists=false
+    local escaped_profile_name
+    local escaped_confdir
+    local escaped_onedrive_bin
+
+    if [[ -e "$service_file" && "$FORCE" != "true" ]]; then
+        error_exit "Service already exists: ${service_file}. Re-run with --force to overwrite."
+    fi
+
+    if [[ -e "$service_file" ]]; then
+        service_exists=true
+    fi
+
+    if [[ "$CONFDIR" =~ [[:space:]] ]]; then
+        error_exit "Service generation does not support whitespace in --confdir: ${CONFDIR}"
+    fi
+
+    if [[ "$ONEDRIVE_BIN" =~ [[:space:]] ]]; then
+        error_exit "Service generation does not support whitespace in onedrive path: ${ONEDRIVE_BIN}"
+    fi
+
+    escaped_profile_name="$(systemd_escape_specifiers "$PROFILE_NAME")"
+    escaped_confdir="$(systemd_escape_specifiers "$CONFDIR")"
+    escaped_onedrive_bin="$(systemd_escape_specifiers "$ONEDRIVE_BIN")"
+
+    log "Writing systemd user service: ${service_file}"
+    run mkdir -p "$service_dir"
+
+    if [[ "$DRY_RUN" != "true" ]]; then
+        cat > "$service_file" <<EOF
+[Unit]
+Description=OneDrive SharePoint sync (${escaped_profile_name})
+Documentation=https://github.com/abraunegg/onedrive
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=/bin/sh -c 'sleep 15'
+ExecStart=${escaped_onedrive_bin} --monitor --confdir ${escaped_confdir}
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target
+EOF
+    fi
+
+    run systemctl --user daemon-reload
+
+    if [[ "$FORCE" == "true" && "$service_exists" == "true" ]] && systemctl --user is-active --quiet "$service_name"; then
+        log "Enabling and restarting ${service_name}"
+        run systemctl --user enable "$service_name"
+        run systemctl --user restart "$service_name"
+    else
+        log "Enabling and starting ${service_name}"
+        run systemctl --user enable --now "$service_name"
+    fi
+}
+
+run_initial_sync() {
+    log "Running initial foreground sync"
+    run "$ONEDRIVE_BIN" --confdir "$CONFDIR" --sync
+}
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --name)
+                require_value "$1" "${2:-}"
+                PROFILE_NAME="${2:-}"
+                shift 2
+                ;;
+            --site)
+                require_value "$1" "${2:-}"
+                SITE_QUERY="${2:-}"
+                shift 2
+                ;;
+            --drive-id)
+                require_value "$1" "${2:-}"
+                DRIVE_ID="${2:-}"
+                shift 2
+                ;;
+            --sync-dir)
+                require_value "$1" "${2:-}"
+                SYNC_DIR="$(expand_path "${2:-}")"
+                shift 2
+                ;;
+            --confdir)
+                require_value "$1" "${2:-}"
+                CONFDIR="$(expand_path "${2:-}")"
+                shift 2
+                ;;
+            --enable-service)
+                ENABLE_SERVICE=true
+                shift
+                ;;
+            --initial-sync)
+                INITIAL_SYNC=true
+                shift
+                ;;
+            --force)
+                FORCE=true
+                shift
+                ;;
+            --dry-run)
+                DRY_RUN=true
+                shift
+                ;;
+            -h|--help)
+                usage 0
+                ;;
+            *)
+                error_exit "Unknown argument: $1"
+                ;;
+        esac
+    done
+}
+
+main() {
+    parse_args "$@"
+
+    command_exists onedrive || error_exit "onedrive command not found"
+    ONEDRIVE_BIN="$(command -v onedrive)"
+
+    [[ -n "$PROFILE_NAME" ]] || error_exit "--name is required"
+    [[ -n "$SITE_QUERY" || -n "$DRIVE_ID" ]] || error_exit "Either --site or --drive-id is required"
+    if [[ -n "$SITE_QUERY" && -n "$DRIVE_ID" ]]; then
+        error_exit "Use only one of --site or --drive-id"
+    fi
+
+    local slug
+    slug="$(slugify "$PROFILE_NAME")"
+    [[ -n "$slug" ]] || error_exit "--name must contain at least one letter or number"
+
+    if [[ -z "$SYNC_DIR" ]]; then
+        SYNC_DIR="${SYNC_BASE}/${PROFILE_NAME}"
+    fi
+
+    if [[ -z "$CONFDIR" ]]; then
+        CONFDIR="${CONFIG_BASE}/onedrive-${slug}"
+    fi
+
+    validate_config_value "--name" "$PROFILE_NAME"
+    validate_config_value "--sync-dir" "$SYNC_DIR"
+    validate_config_value "--confdir" "$CONFDIR"
+    [[ -z "$DRIVE_ID" ]] || validate_config_value "--drive-id" "$DRIVE_ID"
+
+    if [[ -n "$SITE_QUERY" ]]; then
+        DRIVE_ID="$(query_drive_id "$SITE_QUERY")"
+        validate_config_value "queried drive_id" "$DRIVE_ID"
+    fi
+
+    log "Profile: ${PROFILE_NAME}"
+    log "Config:  ${CONFDIR}"
+    log "Sync:    ${SYNC_DIR}"
+    log "Drive:   ${DRIVE_ID}"
+
+    write_config
+
+    if [[ "$INITIAL_SYNC" == "true" ]]; then
+        run_initial_sync
+    fi
+
+    if [[ "$ENABLE_SERVICE" == "true" ]]; then
+        write_service "$slug"
+    else
+        log "Service not enabled. To run manually: onedrive --confdir '${CONFDIR}' --sync"
+        log "To monitor continuously later, re-run with --enable-service --force."
+    fi
+
+    log "Complete"
+}
+
+main "$@"

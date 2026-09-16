@@ -1,0 +1,803 @@
+# ================================================================
+# dotf Provisioning Manifest
+# ================================================================
+# The manifest embedded into the dotf CLI binary via embed.go
+# (//go:embed manifest/*.toml). It provisions the daily-driver toolset by
+# default (base + dev) and the full legacy bootstrap.sh tool set through opt-in
+# intents (runtimes, ai, cloud, git-tools) — see #31. It defines:
+#   - [intents.<name>]   named, user-selectable bundles of packages
+#   - [[package]]         installable units, one entry per supported backend
+#   - [[symlink]]         dotfiles-to-$HOME mappings, ported from
+#                          playbooks/vars/symlinks.yml
+#
+# Schema contract: internal/manifest/types.go (Manifest/Intent/Package/
+# Symlink/Backend). Keep this file in sync with that package — it is the
+# frozen source of truth for field names and the Backend values
+# (pkg, github-release, aur, toolchain, repo, script-url,
+# custom-script, git-clone, font).
+#
+# The `names` table on a [[package]] maps a platform.PkgMgr key
+# (internal/platform/types.go) to the package name used by that manager.
+# Only "pacman", "apt", "dnf", "homebrew", "yum", and "zypper" are valid
+# keys — except for toolchain packages, which instead key the install
+# identifier by tool ("cargo", "npm"), e.g. names = { cargo = "ripgrep" }
+# when the crate name differs from the binary name.
+
+# ================================================================
+# INTENTS
+# ================================================================
+# Named bundles a user opts into during provisioning. `default = true`
+# pre-selects the intent in the interactive TUI.
+
+[intents.base]
+description = "Minimal baseline tools for any machine"
+default = true
+packages = ["ripgrep", "starship"]
+
+[intents.dev]
+description = "Development toolchain, editors, and shell tooling"
+default = false
+packages = [
+    "eza",
+    "bat",
+    "fd",
+    "fzf",
+    "delta",
+    "zoxide",
+    "jq",
+    "gh",
+    "lazygit",
+    "tmux",
+    # Herdr uses sibling entries for the existing one-token OS-gate pattern,
+    # preventing native Windows applicability while sharing one logical binary.
+    "herdr",
+    "herdr-macos",
+    "neovim",
+    "yazi",
+    "direnv",
+    "lazygit-bin",
+    "yazi-bin",
+    "atuin",
+    "docker-ce",
+    # Shell/dev packages bootstrapped from native package managers. Entries that
+    # lack an official openSUSE package stay linux+macos-gated (see below) so
+    # the cross-platform reachability contract stays honest.
+    "ruby",
+    "ruby-devel",
+    "zsh-autosuggestions",
+    "zsh-autosuggestions-macos",
+    "zsh-syntax-highlighting",
+    "zsh-syntax-highlighting-macos",
+    "black",
+    "black-macos",
+    "kate",
+    "ruff",
+    "ruff-macos",
+]
+
+[intents.fonts]
+description = "Patched Nerd Font families the terminal and editor configs pin"
+default = true
+packages = ["jetbrains-mono-nerd-font"]
+
+[intents.gaming]
+description = "Gaming platforms and launchers"
+default = false
+packages = ["lutris", "lutris-pkg"]
+
+[intents.desktop-fonts]
+description = "Additional Nerd Font families used by the Hyprland desktop set"
+default = false
+packages = ["caskaydia-mono-nerd-font", "caskaydia-cove-nerd-font"]
+
+# --- opt-in provisioning-parity bundles --------------------------------
+# These wrap the battle-tested bin/install-*.sh scripts via the custom-script
+# backend to reach parity with the legacy bootstrap.sh tool set (#31). They are
+# opt-in: excluded from the headless default set (cmd/dotf/applyopts.go
+# optInIntents) and selected explicitly with `--intent <name>`. The scripts
+# self-detect the platform and self-skip when the tool is already installed.
+
+[intents.runtimes]
+description = "Language runtime managers and toolchains (mise, rust, lua)"
+default = false
+packages = ["mise", "rust", "lua"]
+
+[intents.ai]
+description = "AI coding assistants and CLIs"
+default = false
+packages = ["claude", "codex", "opencode", "fabric", "coderabbit"]
+
+[intents.cloud]
+description = "Cloud, IaC, and container CLIs"
+default = false
+packages = ["aws-tools", "azure-cli", "hashicorp-tools", "container-tools", "turso"]
+
+[intents.git-tools]
+description = "Git and forge tooling (tea, lefthook)"
+default = false
+packages = ["tea", "lefthook"]
+
+[intents.system]
+description = "System setup steps (tmux plugin manager, tmux-sessionizer, macOS GNU utils)"
+default = false
+packages = ["tpm", "tmux-sessionizer", "gnu-utilities", "debtap"]
+
+# ================================================================
+# PACKAGES
+# ================================================================
+# Every name referenced above in an intent's `packages` array MUST exist
+# as a [[package]].name, and package names MUST be unique across the whole
+# manifest. Commented-out reference examples document the backends the
+# default set does not currently use.
+
+# --- pkg: installed via the host's native package manager -------------
+# The modern-CLI toolset the shared shell configuration (common/tools.sh,
+# common/aliases.sh) depends on. The `names` table IS the applicability
+# declaration: internal/backend/pkg.go's applicableFor makes an entry applicable
+# exactly where it declares a name for the host's package manager, so a manager
+# whose distro genuinely does not package the tool is OMITTED, never invented —
+# the entry reports applicable=false there instead of aborting the run. Any tool
+# omitted for some manager MUST be covered by a sibling entry on another backend
+# (see lazygit-bin / yazi-bin below); that reachability contract is enforced by
+# TestEmbeddedManifest_ToolsReachableOnSupportedManagers. apt's fdfind/batcat
+# binary renames are irrelevant here because installs are detected via
+# package-manager query, not a PATH probe.
+[[package]]
+name = "ripgrep"
+backend = "pkg"
+names = { pacman = "ripgrep", apt = "ripgrep", dnf = "ripgrep", homebrew = "ripgrep", zypper = "ripgrep" }
+
+[[package]]
+name = "eza"
+backend = "pkg"
+names = { pacman = "eza", apt = "eza", dnf = "eza", homebrew = "eza", zypper = "eza" }
+
+[[package]]
+name = "bat"
+backend = "pkg"
+names = { pacman = "bat", apt = "bat", dnf = "bat", homebrew = "bat", zypper = "bat" }
+
+[[package]]
+name = "fd"
+backend = "pkg"
+names = { pacman = "fd", apt = "fd-find", dnf = "fd-find", homebrew = "fd", zypper = "fd" }
+
+[[package]]
+name = "fzf"
+backend = "pkg"
+names = { pacman = "fzf", apt = "fzf", dnf = "fzf", homebrew = "fzf", zypper = "fzf" }
+
+[[package]]
+name = "delta"
+backend = "pkg"
+names = { pacman = "git-delta", apt = "git-delta", dnf = "git-delta", homebrew = "git-delta", zypper = "git-delta" }
+
+[[package]]
+name = "zoxide"
+backend = "pkg"
+names = { pacman = "zoxide", apt = "zoxide", dnf = "zoxide", homebrew = "zoxide", zypper = "zoxide" }
+
+[[package]]
+name = "jq"
+backend = "pkg"
+names = { pacman = "jq", apt = "jq", dnf = "jq", homebrew = "jq", zypper = "jq" }
+
+[[package]]
+name = "gh"
+backend = "pkg"
+names = { pacman = "github-cli", apt = "gh", dnf = "gh", homebrew = "gh", zypper = "gh" }
+
+[[package]]
+name = "lazygit"
+backend = "pkg"
+names = { pacman = "lazygit", apt = "lazygit", homebrew = "lazygit", zypper = "lazygit" }
+
+[[package]]
+name = "tmux"
+backend = "pkg"
+names = { pacman = "tmux", apt = "tmux", dnf = "tmux", homebrew = "tmux", zypper = "tmux" }
+
+[[package]]
+name = "herdr"
+backend = "github-release"
+os = "linux"
+repo = "herdrdev/herdr"
+tag = "v0.8.2"
+binary = "herdr"
+checksums = { "linux/arm64" = "f55610658e1c2e0d2aaef730b4b2ab885f7f8ba00285ab372bfb14f2e3d5b40d", "linux/x86_64" = "976150a14d490c94b243ea2e1a7eb2dfb67f12e36b182db90936f6728e6aecf4" }
+
+[[package]]
+name = "herdr-macos"
+backend = "github-release"
+os = "macos"
+repo = "herdrdev/herdr"
+tag = "v0.8.2"
+binary = "herdr"
+checksums = { "darwin/arm64" = "a5d4f4d504d8b309c91f811050559300faba31258425f53c50852fc96f6ae574", "darwin/x86_64" = "ab50262c8190cd7aa9056d249d255c08c328c3e8716de9cfa29db4f131b8e2c1" }
+
+[[package]]
+name = "neovim"
+backend = "custom-script"
+script = "bin/install-neovim.sh"
+provides = ["nvim"]
+actions = ["update"]
+class = "rolling"
+justification = "Neovim's release archive includes a required runtime tree; the single-binary github-release backend cannot preserve it."
+
+[[package]]
+name = "yazi"
+backend = "pkg"
+names = { pacman = "yazi", apt = "yazi", homebrew = "yazi", zypper = "yazi" }
+
+[[package]]
+name = "direnv"
+backend = "pkg"
+names = { pacman = "direnv", apt = "direnv", dnf = "direnv", homebrew = "direnv", zypper = "direnv" }
+
+# Shell plugins + Ruby/Python tooling. Names are real package-manager tokens
+# only (Debian madison / Ubuntu Packages.gz / Arch search API / Homebrew
+# formulae API / openSUSE Tumbleweed OSS primary.xml / local `dnf list`).
+# common/tools.sh already probes the distro and Homebrew zsh plugin paths.
+#
+# Arch and Homebrew ship Ruby headers inside `ruby` itself (no ruby-devel /
+# ruby-dev package), so those managers map ruby-devel to `ruby` — idempotent
+# with --needed / brew install when the ruby entry already ran.
+#
+# openSUSE Tumbleweed OSS has no zsh-autosuggestions / zsh-syntax-highlighting
+# and only version-suffixed python3XX-{black,ruff} (no stable metapackage), so
+# those tools use linux + macos sibling entries instead of inventing a zypper
+# name. kate/ruby/ruby-devel are fully cross-platform including zypper.
+[[package]]
+name = "ruby"
+backend = "pkg"
+names = { pacman = "ruby", apt = "ruby", dnf = "ruby", homebrew = "ruby", zypper = "ruby" }
+
+[[package]]
+name = "ruby-devel"
+backend = "pkg"
+names = { pacman = "ruby", apt = "ruby-dev", dnf = "ruby-devel", homebrew = "ruby", zypper = "ruby-devel" }
+
+[[package]]
+name = "zsh-autosuggestions"
+backend = "pkg"
+os = "linux"
+names = { pacman = "zsh-autosuggestions", apt = "zsh-autosuggestions", dnf = "zsh-autosuggestions" }
+
+[[package]]
+name = "zsh-autosuggestions-macos"
+backend = "pkg"
+os = "macos"
+names = { homebrew = "zsh-autosuggestions" }
+
+[[package]]
+name = "zsh-syntax-highlighting"
+backend = "pkg"
+os = "linux"
+names = { pacman = "zsh-syntax-highlighting", apt = "zsh-syntax-highlighting", dnf = "zsh-syntax-highlighting" }
+
+[[package]]
+name = "zsh-syntax-highlighting-macos"
+backend = "pkg"
+os = "macos"
+names = { homebrew = "zsh-syntax-highlighting" }
+
+[[package]]
+name = "black"
+backend = "pkg"
+os = "linux"
+names = { pacman = "python-black", apt = "black", dnf = "black" }
+
+[[package]]
+name = "black-macos"
+backend = "pkg"
+os = "macos"
+names = { homebrew = "black" }
+
+[[package]]
+name = "kate"
+backend = "pkg"
+names = { pacman = "kate", apt = "kate", dnf = "kate", homebrew = "kate", zypper = "kate" }
+
+[[package]]
+name = "ruff"
+backend = "pkg"
+os = "linux"
+names = { pacman = "ruff", apt = "ruff", dnf = "ruff" }
+
+[[package]]
+name = "ruff-macos"
+backend = "pkg"
+os = "macos"
+names = { homebrew = "ruff" }
+
+# --- github-release: binary downloaded from a GitHub release ----------
+# Reference examples (commented out — nothing in the default set uses this
+# backend yet; real per-tool migrations with live tags+shas are Phase 3). A
+# `tag` is ALWAYS required once any checksum source is set, because a checksum
+# pinned against releases/latest breaks on the next upstream release. At least
+# ONE checksum source is required (fail-closed): a github-release never installs
+# unverified.
+#
+# (1) Explicit, arch-pinned asset with a single sha256. `asset` may template
+#     {{.OS}} (distro family), {{.ReleaseOS}} (linux/darwin/windows), and
+#     {{.Arch}} (amd64/arm64). A single sha256 only covers ONE concrete asset.
+# [[package]]
+# name = "some-tool"
+# backend = "github-release"
+# repo = "owner/some-tool"
+# tag = "v1.2.3"
+# asset = "some-tool_x86_64-unknown-linux-gnu.tar.gz"
+# sha256 = "<real 64-char lowercase-hex sha256 of the pinned tag's asset>"
+#
+# (2) Auto-detect (omit `asset`): list the tag's assets and match the host's
+#     OS/arch tokens. `binary` overrides the installed exe name when the asset's
+#     binary basename differs from `name` (e.g. hadolint-Linux-x86_64 -> hadolint).
+#     `checksums` pins a sha per "<ReleaseOS>/<canonical-arch>" target so one
+#     entry can cover every platform; `match` tunes detection (libc = gnu|musl,
+#     exclude = look-alike substrings like "completions").
+# [[package]]
+# name = "hadolint"
+# backend = "github-release"
+# repo = "hadolint/hadolint"
+# tag = "v2.12.0"
+# binary = "hadolint"
+# match = { libc = "gnu", exclude = ["completions"] }
+# checksums = { "linux/x86_64" = "<sha256>", "darwin/arm64" = "<sha256>" }
+#
+# (3) Auto-detect verified against a release checksum sidecar (checksums.txt /
+#     SHA256SUMS): the resolved asset's sha is read from that file's line.
+# [[package]]
+# name = "tflint"
+# backend = "github-release"
+# repo = "terraform-linters/tflint"
+# tag = "v0.52.0"
+# checksums_asset = "checksums.txt"
+
+# Fedora ships no `lazygit` RPM in any release/updates branch, so the dnf key was
+# removed from the shared pkg entry above and this os = "redhat" sibling supplies
+# the Fedora install path instead (ADR-3). Arch/Debian/macOS/openSUSE keep their
+# distro-managed package; only RedHat-family hosts resolve this entry. The asset
+# is auto-detected (lazygit_<ver>_linux_<arch>.tar.gz) and verified against the
+# release's own checksums.txt sidecar. `binary` names both the extracted
+# executable and the PATH probe, so the -bin package name never leaks onto PATH.
+# copr:atim/lazygit was rejected: its chroots are live but its newest build
+# FAILED, and a github-release is lock-pinnable and independent of a third
+# party's build queue.
+[[package]]
+name = "lazygit-bin"
+backend = "github-release"
+os = "redhat"
+repo = "jesseduffield/lazygit"
+tag = "v0.64.1"
+binary = "lazygit"
+checksums_asset = "checksums.txt"
+
+# Fedora ships no `yazi` RPM either; same os = "redhat" sibling pattern (ADR-3).
+# Upstream publishes NO combined checksums sidecar — only per-asset .sha256 files,
+# which carry a bare hash with no filename column and so cannot be read by
+# checksums_asset — so the shas are pinned inline per target. Keys are
+# "<ReleaseOS>/<canonical-arch>" (internal/backend/github_release.go targetKey),
+# hence x86_64 rather than amd64. CAVEAT: the upstream archive also ships `ya`,
+# yazi's plugin manager; the single-binary github-release backend installs only
+# `yazi`.
+[[package]]
+name = "yazi-bin"
+backend = "github-release"
+os = "redhat"
+repo = "sxyazi/yazi"
+tag = "v26.8.15"
+binary = "yazi"
+checksums = { "linux/arm64" = "f5a85771f06bb0e8c488136ae0aedaec8d341a7cee995549df391d7d852fe8d1", "linux/x86_64" = "cc67eb7991550c2f9407cda52d3f5af0937627aa6884e7de99a04fcf059807e0" }
+
+# --- font: patched Nerd Font families ----------------------------------
+# 22 config sites pin these family names by exact string. Arch ships patched
+# packages (ttf-*-nerd) and Homebrew ships casks; every other host — Fedora
+# included, whose only COPR is symbols-only and never creates these family
+# names — extracts the checksum-verified upstream archive into the XDG fonts
+# directory. See docs/reference/manifest-backends.md.
+[[package]]
+name = "jetbrains-mono-nerd-font"
+backend = "font"
+names = { pacman = "ttf-jetbrains-mono-nerd", homebrew = "font-jetbrains-mono-nerd-font" }
+repo = "ryanoasis/nerd-fonts"
+tag = "v3.4.0"
+checksums_asset = "SHA-256.txt"
+font = { family = "JetBrainsMono Nerd Font", archive = "JetBrainsMono" }
+
+[[package]]
+name = "caskaydia-mono-nerd-font"
+backend = "font"
+names = { pacman = "ttf-cascadia-mono-nerd", homebrew = "font-caskaydia-mono-nerd-font" }
+repo = "ryanoasis/nerd-fonts"
+tag = "v3.4.0"
+checksums_asset = "SHA-256.txt"
+font = { family = "CaskaydiaMono Nerd Font", archive = "CascadiaMono" }
+
+[[package]]
+name = "caskaydia-cove-nerd-font"
+backend = "font"
+names = { pacman = "ttf-cascadia-code-nerd", homebrew = "font-caskaydia-cove-nerd-font" }
+repo = "ryanoasis/nerd-fonts"
+tag = "v3.4.0"
+checksums_asset = "SHA-256.txt"
+font = { family = "CaskaydiaCove Nerd Font", archive = "CascadiaCode" }
+
+# --- aur: installed from the Arch User Repository ----------------------
+[[package]]
+name = "lutris"
+backend = "aur"
+
+# The conversion engine behind `dotf deb`. The aur backend gates on OSArch
+# (internal/backend/aur.go:36), which matches the command itself: `dotf deb`
+# requires a pacman-based host, so on every other OS this is correctly a
+# not-applicable skip rather than a failure. debtap additionally needs its
+# translation database populated with `sudo debtap -u` before first use, which
+# `dotf deb` checks for and reports.
+[[package]]
+name = "debtap"
+backend = "aur"
+
+# Fedora ships `lutris` in its official updates repo, but the aur backend gates on
+# OSArch (internal/backend/aur.go:36), so the whole gaming intent is a silent
+# no-op on Fedora without this sibling (ADR-4). Package names must be unique
+# (internal/manifest/validate.go:113), hence the distinct lutris-pkg name.
+# Deliberate low-value inclusion: on aarch64 Asahi there is no x86 Wine/Proton
+# without the muvm+FEX 4 KiB-page microVM. gaming is opt-in.
+[[package]]
+name = "lutris-pkg"
+backend = "pkg"
+os = "redhat"
+names = { dnf = "lutris" }
+
+# --- toolchain: installed via a language toolchain manager -------------
+# Reference example (commented out — nothing in the default set uses this
+# backend, so a fresh machine needs no cargo/npm toolchain). `tool` must be
+# a supported toolchain manager ("cargo" or "npm"); the package name doubles
+# as the installed binary probed on PATH.
+# [[package]]
+# name = "some-crate"
+# backend = "toolchain"
+# tool = "cargo"
+
+# --- repo: adds a third-party OS repository before installing ------------
+# The repo_line's {{.Codename}} and {{.Arch}} placeholders are templated from
+# the host at apply time — the codename from os-release VERSION_CODENAME (or
+# UBUNTU_CODENAME) and the arch from dpkg (ReleaseArch: e.g. "amd64"). Docker
+# publishes dists/<codename> with component "stable", so tracking the host's
+# release avoids a bare "stable" suite 404 on apt-get update. This entry still
+# targets the Ubuntu repo URL (docker's ubuntu dists), so it is Ubuntu-family;
+# full Debian support would additionally template the distro path (out of scope).
+#
+# One logical tool is one entry: the sub-table matching the host's package
+# manager decides applicability, so this entry is silently not-applicable on
+# Arch, macOS and openSUSE instead of failing there. No `os` gate is declared —
+# the apt_repo/dnf_repo pair IS the gate.
+#
+# The dnf side installs docker's ready-made Fedora .repo at
+# /etc/yum.repos.d/docker-ce.repo rather than calling `dnf config-manager`,
+# whose repo verbs and plugin package differ between dnf4 and dnf5.
+[[package]]
+name = "docker-ce"
+backend = "repo"
+names = { apt = "docker-ce", dnf = "docker-ce" }
+apt_repo = { key_url = "https://download.docker.com/linux/ubuntu/gpg", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb [arch={{.Arch}} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{.Codename}} stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
+dnf_repo = { id = "docker-ce", repofile = "https://download.docker.com/linux/fedora/docker-ce.repo" }
+
+# --- script-url: downloads and executes an install script over HTTPS --------
+# starship's install.sh is a rolling vendor installer whose hash rotates;
+# pinning it fails `dotf apply` closed on every fresh machine (verified stale
+# 2026-07-05). Left unpinned deliberately — the backend fetches over HTTPS and
+# runs without a checksum gate. Migrate to a versioned github-release asset
+# once the backend gains x86_64/darwin asset vocabulary (Phase 2).
+#
+# `args = ["--yes"]` is required, not cosmetic: without it install.sh prompts
+# "Install Starship latest to /usr/local/bin? [y/N]" by reading /dev/tty, which
+# a headless `dotf apply` has no answer for — the read fails and the installer
+# exits 1.
+[[package]]
+name = "starship"
+backend = "script-url"
+url = "https://starship.rs/install.sh"
+args = ["--yes"]
+
+# --- custom-script: executes an arbitrary local script -------------------
+# Each entry wraps a hardened bin/install-*.sh. The backend runs them as
+# `env NON_INTERACTIVE=true bash <script>` so a fresh install auto-approves its
+# prompts (never blocking on `read`). A converged host stays idempotent at the
+# engine level: `dotf apply`/`install` gate on Installed() and skip re-running an
+# installer entirely once the tool is present, so the in-script self-update for
+# the rolling tools (mise/rust/atuin) runs ONLY under `--force` /
+# `FORCE_INSTALL=true` (e.g. `dotf install --only mise --force`), not on every
+# apply. FORCE_INSTALL is left unset by default, so none force a reinstall.
+# Referenced only by the opt-in intents above, except atuin, which the dev intent
+# installs.
+#
+# custom-script is the LAST-RESORT backend: prefer a native backend (pkg, aur,
+# repo, toolchain, github-release, script-url, git-clone) before adding one —
+# see docs/reference/manifest-backends.md for the decision ladder.
+#
+# Every custom-script entry MUST declare a `class` (pinned|rolling|managed) and a
+# `justification` — the escape-hatch governance fence (internal/manifest/class.go,
+# validateClass). `rolling` = a vendor installer that tracks latest; `managed` =
+# delegated to a package/toolchain manager or a governed setup step. None of these
+# pin a single checksummed artifact, so none are `pinned`. The custom-script count
+# is frozen by a committed baseline (internal/manifest/ratchet_test.go): adding or
+# removing an entry must move it, so escape-hatch growth is always a reviewed act.
+[[package]]
+name = "atuin"
+backend = "custom-script"
+script = "bin/install-atuin.sh"
+provides = ["atuin"]
+class = "rolling"
+justification = "official installer tracks latest; no single pinnable artifact"
+
+# runtimes intent
+[[package]]
+name = "mise"
+backend = "custom-script"
+script = "bin/install-mise.sh"
+provides = ["mise"]
+class = "rolling"
+justification = "self-updating polyglot runtime manager"
+
+# The manifest name "rust" is not itself a binary — rustup installs `cargo` and
+# `rustc`. Declaring both makes the probe resolve (the default LookPath("rust")
+# never would), so Installed() reports rust honestly and the engine gates re-apply
+# like it does for mise/atuin; its rolling self-update becomes opt-in via --force.
+[[package]]
+name = "rust"
+backend = "custom-script"
+script = "bin/install-rust.sh"
+provides = ["cargo", "rustc"]
+class = "rolling"
+justification = "rustup self-updating toolchain; no single pinnable artifact"
+
+# The Lua interpreter's binary name varies by platform (`lua` on Fedora/source,
+# `lua5.1` on Debian/Arch/openSUSE, `luajit` on macOS), so it can't be an
+# all-present probe member. The installer provisions BOTH an interpreter and
+# `luarocks` (a stable binary name on every package-manager path), so a correct
+# sentinel combines an all-present `provides = ["luarocks"]` with an any-of
+# `provides_any` over the interpreter names: installed only when luarocks AND one
+# interpreter resolve, matching the installer's own definition. (luarocks alone
+# does not prove the interpreter is on PATH, and a system interpreter alone — as
+# on Fedora/RHEL where `lua` is a transitive dependency — does not prove luarocks
+# was installed, so neither half is sufficient by itself.)
+[[package]]
+name = "lua"
+backend = "custom-script"
+script = "bin/install-lua.sh"
+provides = ["luarocks"]
+provides_any = ["lua", "lua5.1", "luajit"]
+actions = ["remove"]
+class = "managed"
+justification = "installed via the host package manager (brew/apt/dnf), which owns versioning"
+
+# ai intent
+[[package]]
+name = "claude"
+backend = "custom-script"
+script = "bin/install-claude.sh"
+provides = ["claude"]
+actions = ["update", "remove"]
+class = "rolling"
+justification = "vendor installer tracks latest (CLAUDE_VERSION defaults to latest)"
+
+# codex ships the `codex` binary as the npm package @openai/codex, which is its
+# primary Linux install path; the native toolchain/npm backend replaces
+# bin/install-codex.sh. `names` maps the npm install identifier while `name`
+# (codex) doubles as the PATH probe. toolchain infers class = managed.
+[[package]]
+name = "codex"
+backend = "toolchain"
+tool = "npm"
+names = { npm = "@openai/codex" }
+
+[[package]]
+name = "opencode"
+backend = "custom-script"
+script = "bin/install-opencode.sh"
+provides = ["opencode"]
+actions = ["update", "remove"]
+class = "rolling"
+justification = "vendor installer tracks latest (OPENCODE_VERSION defaults to latest)"
+
+# fabric installs a binary whose name varies by platform: `fabric` via the
+# official installer / `go install .../cmd/fabric`, or `fabric-ai` via Homebrew
+# (macOS) and the AUR (Arch). The all-present `provides` model can't express
+# that, so an any-of `provides_any` names both candidates — installed when
+# EITHER resolves on PATH.
+[[package]]
+name = "fabric"
+backend = "custom-script"
+script = "bin/install-fabric.sh"
+provides_any = ["fabric", "fabric-ai"]
+actions = ["update", "remove"]
+class = "rolling"
+justification = "go install of the latest package version"
+
+[[package]]
+name = "coderabbit"
+backend = "custom-script"
+script = "bin/install-coderabbit.sh"
+provides = ["coderabbit"]
+actions = ["remove"]
+class = "rolling"
+justification = "vendor curl installer tracks latest"
+
+# cloud intent
+# Bundle: the installer provisions aws, sam, and ecs-cli; all-present so the
+# bundle only counts as installed when every member is on PATH.
+[[package]]
+name = "aws-tools"
+backend = "custom-script"
+script = "bin/install-aws-tools.sh"
+provides = ["aws", "sam", "ecs-cli"]
+class = "rolling"
+justification = "official AWS CLI v2 installer tracks latest"
+
+# The installed binary is `az`, not the package name `azure-cli`, so the default
+# LookPath("azure-cli") probe would never resolve — `provides` names the real binary.
+[[package]]
+name = "azure-cli"
+backend = "custom-script"
+script = "bin/install-azure-cli.sh"
+provides = ["az"]
+class = "managed"
+justification = "installed via the host package manager (pacman/apt), which owns versioning"
+
+# Bundle: the installer provisions terraform and tflint; all-present.
+[[package]]
+name = "hashicorp-tools"
+backend = "custom-script"
+script = "bin/install-hashicorp-tools.sh"
+provides = ["terraform", "tflint"]
+class = "managed"
+justification = "installed from the HashiCorp apt repository, which owns versioning"
+
+# Bundle: the installer provisions skaffold and hadolint; all-present.
+[[package]]
+name = "container-tools"
+backend = "custom-script"
+script = "bin/install-container-tools.sh"
+provides = ["skaffold", "hadolint"]
+class = "rolling"
+justification = "skaffold/hadolint download the latest release binary directly (only skaffold on macOS uses brew)"
+
+# turso ships per-target tar.gz archives plus a combined checksums.txt sidecar;
+# the native github-release backend auto-detects the host asset and verifies its
+# sha256 from the sidecar, replacing bin/install-turso.sh. `binary` names the
+# extracted executable (asset is turso-cli_<OS>_<arch>.tar.gz). github-release
+# infers class = pinned, so the host artifact is frozen in manifest/dotf.lock
+# (run `dotf lock` to add other targets); a lock miss still verifies via the
+# sidecar, so installs stay reproducible + checksum-verified.
+[[package]]
+name = "turso"
+backend = "github-release"
+repo = "tursodatabase/turso-cli"
+tag = "v1.0.29"
+binary = "turso"
+checksums_asset = "checksums.txt"
+
+# git-tools intent
+[[package]]
+name = "tea"
+backend = "custom-script"
+script = "bin/install-tea.sh"
+provides = ["tea"]
+class = "rolling"
+justification = "installs the latest published tea release resolved via the Gitea API"
+
+# lefthook ships the `lefthook` binary as the npm package of the same name (its
+# primary cross-platform path); the native toolchain/npm backend replaces
+# bin/install-lefthook.sh. toolchain infers class = managed.
+[[package]]
+name = "lefthook"
+backend = "toolchain"
+tool = "npm"
+
+# system intent — setup steps that have no package-manager analog
+# tpm is a native git-clone: the clone into ~/.tmux/plugins/tpm IS the whole
+# install (no PATH binary, no post_install). The dest doubles as the intrinsic
+# probe, so status/diff/apply tell the truth and a re-apply skips the already-
+# cloned plugin manager; git-clone infers class = managed (see class.go).
+[[package]]
+name = "tpm"
+backend = "git-clone"
+url = "https://github.com/tmux-plugins/tpm"
+dest = ".tmux/plugins/tpm"
+
+# The installed binary is `tms`, not the package name `tmux-sessionizer`, so the
+# default LookPath("tmux-sessionizer") probe would never resolve.
+[[package]]
+name = "tmux-sessionizer"
+backend = "custom-script"
+script = "bin/install-tmux-sessionizer.sh"
+provides = ["tms"]
+class = "managed"
+justification = "installed via cargo (toolchain manager), which owns versioning"
+
+# The installer is a hard no-op off macOS (uname != Darwin): its GNU brew
+# formulae expose g-prefixed binaries that only exist on macOS Homebrew (on
+# Linux these tools are the system default and unprefixed). The `os = "macos"`
+# gate scopes the package to macOS so status/diff/apply only evaluate the
+# sentinel there — without it the g-prefixed probe would always miss on Linux
+# and report a never-installed no-op. `provides` names representative g-prefixed
+# binaries from the headline formulae (coreutils→gls, gnu-sed→gsed, gnu-tar→gtar,
+# grep→ggrep), each of which is Homebrew-macOS-only.
+[[package]]
+name = "gnu-utilities"
+backend = "custom-script"
+script = "bin/install-gnu-utilities.sh"
+os = "macos"
+provides = ["gls", "gsed", "gtar", "ggrep"]
+class = "managed"
+justification = "installed via Homebrew on macOS, which owns versioning"
+
+# ================================================================
+# SYMLINKS
+# ================================================================
+# Dotfiles-to-$HOME mappings, ported from playbooks/vars/symlinks.yml.
+# `type` mirrors the Ansible {src,dest,type} contract; `os` restricts a
+# symlink to a specific platform.OS value (empty applies everywhere).
+
+[[symlink]]
+src = "starship.toml"
+dest = ".config/starship.toml"
+
+[[symlink]]
+src = "nvim"
+dest = ".config/nvim"
+type = "directory"
+
+[[symlink]]
+src = "wezterm"
+dest = ".config/wezterm"
+type = "directory"
+
+[[symlink]]
+src = "aerospace"
+dest = ".config/aerospace"
+type = "directory"
+os = "macos"
+
+# ================================================================
+# SETUP MODULES
+# ================================================================
+# A [[module]] is a named setup bundle opted into via `dotf setup <name>`. Each
+# is an ordered pipeline of TYPED steps — every step dispatches to one of the
+# shipped engines (symlink / pkg / sysconfig / custom-script), so `setup` is a
+# typed orchestrator over existing primitives, never a second free-form shell
+# escape hatch. These two seeds wrap the retained interactive setup scripts under
+# bin/. (The multi-step `ssh` module — symlink + firewall — is gated on #34 and
+# is intentionally NOT seeded here.)
+
+# The PAM fingerprint setup targets the Arch/CachyOS host; there is no supported
+# Linux fingerprint stack on Apple Silicon, so the module is gated off elsewhere.
+[[module]]
+name = "fingerprint"
+description = "PAM fingerprint auth for sudo/polkit"
+os = "arch"
+steps = [{ custom-script = "bin/setup-fingerprint.sh" }]
+
+[[module]]
+name = "onedrive"
+description = "OneDrive/SharePoint client setup"
+steps = [{ custom-script = "bin/onedrive-main-setup.sh" }]
+
+# ================================================================
+# SYSTEM CONFIG (optional)
+# ================================================================
+# The [sysconfig] table holds repo-wide OS-level defaults consumed by
+# `dotf sysconfig` (hostname/timezone/locale/shell/firewall per-OS). It is
+# shipped COMMENTED OUT so a bare `dotf sysconfig` (no flags) leaves every
+# domain unmanaged — no destructive shipped default. Uncomment and edit it in
+# your own manifest, or pass flags (--timezone/--locale/--shell/--firewall).
+#
+# hostname is intentionally NOT a field here: it is inherently per-machine and
+# supplied only by the --hostname flag.
+#
+# [sysconfig]
+# timezone = "America/New_York"   # IANA Area/City
+# locale   = "en_US.UTF-8"        # LANG value (Linux only; macOS = no-op)
+# shell    = "zsh"                # login shell name or absolute path
+# firewall = "auto"              # ufw | firewalld | auto | off

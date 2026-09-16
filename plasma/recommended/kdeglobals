@@ -1,0 +1,8 @@
+[General]
+TerminalApplication=ghostty
+XftAntialias=true
+XftHintStyle=hintslight
+
+[KDE]
+AnimationDurationFactor=0.5
+ShowDeleteCommand=true

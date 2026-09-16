@@ -1,0 +1,527 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_NAME="$(basename "$0")"
+
+usage() {
+  cat <<EOF
+Usage:
+  ${SCRIPT_NAME} pr merge [tea merge options] <pull-index> --delete-branch [--dry-run]
+  ${SCRIPT_NAME} pulls merge [tea merge options] <pull-index> --delete-branch [--dry-run]
+  ${SCRIPT_NAME} completion <bash|zsh|fish> [--dir DIR]
+  ${SCRIPT_NAME} completion print <bash|zsh|fish>
+  ${SCRIPT_NAME} <tea command> [args...]
+
+Adds gh-like PR branch cleanup around tea pr merge. Commands outside the
+supported merge cleanup flow are delegated to tea unchanged.
+EOF
+}
+
+log_info() {
+  echo "[INFO] $*"
+}
+
+log_warn() {
+  echo "[WARN] $*" >&2
+}
+
+log_error() {
+  echo "[ERROR] $*" >&2
+}
+
+die() {
+  log_error "$*"
+  exit 1
+}
+
+require_command() {
+  local command_name="$1"
+  command -v "$command_name" >/dev/null 2>&1 || die "Missing required command: ${command_name}"
+}
+
+generate_bash_completion() {
+  cat <<'EOF'
+# bash completion for tea-tools
+_tea_tools_completion() {
+  local cur
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  local words
+  words="pr pull pulls merge m completion install bash zsh fish --delete-branch --dry-run --style --title --message --repo --remote --login --output --help -h -s -t -m -r -R -l -o"
+  COMPREPLY=($(compgen -W "$words" -- "$cur"))
+}
+complete -F _tea_tools_completion tea-tools
+EOF
+}
+
+generate_zsh_completion() {
+  cat <<'EOF'
+#compdef tea-tools
+
+_tea_tools() {
+  local -a commands merge_flags shells
+  commands=(
+    'pr:manage pull requests'
+    'pull:manage pull requests'
+    'pulls:manage pull requests'
+    'completion:install shell completions'
+    'help:show help'
+  )
+  merge_flags=(
+    '--delete-branch[delete remote and local PR branch after merge]'
+    '--dry-run[show merge and cleanup steps without mutating]'
+    '--style=[merge style]:style:(merge rebase squash rebase-merge)'
+    '-s[merge style]:style:(merge rebase squash rebase-merge)'
+    '--title=[merge commit title]:title:'
+    '-t[merge commit title]:title:'
+    '--message=[merge commit message]:message:'
+    '-m[merge commit message]:message:'
+    '--repo=[repository slug or path]:repo:'
+    '-r[repository slug or path]:repo:'
+    '--remote=[remote name]:remote:'
+    '-R[remote name]:remote:'
+    '--login=[tea login name]:login:'
+    '-l[tea login name]:login:'
+    '--output=[output format]:format:(simple table csv tsv yaml json)'
+    '-o[output format]:format:(simple table csv tsv yaml json)'
+    '--help[show help]'
+    '-h[show help]'
+  )
+  shells=('bash:install bash completion' 'zsh:install zsh completion' 'fish:install fish completion')
+
+  case "${words[2]:-}" in
+    pr|pull|pulls)
+      if [[ "${words[3]:-}" == merge || "${words[3]:-}" == m ]]; then
+        _arguments $merge_flags '*:pull request number:'
+      else
+        _values 'pull request commands' 'merge:merge a pull request' 'm:merge a pull request'
+      fi
+      ;;
+    completion)
+      if [[ "${words[3]:-}" == print ]]; then
+        _values 'shells' 'bash:print bash completion' 'zsh:print zsh completion' 'fish:print fish completion'
+      else
+        _arguments '--dir=[completion output directory]:directory:_files -/' '*:shell:(bash zsh fish)'
+      fi
+      ;;
+    *)
+      _describe 'commands' commands
+      ;;
+  esac
+}
+
+if [[ -n "${CURRENT:-}" && "${#words[@]}" -gt 0 ]]; then
+  _tea_tools "$@"
+elif (( $+functions[compdef] )); then
+  compdef _tea_tools tea-tools
+fi
+EOF
+}
+
+generate_fish_completion() {
+  cat <<'EOF'
+# fish completion for tea-tools
+complete -c tea-tools -f
+complete -c tea-tools -n '__fish_use_subcommand' -a 'pr pull pulls completion help'
+complete -c tea-tools -n '__fish_seen_subcommand_from pr pull pulls' -a 'merge m'
+complete -c tea-tools -n '__fish_seen_subcommand_from merge m' -l delete-branch -d 'Delete remote and local PR branch after merge'
+complete -c tea-tools -n '__fish_seen_subcommand_from merge m' -l dry-run -d 'Show merge and cleanup steps without mutating'
+complete -c tea-tools -n '__fish_seen_subcommand_from merge m' -l style -s s -a 'merge rebase squash rebase-merge'
+complete -c tea-tools -n '__fish_seen_subcommand_from merge m' -l title -s t
+complete -c tea-tools -n '__fish_seen_subcommand_from merge m' -l message -s m
+complete -c tea-tools -n '__fish_seen_subcommand_from merge m' -l repo -s r
+complete -c tea-tools -n '__fish_seen_subcommand_from merge m' -l remote -s R
+complete -c tea-tools -n '__fish_seen_subcommand_from merge m' -l login -s l
+complete -c tea-tools -n '__fish_seen_subcommand_from merge m' -l output -s o -a 'simple table csv tsv yaml json'
+complete -c tea-tools -n '__fish_seen_subcommand_from completion' -a 'bash zsh fish print'
+EOF
+}
+
+generate_completion() {
+  local shell="$1"
+  case "$shell" in
+    bash) generate_bash_completion ;;
+    zsh) generate_zsh_completion ;;
+    fish) generate_fish_completion ;;
+    *) die "Unsupported shell for completion: ${shell}" ;;
+  esac
+}
+
+default_completion_dir() {
+  local shell="$1"
+  case "$shell" in
+    zsh)
+      printf '%s\n' "$HOME/.zsh/completions"
+      ;;
+    bash)
+      printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions"
+      ;;
+    fish)
+      printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions"
+      ;;
+    *)
+      die "Unsupported shell for completion install: ${shell}"
+      ;;
+  esac
+}
+
+completion_filename() {
+  local shell="$1"
+  case "$shell" in
+    zsh) printf '_tea-tools\n' ;;
+    bash) printf 'tea-tools\n' ;;
+    fish) printf 'tea-tools.fish\n' ;;
+    *) die "Unsupported shell for completion install: ${shell}" ;;
+  esac
+}
+
+install_completion() {
+  local shell=""
+  local output_dir=""
+
+  while (($#)); do
+    case "$1" in
+      --dir)
+        [[ $# -ge 2 ]] || die "--dir requires a value"
+        output_dir="$2"
+        shift 2
+        ;;
+      --dir=*)
+        output_dir="${1#--dir=}"
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        if [[ -z "$shell" ]]; then
+          shell="$1"
+        else
+          die "Unexpected completion install argument: $1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  [[ -n "$shell" ]] || die "Missing shell for completion install"
+  output_dir="${output_dir:-$(default_completion_dir "$shell")}"
+
+  mkdir -p "$output_dir"
+  local output_file
+  output_file="${output_dir%/}/$(completion_filename "$shell")"
+  generate_completion "$shell" >"$output_file"
+  log_info "Installed ${shell} completion to ${output_file}"
+}
+
+run_completion() {
+  if (($# == 0)); then
+    usage
+    exit 0
+  fi
+
+  case "$1" in
+    install)
+      shift
+      install_completion "$@"
+      ;;
+    print)
+      shift
+      [[ $# -ge 1 ]] || die "Missing shell for completion print"
+      generate_completion "$1"
+      ;;
+    bash|zsh|fish)
+      install_completion "$@"
+      ;;
+    --help|-h)
+      usage
+      ;;
+    *)
+      die "Unsupported completion command: $1"
+      ;;
+  esac
+}
+
+urlencode_path_segment() {
+  local input="$1"
+  local output=""
+  local i char ord
+
+  LC_ALL=C
+  for ((i = 0; i < ${#input}; i++)); do
+    char="${input:i:1}"
+    case "$char" in
+      [a-zA-Z0-9.~_-])
+        output+="$char"
+        ;;
+      *)
+        printf -v ord '%02X' "'$char"
+        output+="%${ord}"
+        ;;
+    esac
+  done
+
+  printf '%s\n' "$output"
+}
+
+extract_branch_from_label() {
+  local label="$1"
+
+  if [[ "$label" == *:* ]]; then
+    label="${label#*:}"
+  fi
+
+  printf '%s\n' "$label"
+}
+
+is_synthetic_ref() {
+  local branch="$1"
+  [[ "$branch" == refs/pull/* || "$branch" == refs/heads/* || "$branch" == refs/tags/* ]]
+}
+
+parse_merge_args() {
+  DELETE_BRANCH=false
+  DRY_RUN=false
+  PULL_INDEX=""
+  TEA_REMOTE_NAME="${TEA_TOOLS_DEFAULT_REMOTE:-origin}"
+  TEA_MERGE_ARGS=()
+
+  local arg
+  while (($#)); do
+    arg="$1"
+    case "$arg" in
+      --delete-branch)
+        DELETE_BRANCH=true
+        shift
+        ;;
+      --dry-run)
+        DRY_RUN=true
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      --remote|-R)
+		[[ $# -ge 2 ]] || die "${arg} requires a value"
+		TEA_REMOTE_NAME="$2"
+		TEA_MERGE_ARGS+=("$arg" "$2")
+		shift 2
+		;;
+      --title|--message|--style|-t|-m|-s|--repo|-r|--login|-l|--output|-o)
+		[[ $# -ge 2 ]] || die "${arg} requires a value"
+		TEA_MERGE_ARGS+=("$arg" "$2")
+		shift 2
+		;;
+      --remote=*)
+		TEA_REMOTE_NAME="${arg#--remote=}"
+		TEA_MERGE_ARGS+=("$arg")
+		shift
+		;;
+      --title=*|--message=*|--style=*|--repo=*|--login=*|--output=*)
+		TEA_MERGE_ARGS+=("$arg")
+		shift
+        ;;
+      --*)
+        TEA_MERGE_ARGS+=("$arg")
+        shift
+        ;;
+      *)
+        if [[ -z "$PULL_INDEX" ]]; then
+          PULL_INDEX="$arg"
+        else
+          TEA_MERGE_ARGS+=("$arg")
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  [[ -n "$PULL_INDEX" ]] || die "Missing pull request index"
+}
+
+resolve_pr_metadata() {
+  local pull_index="$1"
+  tea api "/repos/{owner}/{repo}/pulls/${pull_index}"
+}
+
+parse_pr_metadata() {
+  local pr_json="$1"
+
+  SOURCE_BRANCH="$(
+    jq -r '
+      .head.label // .head.ref // empty
+    ' <<<"$pr_json"
+  )"
+  SOURCE_BRANCH="$(extract_branch_from_label "$SOURCE_BRANCH")"
+
+  BASE_BRANCH="$(
+    jq -r '.base.ref // empty' <<<"$pr_json"
+  )"
+  DEFAULT_BRANCH="$(
+    jq -r '.base.repo.default_branch // empty' <<<"$pr_json"
+  )"
+  HEAD_REPO_FULL_NAME="$(
+    jq -r '.head.repo.full_name // empty' <<<"$pr_json"
+  )"
+
+  [[ -n "$SOURCE_BRANCH" ]] || die "Could not determine PR source branch"
+  [[ -n "$BASE_BRANCH" ]] || die "Could not determine PR base branch"
+  [[ -n "$HEAD_REPO_FULL_NAME" ]] || die "Could not determine PR source repository"
+
+  if is_synthetic_ref "$SOURCE_BRANCH"; then
+    die "Refusing to delete synthetic PR ref: ${SOURCE_BRANCH}"
+  fi
+
+  if [[ "$SOURCE_BRANCH" == "$BASE_BRANCH" || ( -n "$DEFAULT_BRANCH" && "$SOURCE_BRANCH" == "$DEFAULT_BRANCH" ) ]]; then
+    die "Refusing to delete protected branch: ${SOURCE_BRANCH}"
+  fi
+}
+
+delete_remote_branch() {
+  local repo_full_name="$1"
+  local branch="$2"
+  local encoded_branch
+
+  encoded_branch="$(urlencode_path_segment "$branch")"
+
+  if [[ "$DRY_RUN" == true ]]; then
+    log_info "Would delete remote branch ${repo_full_name}:${branch}"
+    return 0
+  fi
+
+  tea api --method DELETE "/repos/${repo_full_name}/branches/${encoded_branch}" >/dev/null
+}
+
+local_branch_exists() {
+  local branch="$1"
+  git show-ref --verify --quiet "refs/heads/${branch}"
+}
+
+working_tree_clean() {
+  [[ -z "$(git status --porcelain)" ]]
+}
+
+fast_forward_base_branch() {
+  local remote_name="$1"
+  local base_branch="$2"
+
+  if [[ "$DRY_RUN" == true ]]; then
+    log_info "Would fetch ${remote_name} ${base_branch}"
+    log_info "Would fast-forward ${base_branch} to ${remote_name}/${base_branch}"
+    return 0
+  fi
+
+  git fetch "$remote_name" "$base_branch" >/dev/null
+  git merge --ff-only "${remote_name}/${base_branch}" >/dev/null
+}
+
+delete_local_branch() {
+  local branch="$1"
+  local base_branch="$2"
+  local remote_name="$3"
+  local current_branch
+
+  if ! local_branch_exists "$branch"; then
+    log_info "No local branch named ${branch}; skipping local branch cleanup"
+    return 0
+  fi
+
+  current_branch="$(git branch --show-current)"
+
+  if [[ "$current_branch" == "$branch" ]]; then
+    if ! working_tree_clean; then
+      log_warn "Merged PR and deleted remote branch, but local branch ${branch} is checked out with a dirty working tree"
+      return 1
+    fi
+
+    if ! local_branch_exists "$base_branch"; then
+      log_warn "Merged PR and deleted remote branch, but local base branch ${base_branch} does not exist"
+      return 1
+    fi
+
+    if [[ "$DRY_RUN" == true ]]; then
+      log_info "Would switch to ${base_branch} before deleting local branch ${branch}"
+    else
+      git switch "$base_branch" >/dev/null
+    fi
+  fi
+
+  current_branch="$(git branch --show-current)"
+  if [[ "$current_branch" == "$base_branch" ]]; then
+    if ! fast_forward_base_branch "$remote_name" "$base_branch"; then
+      log_warn "Merged PR and deleted remote branch, but local ${base_branch} could not fast-forward from ${remote_name}/${base_branch}"
+      return 1
+    fi
+  fi
+
+  if [[ "$DRY_RUN" == true ]]; then
+    log_info "Would delete local branch ${branch}"
+    return 0
+  fi
+
+  git branch -d "$branch" >/dev/null
+}
+
+run_merge_cleanup() {
+  parse_merge_args "$@"
+
+  if [[ "$DELETE_BRANCH" != true ]]; then
+    exec tea pr merge "${TEA_MERGE_ARGS[@]}" "$PULL_INDEX"
+  fi
+
+  require_command tea
+  require_command git
+  require_command jq
+
+  local pr_json
+  pr_json="$(resolve_pr_metadata "$PULL_INDEX")"
+  parse_pr_metadata "$pr_json"
+
+  if [[ "$DRY_RUN" == true ]]; then
+    local merge_command_display="tea pr merge"
+    if ((${#TEA_MERGE_ARGS[@]} > 0)); then
+      merge_command_display+=" ${TEA_MERGE_ARGS[*]}"
+    fi
+    merge_command_display+=" ${PULL_INDEX}"
+    log_info "Would run: ${merge_command_display}"
+    log_info "Resolved source branch: ${HEAD_REPO_FULL_NAME}:${SOURCE_BRANCH}"
+    log_info "Resolved base branch: ${BASE_BRANCH}"
+  else
+    tea pr merge "${TEA_MERGE_ARGS[@]}" "$PULL_INDEX"
+  fi
+
+  delete_remote_branch "$HEAD_REPO_FULL_NAME" "$SOURCE_BRANCH"
+  delete_local_branch "$SOURCE_BRANCH" "$BASE_BRANCH" "$TEA_REMOTE_NAME"
+}
+
+main() {
+  if (($# == 0)); then
+    usage
+    exit 0
+  fi
+
+  case "${1:-}" in
+    help|--help|-h)
+      usage
+      exit 0
+      ;;
+    pr|pull|pulls)
+      if [[ "${2:-}" == "merge" || "${2:-}" == "m" ]]; then
+        shift 2
+        run_merge_cleanup "$@"
+        exit $?
+      fi
+      ;;
+    completion)
+      shift
+      run_completion "$@"
+      exit $?
+      ;;
+  esac
+
+  require_command tea
+  exec tea "$@"
+}
+
+main "$@"

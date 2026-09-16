@@ -1,0 +1,29 @@
+---
+# Generic Linux desktop configurations (hypr, waybar, swayosd, mako, wlogout, fuzzel, satty)
+
+- name: Check generic Linux desktop source files exist
+  ansible.builtin.stat:
+    path: '{{ dotfiles_dir }}/{{ item.src }}'
+  register: generic_linux_desktop_src_check
+  loop: '{{ generic_linux_desktop_configs }}'
+  when:
+    - is_linux_family
+    - manage_linux_desktop
+  loop_control:
+    label: '{{ item.src }}'
+
+- name: Create symlinks for generic Linux desktop configs
+  ansible.builtin.file:
+    src: '{{ dotfiles_dir }}/{{ item.item.src }}'
+    dest: '{{ home_dir }}/{{ item.item.dest }}'
+    state: link
+    force: '{{ force_symlinks }}'
+  when:
+    - not dry_run
+    - is_linux_family
+    - manage_linux_desktop
+    - item.stat.exists
+  loop: '{{ generic_linux_desktop_src_check.results | default([]) }}'
+  loop_control:
+    label: '{{ item.item.dest }}'
+  notify: hyprland config changed

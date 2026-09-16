@@ -1,0 +1,200 @@
+#compdef fabric fabric-ai fab fabric-setup fabric-patterns fpatterns fabric-update-patterns fupatterns fabric-models fmodels fabric-vendors fvendors fabric-serve fabric-serve-ollama
+
+_fabric_config_dir() {
+	printf '%s\n' "${FABRIC_CONFIG_HOME:-$HOME/.config/fabric}"
+}
+
+_fabric_dir_names() {
+	local dir="$1"
+	local -a names
+
+	[[ -d "$dir" ]] || return 1
+
+	names=("${dir}"/*(N:t))
+	(( ${#names[@]} )) || return 1
+	compadd "$@" -a names
+}
+
+_fabric_patterns() {
+	_fabric_dir_names "$(_fabric_config_dir)/patterns" "$@"
+}
+
+_fabric_contexts() {
+	_fabric_dir_names "$(_fabric_config_dir)/contexts" "$@"
+}
+
+_fabric_sessions() {
+	_fabric_dir_names "$(_fabric_config_dir)/sessions" "$@"
+}
+
+_fabric_strategies() {
+	local dir="$(_fabric_config_dir)/strategies"
+	local -a strategies
+
+	[[ -d "$dir" ]] || return 1
+
+	strategies=("${dir}"/*(.N:t:r))
+	(( ${#strategies[@]} )) || return 1
+	compadd "$@" -a strategies
+}
+
+_fabric_models() {
+	local -a common_models
+	common_models=(
+		gpt-4o
+		gpt-4o-mini
+		gpt-4.1
+		gpt-4.1-mini
+		gpt-5
+		gpt-5-mini
+		claude-3-5-sonnet-latest
+		claude-3-5-haiku-latest
+		gemini-2.5-pro
+		gemini-2.5-flash
+	)
+	compadd "$@" -a common_models
+}
+
+_fabric_vendors() {
+	local -a vendors
+	vendors=(
+		OpenAI
+		Anthropic
+		Gemini
+		Ollama
+		"LM Studio"
+	)
+	compadd "$@" -a vendors
+}
+
+_fabric_languages() {
+	local -a languages
+	languages=(
+		en
+		es
+		fr
+		de
+		it
+		pt-BR
+		pt-PT
+		zh
+		ja
+		ko
+	)
+	compadd "$@" -a languages
+}
+
+_fabric_thinking_levels() {
+	compadd "$@" off low medium high
+}
+
+_fabric_image_sizes() {
+	compadd "$@" auto 1024x1024 1536x1024 1024x1536
+}
+
+_fabric_image_quality() {
+	compadd "$@" auto low medium high
+}
+
+_fabric_image_background() {
+	compadd "$@" opaque transparent
+}
+
+_fabric_debug_levels() {
+	compadd "$@" 0 1 2 3 4
+}
+
+_fabric() {
+	local ret=1
+
+	_arguments -s -S \
+		'(-h --help)'{-h,--help}'[Show help]' \
+		'--version[Print current version]' \
+		'(-p --pattern)'{-p+,--pattern=}'[Choose a pattern]:pattern:_fabric_patterns' \
+		'(-v --variable)'{-v+,--variable=}'[Set pattern variable, e.g. #role:expert]:variable:' \
+		'(-C --context)'{-C+,--context=}'[Choose a context]:context:_fabric_contexts' \
+		'--session=[Choose a session]:session:_fabric_sessions' \
+		'(-a --attachment)'{-a+,--attachment=}'[Attach file path or URL]:attachment:_files' \
+		'(-S --setup)'{-S,--setup}'[Run setup]' \
+		'(-t --temperature)'{-t+,--temperature=}'[Set temperature]:temperature:' \
+		'(-T --topp)'{-T+,--topp=}'[Set top P]:top p:' \
+		'(-s --stream)'{-s,--stream}'[Stream response]' \
+		'(-P --presencepenalty)'{-P+,--presencepenalty=}'[Set presence penalty]:penalty:' \
+		'(-F --frequencypenalty)'{-F+,--frequencypenalty=}'[Set frequency penalty]:penalty:' \
+		'(-r --raw)'{-r,--raw}'[Use model defaults without chat options]' \
+		'(-l --listpatterns)'{-l,--listpatterns}'[List patterns]' \
+		'--readpattern=[Print pattern contents]:pattern:_fabric_patterns' \
+		'(-L --listmodels)'{-L,--listmodels}'[List models]' \
+		'(-x --listcontexts)'{-x,--listcontexts}'[List contexts]' \
+		'(-X --listsessions)'{-X,--listsessions}'[List sessions]' \
+		'(-U --updatepatterns)'{-U,--updatepatterns}'[Update patterns]' \
+		'(-c --copy)'{-c,--copy}'[Copy output to clipboard]' \
+		'(-m --model)'{-m+,--model=}'[Choose model]:model:_fabric_models' \
+		'(-V --vendor)'{-V+,--vendor=}'[Choose vendor]:vendor:_fabric_vendors' \
+		'--modelContextLength=[Model context length]:tokens:' \
+		'(-o --output)'{-o+,--output=}'[Write output to file]:output file:_files' \
+		'--output-session[Write entire session to output file]' \
+		'(-n --latest)'{-n+,--latest=}'[Number of latest patterns to list]:count:' \
+		'(-d --changeDefaultModel)'{-d,--changeDefaultModel}'[Change default model]' \
+		'(-y --youtube)'{-y+,--youtube=}'[YouTube URL]:url:_urls' \
+		'--playlist[Prefer playlist over video]' \
+		'--transcript[Grab transcript]' \
+		'--transcript-with-timestamps[Grab transcript with timestamps]' \
+		'--visual[Extract visual data from video]' \
+		'--visual-sensitivity=[FFmpeg scene detection tolerance]:sensitivity:' \
+		'--visual-fps=[Frames per second to extract]:fps:' \
+		'--comments[Grab YouTube comments]' \
+		'--metadata[Output video metadata]' \
+		'--yt-dlp-args=[Extra yt-dlp args]:args:' \
+		'--spotify=[Spotify podcast or episode URL]:url:_urls' \
+		'(-g --language)'{-g+,--language=}'[Language code]:language:_fabric_languages' \
+		'(-u --scrape_url)'{-u+,--scrape_url=}'[Scrape URL]:url:_urls' \
+		'(-q --scrape_question)'{-q+,--scrape_question=}'[Search question]:question:' \
+		'(-e --seed)'{-e+,--seed=}'[Generation seed]:seed:' \
+		'(-w --wipecontext)'{-w+,--wipecontext=}'[Wipe context]:context:_fabric_contexts' \
+		'(-W --wipesession)'{-W+,--wipesession=}'[Wipe session]:session:_fabric_sessions' \
+		'--printcontext=[Print context]:context:_fabric_contexts' \
+		'--printsession=[Print session]:session:_fabric_sessions' \
+		'--readability[Convert HTML input into a readable view]' \
+		'--input-has-vars[Apply variables to user input]' \
+		'--no-variable-replacement[Disable pattern variable replacement]' \
+		'--dry-run[Show request without sending]' \
+		'--serve[Serve Fabric REST API]' \
+		'--serveOllama[Serve Fabric REST API with Ollama endpoints]' \
+		'--address=[REST API bind address]:address:' \
+		'--api-key=[REST API key]:api key:' \
+		'--config=[YAML config file]:config file:_files -g "*.yml *.yaml"' \
+		'--listextensions[List extensions]' \
+		'--addextension=[Register extension config]:config file:_files' \
+		'--rmextension=[Remove extension]:extension:' \
+		'--strategy=[Choose strategy]:strategy:_fabric_strategies' \
+		'--liststrategies[List strategies]' \
+		'--listvendors[List vendors]' \
+		'--search[Enable web search]' \
+		'--search-location=[Web search location]:location:' \
+		'--image-file=[Save generated image]:image file:_files' \
+		'--image-size=[Image dimensions]:size:_fabric_image_sizes' \
+		'--image-quality=[Image quality]:quality:_fabric_image_quality' \
+		'--image-compression=[JPEG/WebP compression 0-100]:compression:' \
+		'--image-background=[Image background]:background:_fabric_image_background' \
+		'--suppress-think[Suppress thinking tag content]' \
+		'--think-start-tag=[Thinking start tag]:tag:' \
+		'--think-end-tag=[Thinking end tag]:tag:' \
+		'--disable-responses-api[Disable OpenAI Responses API]' \
+		'--transcribe-file=[Audio or video file]:media file:_files' \
+		'--transcribe-model=[Transcription model]:model:_fabric_models' \
+		'--split-media-file[Split large media files]' \
+		'--voice=[TTS voice]:voice:' \
+		'--list-gemini-voices[List Gemini TTS voices]' \
+		'--list-transcription-models[List transcription models]' \
+		'--notification[Send desktop notification when complete]' \
+		'--notification-command=[Notification command]:command:_command_names -e' \
+		'--thinking=[Reasoning level]:level:_fabric_thinking_levels' \
+		'--show-metadata[Print metadata to stderr]' \
+		'--debug=[Debug level]:level:_fabric_debug_levels' \
+		'*:input:_files' && ret=0
+
+	return ret
+}
+
+_fabric "$@"

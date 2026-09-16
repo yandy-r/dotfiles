@@ -1,0 +1,24 @@
+[Unit]
+Description=tmux session manager (save/restore via resurrect)
+Documentation=man:tmux(1)
+# Wait for graphical session so Wayland/X11 env vars are available
+After=graphical-session-pre.target
+Wants=graphical-session-pre.target
+
+[Service]
+Type=forking
+# Wrapper handles: server health-check, save-file validation, restore
+ExecStart=%h/.config/dotfiles/bin/tmux-session-manager.sh start
+# Save only if the server is alive — never writes 0-byte files
+ExecStop=%h/.config/dotfiles/bin/tmux-session-manager.sh stop
+# The tmux server may outlive this unit (user kills it, etc.)
+RemainAfterExit=yes
+# Give restore time to finish on slow systems
+TimeoutStartSec=30
+TimeoutStopSec=15
+# Don't kill the tmux server cgroup on ExecStop failure
+KillMode=none
+Restart=no
+
+[Install]
+WantedBy=default.target

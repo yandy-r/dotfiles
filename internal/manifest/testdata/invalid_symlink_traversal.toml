@@ -1,0 +1,3 @@
+[[symlink]]
+src = "nvim"
+dest = "../outside/nvim"

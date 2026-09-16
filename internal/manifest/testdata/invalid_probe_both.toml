@@ -1,0 +1,7 @@
+# provides and installed_when are mutually exclusive.
+[[package]]
+name = "conflict"
+backend = "custom-script"
+script = "bin/install-conflict.sh"
+provides = ["foo"]
+installed_when = { path = "~/foo" }

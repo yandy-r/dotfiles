@@ -1,0 +1,5 @@
+# git-clone backend requires dest.
+[[package]]
+name = "tool"
+backend = "git-clone"
+url = "https://github.com/example/tool"

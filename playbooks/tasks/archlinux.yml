@@ -1,0 +1,25 @@
+---
+# Arch Linux-specific configurations (systemd user services)
+
+- name: Check Arch Linux source files exist
+  ansible.builtin.stat:
+    path: '{{ dotfiles_dir }}/{{ item.src }}'
+  register: archlinux_src_check
+  loop: '{{ archlinux_configs }}'
+  when: ansible_facts["os_family"] == "Archlinux"
+  loop_control:
+    label: '{{ item.src }}'
+
+- name: Create symlinks for Arch Linux configs
+  ansible.builtin.file:
+    src: '{{ dotfiles_dir }}/{{ item.item.src }}'
+    dest: '{{ home_dir }}/{{ item.item.dest }}'
+    state: link
+    force: '{{ force_symlinks }}'
+  when:
+    - not dry_run
+    - ansible_facts["os_family"] == "Archlinux"
+    - item.stat.exists
+  loop: '{{ archlinux_src_check.results | default([]) }}'
+  loop_control:
+    label: '{{ item.item.dest }}'

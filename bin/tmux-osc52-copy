@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# ================================================================
+# OSC 52 Clipboard Copy Script for tmux
+# ================================================================
+# Sends OSC 52 escape sequences to copy text to clipboard over SSH
+
+# Read input from stdin or file
+if [ -t 0 ]; then
+  # If stdin is a terminal, read from file argument
+  input="${1:-}"
+  if [ -z "$input" ]; then
+    exit 1
+  fi
+else
+  # Read from stdin (piped input)
+  input="$(cat)"
+fi
+
+# Encode to base64
+if command -v base64 >/dev/null 2>&1; then
+  # Linux: use -w0 to disable line wrapping
+  if [ "$(uname)" = "Linux" ]; then
+    encoded="$(printf "%s" "$input" | base64 -w0)"
+  else
+    # macOS and others
+    encoded="$(printf "%s" "$input" | base64)"
+  fi
+else
+  echo "Error: base64 command not found" >&2
+  exit 1
+fi
+
+# Remove any newlines from base64 output (just in case)
+encoded="$(printf "%s" "$encoded" | tr -d '\n')"
+
+# Build OSC 52 sequence: ESC]52;c;{base64_data}BEL
+# ESC = \033, BEL = \007
+osc52="\033]52;c;${encoded}\007"
+
+# Check if we're in tmux
+if [ -n "${TMUX:-}" ]; then
+  # Wrap in tmux DCS passthrough sequence: ESC P tmux ; ESC {osc52} ESC \
+  # This tells tmux to pass the OSC 52 sequence to the terminal
+  printf "\033Ptmux;\033%s\033\\\\" "$osc52"
+else
+  # Not in tmux, send OSC 52 directly
+  printf "%s" "$osc52"
+fi
+
+# Ensure output is flushed
+printf "" >&2

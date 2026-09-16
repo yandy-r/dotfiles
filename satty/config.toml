@@ -1,0 +1,10 @@
+[general]
+copy-command = "wl-copy"
+early-exit = true
+output-filename = "~/Pictures/Screenshots/screenshot-%Y-%m-%d_%H-%M-%S.png"
+
+# Enter: copy to clipboard + save to file + exit
+actions-on-enter = ["save-to-clipboard", "save-to-file", "exit"]
+
+# Escape: save + copy + exit (same as Ctrl+S, then close)
+actions-on-escape = ["save-to-clipboard", "save-to-file", "exit"]

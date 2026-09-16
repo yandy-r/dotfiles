@@ -1,0 +1,13 @@
+# Unknown field inside a [[package]] table (a struct) — must trip
+# DisallowUnknownFields and surface as *toml.StrictMissingError.
+
+[intents.base]
+description = "test"
+default = true
+packages = ["ripgrep"]
+
+[[package]]
+name = "ripgrep"
+backend = "pkg"
+bogus_field = "nope"
+names = { apt = "ripgrep" }

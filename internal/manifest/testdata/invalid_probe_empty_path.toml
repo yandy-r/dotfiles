@@ -1,0 +1,6 @@
+# installed_when requires a non-empty path.
+[[package]]
+name = "tpm"
+backend = "custom-script"
+script = "bin/install-tpm.sh"
+installed_when = { path = "" }

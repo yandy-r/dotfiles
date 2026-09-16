@@ -1,0 +1,8 @@
+[ImageSave]
+imageSaveLocation=file:///home/testuser/Pictures/Screenshots/
+lastImageSaveLocation=file:///home/testuser/Pictures/Screenshots/Screenshot_00000000_000000.png
+translatedScreenshotsFolder=Screenshots
+
+[VideoSave]
+translatedScreencastsFolder=Screencasts
+videoSaveLocation=file:///home/testuser/Videos/Recordings/

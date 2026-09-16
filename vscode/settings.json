@@ -1,0 +1,116 @@
+{
+  // Word wrap configuration for vscode-neovim
+  // Default: word wrap OFF for all file types
+  "[*]": {
+    "editor.wordWrap": "off"
+  },
+
+  // Enable word wrap only for markdown and plain text files
+  "[markdown]": {
+    "editor.wordWrap": "on",
+    "editor.wordWrapColumn": 120
+  },
+
+  "[plaintext]": {
+    "editor.wordWrap": "on",
+    "editor.wordWrapColumn": 120
+  },
+
+  // ============================================
+  // vscode-neovim Configuration
+  // ============================================
+
+  // Neovim executable paths for different platforms
+  "vscode-neovim.neovimExecutablePaths.linux": "nvim",
+  "vscode-neovim.neovimExecutablePaths.darwin": "nvim",
+  "vscode-neovim.neovimExecutablePaths.win32": "nvim",
+
+  // Neovim init file paths (points to dotfiles repository)
+  "vscode-neovim.neovimInitVimPaths.linux": "~/.config/dotfiles/nvim",
+  "vscode-neovim.neovimInitVimPaths.darwin": "~/.config/dotfiles/nvim",
+  "vscode-neovim.neovimInitVimPaths.win32": "~/.config/dotfiles/nvim",
+
+  // Performance: Debounce times for selection synchronization
+  // Lower values = more responsive, higher values = better performance
+  "vscode-neovim.normalSelectionDebounceTime": 50,
+  "vscode-neovim.visualSelectionDebounceTime": 50,
+  "vscode-neovim.mouseSelectionDebounceTime": 100,
+
+  // Mouse behavior: Set to 0 to disable mouse selection synchronization
+  // Disabling can improve performance if you don't use mouse in Vim mode
+  "vscode-neovim.mouseSelectionStartLineMode": true,
+
+  // Control which Ctrl+key combinations are handled by Neovim
+  // These keys will be intercepted by Neovim before reaching VSCode
+  "vscode-neovim.ctrlKeysForNormalMode": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "o",
+    "p",
+    "r",
+    "s",
+    "t",
+    "u",
+    "v",
+    "w",
+    "x",
+    "y",
+    "z",
+    "/",
+    "]",
+    "=",
+    "-",
+    "[",
+    "right",
+    "left",
+    "up",
+    "down",
+    "backspace",
+    "delete"
+  ],
+  "vscode-neovim.ctrlKeysForInsertMode": ["a", "c", "d", "h", "j", "k", "m", "o", "r", "t", "u", "w", "y"],
+
+  // Debugging: Enable logging (optional, disable in production for performance)
+  // "vscode-neovim.logPath": "~/.local/share/vscode-neovim.log",
+  // "vscode-neovim.logOutputToConsole": false,
+  "vscode-neovim.logLevel": "Info",
+
+  // WSL (Windows Subsystem for Linux) support on Windows
+  "vscode-neovim.useWslBinary": false,
+
+  // Type checking for Lua code in init files
+  "vscode-neovim.typeChecking": true,
+
+  // Highlight matching text when searching
+  "vscode-neovim.highlightGroups.enable": true,
+
+  // Use virtual edit for seamless scrolling experience
+  "vscode-neovim.useVirtualEdit": false,
+
+  // Relative line numbers (replaces vscode line numbers in normal mode)
+  "vscode-neovim.relativenumber": true,
+
+  // ============================================
+  // Terminal and Panel Configuration
+  // ============================================
+
+  // Open new terminals as editor tabs instead of panel
+  "terminal.integrated.defaultLocation": "editor",
+
+  // Move the panel (Problems, Output, etc.) to the right side
+  "workbench.panel.defaultLocation": "right",
+
+  // Prevent panel from auto-opening (optional - keeps terminal in editor)
+  "workbench.panel.opensMaximized": "never"
+}

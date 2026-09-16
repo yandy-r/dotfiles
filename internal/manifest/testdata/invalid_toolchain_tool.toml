@@ -1,0 +1,12 @@
+# toolchain package whose tool is not a supported toolchain manager
+# (internal/backend/toolchain.go supports cargo and npm only).
+
+[intents.base]
+description = "test"
+default = true
+packages = ["rust"]
+
+[[package]]
+name = "rust"
+backend = "toolchain"
+tool = "rust"

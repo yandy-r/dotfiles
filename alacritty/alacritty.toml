@@ -1,0 +1,237 @@
+# ================================================================
+# Alacritty Configuration
+# ================================================================
+# High-performance terminal emulator configuration matching WezTerm preferences
+
+# ================================================================
+# GENERAL CONFIGURATION
+# ================================================================
+
+[general]
+# Import theme
+import = ["~/.config/alacritty/themes/catppuccin-mocha.toml"]
+
+# ================================================================
+# WINDOW CONFIGURATION
+# ================================================================
+
+[window]
+# Window opacity and visual effects
+opacity = 0.95
+blur = true
+
+# Window decorations and behavior
+decorations = "Buttonless"
+startup_mode = "Windowed"
+dynamic_title = true
+dynamic_padding = false
+
+# Window padding (matching WezTerm)
+padding.x = 8
+padding.y = 8
+
+# Initial window dimensions (matching WezTerm)
+dimensions.columns = 140
+dimensions.lines = 60
+
+# Window position (let OS decide)
+# position.x = 0
+# position.y = 0
+
+# Option as Alt key on macOS (matching WezTerm behavior)
+option_as_alt = "Both"
+
+# ================================================================
+# FONT CONFIGURATION
+# ================================================================
+
+[font]
+# Primary font (matching WezTerm/Ghostty)
+normal.family = "JetBrainsMono Nerd Font"
+normal.style = "Regular"
+bold.family = "JetBrainsMono Nerd Font"
+bold.style = "Bold"
+italic.family = "JetBrainsMono Nerd Font"
+italic.style = "Italic"
+bold_italic.family = "JetBrainsMono Nerd Font"
+bold_italic.style = "Bold Italic"
+
+# Font size aligned with the preferred default text density
+size = 14.0
+
+# Font rendering
+builtin_box_drawing = true
+# Note: use_thin_strokes has been removed in newer versions
+# Use macOS system setting instead: defaults write -g AppleFontSmoothing -int 1
+
+# ================================================================
+# CURSOR CONFIGURATION
+# ================================================================
+
+[cursor]
+# Cursor appearance (matching WezTerm SteadyBlock)
+style.shape = "Block"
+style.blinking = "Off"
+thickness = 0.15
+unfocused_hollow = true
+blink_interval = 800
+
+# ================================================================
+# SCROLLING CONFIGURATION
+# ================================================================
+
+[scrolling]
+# Scrollback buffer (matching WezTerm)
+history = 10000
+
+# Scrolling behavior
+multiplier = 3
+# Note: auto_scroll has been removed as it's no longer a valid configuration key
+
+# ================================================================
+# MOUSE CONFIGURATION
+# ================================================================
+
+[mouse]
+# Hide cursor while typing
+hide_when_typing = true
+
+# Mouse bindings
+bindings = [
+  { mouse = "Middle", action = "PasteSelection" },
+  { mouse = "Right", action = "ExpandSelection" },
+]
+
+# ================================================================
+# SELECTION CONFIGURATION
+# ================================================================
+
+[selection]
+# Semantic escape characters (matching WezTerm)
+semantic_escape_chars = ",│`|:\"' ()[]{}<>\t"
+save_to_clipboard = true
+
+# ================================================================
+# TERMINAL CONFIGURATION
+# ================================================================
+
+[terminal]
+# Shell integration and behavior
+osc52 = "CopyPaste"
+shell.program = "/bin/zsh"
+shell.args = ["-l"]
+
+# ================================================================
+# KEYBOARD CONFIGURATION
+# ================================================================
+
+[[keyboard.bindings]]
+# Application control (matching WezTerm keybindings)
+key = "Q"
+mods = "Command"
+action = "Quit"
+
+[[keyboard.bindings]]
+key = "N"
+mods = "Command"
+action = "CreateNewWindow"
+
+[[keyboard.bindings]]
+key = "W"
+mods = "Command"
+action = "Quit"
+
+# Font size control
+[[keyboard.bindings]]
+key = "Equals"
+mods = "Command"
+action = "IncreaseFontSize"
+
+[[keyboard.bindings]]
+key = "Minus"
+mods = "Command"
+action = "DecreaseFontSize"
+
+[[keyboard.bindings]]
+key = "Key0"
+mods = "Command"
+action = "ResetFontSize"
+
+# Copy/Paste
+[[keyboard.bindings]]
+key = "C"
+mods = "Command"
+action = "Copy"
+
+[[keyboard.bindings]]
+key = "V"
+mods = "Command"
+action = "Paste"
+
+# Search
+[[keyboard.bindings]]
+key = "F"
+mods = "Command"
+action = "SearchForward"
+
+# Fullscreen
+[[keyboard.bindings]]
+key = "F"
+mods = "Command|Control"
+action = "ToggleFullscreen"
+
+# Clear screen and scrollback
+[[keyboard.bindings]]
+key = "K"
+mods = "Command"
+action = "ClearHistory"
+
+# Navigation (vim-style with Ctrl+Shift, matching WezTerm)
+[[keyboard.bindings]]
+key = "H"
+mods = "Control|Shift"
+chars = "\u0001h" # Send tmux/screen prefix + h
+
+[[keyboard.bindings]]
+key = "J"
+mods = "Control|Shift"
+chars = "\u0001j"
+
+[[keyboard.bindings]]
+key = "K"
+mods = "Control|Shift"
+chars = "\u0001k"
+
+[[keyboard.bindings]]
+key = "L"
+mods = "Control|Shift"
+chars = "\u0001l"
+
+# ================================================================
+# DEBUG CONFIGURATION
+# ================================================================
+
+[debug]
+# Debug settings
+render_timer = false
+persistent_logging = false
+log_level = "Warn"
+renderer = "None"
+print_events = false
+highlight_damage = false
+prefer_egl = false
+
+# ================================================================
+# ENVIRONMENT VARIABLES
+# ================================================================
+
+[env]
+# Terminal identification
+TERM = "alacritty"
+TERM_PROGRAM = "alacritty"
+
+# Enable color support
+COLORTERM = "truecolor"
+
+# Performance optimizations
+WINIT_X11_SCALE_FACTOR = "1.0"

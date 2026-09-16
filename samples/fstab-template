@@ -1,0 +1,263 @@
+# /etc/fstab: static file system information.
+#
+# Best-practices template for Linux workstations, servers, and homelab systems.
+# Copy the sections you need and replace UUIDs/IPs/paths with your own values.
+#
+# Use 'blkid' to find UUIDs:  sudo blkid
+# Use 'findmnt' to inspect:   findmnt --verify
+# Dry-run changes with:       sudo mount -a --fake
+#
+# <file system>  <mount point>  <type>  <options>  <dump>  <pass>
+#
+# =============================================================================
+# FIELD REFERENCE
+# =============================================================================
+#
+#   <dump>  0 = skip dump backup (use 0 unless you use the dump utility)
+#   <pass>  0 = skip fsck, 1 = root filesystem, 2 = other filesystems
+#           NFS/CIFS/tmpfs/swap should always be 0
+#
+# =============================================================================
+# KEY OPTIONS QUICK REFERENCE
+# =============================================================================
+#
+#   defaults      = rw,suid,dev,exec,auto,nouser,async
+#   noatime       = don't update access times (big performance win, safe default)
+#   nofail        = boot continues if this mount fails (prevents emergency mode)
+#   _netdev       = requires network — delays mount until network-online.target
+#   x-systemd.automount       = lazy-mount on first access (boot never blocks)
+#   x-systemd.idle-timeout=N  = unmount after N seconds idle (pairs with automount)
+#   x-systemd.mount-timeout=N = fail after N seconds instead of the default 90s
+#   x-systemd.requires=unit   = explicit dependency on another systemd unit
+#   x-systemd.after=unit      = order after another systemd unit
+#   comment=systemd.automount = alternative syntax on some older systems
+#
+
+
+# =============================================================================
+# 1. EFI SYSTEM PARTITION (ESP)
+# =============================================================================
+# - Always vfat (FAT32), mounted at /boot or /boot/efi
+# - umask=0077 restricts access to root only (security best practice)
+# - pass=2 enables fsck on boot
+
+UUID=XXXX-XXXX  /boot  vfat  defaults,umask=0077  0  2
+
+
+# =============================================================================
+# 2. ROOT FILESYSTEM
+# =============================================================================
+# - pass=1 means fsck checks this first
+# - noatime avoids unnecessary inode writes
+#
+# --- ext4 (most compatible, journaled) ---
+# UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  /  ext4  defaults,noatime  0  1
+#
+# --- btrfs (CoW, snapshots, compression) ---
+# - compress=zstd:1 is the best speed/ratio trade-off for SSDs
+# - subvol=/@  allows snapshot management (snapper, timeshift, btrbk)
+# UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  /  btrfs  subvol=/@,defaults,noatime,compress=zstd:1  0  0
+#
+# --- xfs (high-performance, good for large files) ---
+# - nobarrier only on battery-backed RAID; otherwise omit it
+# UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  /  xfs  defaults,noatime  0  1
+
+
+# =============================================================================
+# 3. BTRFS SUBVOLUMES (if using btrfs layout)
+# =============================================================================
+# Separate subvolumes allow independent snapshot policies and prevent
+# snapshot bloat from logs/cache filling up your root snapshots.
+#
+# Common layout:  @       -> /
+#                 @home   -> /home
+#                 @log    -> /var/log
+#                 @cache  -> /var/cache   (exclude from snapshots)
+#                 @tmp    -> /var/tmp     (exclude from snapshots)
+#
+# UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  /home       btrfs  subvol=/@home,defaults,noatime,compress=zstd:1   0  0
+# UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  /var/log    btrfs  subvol=/@log,defaults,noatime,compress=zstd:1    0  0
+# UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  /var/cache  btrfs  subvol=/@cache,defaults,noatime,compress=zstd:1  0  0
+# UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  /var/tmp    btrfs  subvol=/@tmp,defaults,noatime,compress=zstd:1    0  0
+
+
+# =============================================================================
+# 4. ADDITIONAL LOCAL DRIVES (data/storage)
+# =============================================================================
+# - nofail prevents emergency mode if a secondary drive is missing/dead
+# - pass=2 enables fsck after root
+#
+# UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  /mnt/data1  ext4  defaults,noatime,nofail  0  2
+# UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  /mnt/data2  xfs   defaults,noatime,nofail  0  2
+
+
+# =============================================================================
+# 5. SWAP
+# =============================================================================
+# - Swap partition (preferred for hibernation support)
+# UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  none  swap  defaults  0  0
+#
+# - Swap file (flexible, easy to resize)
+#   Create first:  sudo fallocate -l 8G /swapfile && sudo chmod 600 /swapfile
+#                  sudo mkswap /swapfile && sudo swapon /swapfile
+# /swapfile  none  swap  defaults  0  0
+#
+# - Zram swap (compressed in-memory, configured via systemd-zram-setup@.service)
+#   Typically managed by zram-generator, not fstab. See /etc/systemd/zram-generator.conf
+
+
+# =============================================================================
+# 6. TMPFS (RAM-backed temporary filesystems)
+# =============================================================================
+# - mode=1777 is the sticky-bit permission for /tmp (world-writable, delete-own-only)
+# - size= limits max usage (default is 50% of RAM if omitted)
+# - nodev,nosuid,noexec hardens /tmp against privilege escalation
+#
+tmpfs  /tmp      tmpfs  defaults,noatime,mode=1777,nodev,nosuid  0  0
+# tmpfs  /run/shm  tmpfs  defaults,noatime,nodev,nosuid,noexec,size=2G  0  0
+
+
+# =============================================================================
+# 7. NFS MOUNTS (Network File System)
+# =============================================================================
+# Best-practice options for resilient NFS mounts:
+#
+#   _netdev          = wait for network before mounting
+#   nofail           = don't drop to emergency mode if mount fails
+#   soft             = return errors on timeout instead of hanging indefinitely
+#   bg               = if first mount fails, retry in background
+#   noatime          = reduce NFS chatter from access-time updates
+#   nfsvers=4        = prefer NFSv4 (better security, performance, firewall-friendly)
+#   x-systemd.automount        = lazy-mount on first access (fastest boot)
+#   x-systemd.idle-timeout=300 = unmount after 5 min idle (reclaims resources)
+#   x-systemd.mount-timeout=30 = fail fast instead of default 90s
+#
+# IMPORTANT: Ensure network-wait service is enabled:
+#   sudo systemctl enable NetworkManager-wait-online.service   # NetworkManager
+#   sudo systemctl enable systemd-networkd-wait-online.service # systemd-networkd
+#
+# --- Standard resilient NFS mount ---
+# 10.0.0.10:/volume1/share  /mnt/nas-share  nfs  rw,_netdev,nofail,noatime,nfsvers=4,soft,bg,x-systemd.automount,x-systemd.idle-timeout=300,x-systemd.mount-timeout=30  0  0
+#
+# --- Read-only NFS mount (backups, media libraries) ---
+# 10.0.0.10:/volume1/media  /mnt/media  nfs  ro,_netdev,nofail,noatime,nfsvers=4,soft,bg,x-systemd.automount,x-systemd.idle-timeout=600,x-systemd.mount-timeout=30  0  0
+#
+# --- Hard mount (use only when data integrity is critical and server is reliable) ---
+# Hard mounts will hang processes until the server recovers. Only use for
+# databases, VM storage, or other workloads where silent data loss is worse than a hang.
+# 10.0.0.10:/volume1/critical  /mnt/critical  nfs  rw,_netdev,nofail,noatime,nfsvers=4,hard,intr,bg,x-systemd.automount,x-systemd.mount-timeout=60  0  0
+
+
+# =============================================================================
+# 8. CIFS/SMB MOUNTS (Windows/Samba shares)
+# =============================================================================
+# - Store credentials in a root-only file, never inline in fstab
+#   Create /etc/samba/credentials/nas:
+#     username=myuser
+#     password=mypass
+#     domain=WORKGROUP
+#   Then: sudo chmod 600 /etc/samba/credentials/nas
+#
+# - uid/gid map remote files to a local user (use `id username` to find values)
+# - file_mode/dir_mode set permissions on the mounted files
+# - vers=3.0 or vers=3.1.1 for modern SMB (avoid vers=1.0 — insecure)
+#
+# //10.0.0.10/share  /mnt/smb-share  cifs  _netdev,nofail,credentials=/etc/samba/credentials/nas,uid=1000,gid=1000,file_mode=0644,dir_mode=0755,vers=3.1.1,noatime,x-systemd.automount,x-systemd.idle-timeout=300  0  0
+
+
+# =============================================================================
+# 9. BIND MOUNTS
+# =============================================================================
+# Re-expose a directory tree at a second location. Useful for:
+# - Giving containers access to a subdirectory
+# - Exposing a subvolume at an alternative path
+# - Creating restricted views of a filesystem
+#
+# /home/user/documents  /srv/shared/documents  none  bind,nofail  0  0
+#
+# --- Read-only bind mount (restrict writes) ---
+# /home/user/documents  /srv/readonly/documents  none  bind,ro,nofail  0  0
+
+
+# =============================================================================
+# 10. MERGERFS (JBOD pooling of multiple drives/NFS mounts)
+# =============================================================================
+# Mergerfs presents multiple underlying paths as a single unified mount.
+# Commonly used to pool NAS mounts or local drives without RAID.
+#
+# Key options:
+#   _netdev,nofail             = CRITICAL if pooling NFS mounts — prevents emergency
+#                                mode when underlying network mounts aren't ready
+#   allow_other                = let non-root users access the pool
+#   use_ino                    = consistent inode numbers (needed for hardlinks, NFS re-export)
+#   cache.files=partial        = cache open file handles (good performance/consistency balance)
+#   moveonenospc=true          = if a drive fills up, move the file to another drive
+#   dropcacheonclose=true      = free page cache when files close (saves RAM)
+#   category.create=mfs        = new files go to drive with most free space
+#   minfreespace=20G           = stop writing to a drive below this threshold
+#   fsname=pool-name           = friendly name shown in df/mount output
+#
+# --- Pool NFS mounts (must have _netdev,nofail since source mounts need network) ---
+# /mnt/nas01-data:/mnt/nas02-data  /mnt/pool  mergerfs  _netdev,nofail,defaults,allow_other,use_ino,cache.files=partial,moveonenospc=true,category.create=mfs,dropcacheonclose=true,minfreespace=20G,fsname=pool  0  0
+#
+# --- Pool local drives (no _netdev needed, but nofail still recommended) ---
+# /mnt/disk1:/mnt/disk2:/mnt/disk3  /mnt/storage  mergerfs  nofail,defaults,allow_other,use_ino,cache.files=partial,moveonenospc=true,category.create=mfs,dropcacheonclose=true,minfreespace=20G,fsname=storage  0  0
+
+
+# =============================================================================
+# 11. iSCSI BLOCK DEVICES
+# =============================================================================
+# iSCSI targets appear as local block devices after initiator login.
+# The device path comes from the iSCSI initiator (open-iscsi / iscsid).
+#
+# - _netdev is essential — the block device doesn't exist until network + iscsid
+# - nofail prevents emergency mode if the SAN is unreachable
+# - Use by-path symlinks for stability (avoids /dev/sdX reordering)
+# - Filesystem choice depends on use case (ext4 for general, xfs for large files)
+#
+# /dev/disk/by-path/ip-10.0.0.20:3260-iscsi-iqn.2024-01.com.example:storage-lun-0  /mnt/iscsi  ext4  _netdev,nofail,noatime,x-systemd.mount-timeout=30  0  2
+
+
+# =============================================================================
+# 12. LUKS ENCRYPTED VOLUMES
+# =============================================================================
+# LUKS volumes are opened via /etc/crypttab, then mounted here by their
+# mapper name. The decrypted device appears at /dev/mapper/<name>.
+#
+# /etc/crypttab entry (separate file):
+#   # <name>        <device>                                    <keyfile>   <options>
+#   # data_crypt    UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx   none        luks
+#
+# Then mount the opened volume:
+# /dev/mapper/data_crypt  /mnt/encrypted  ext4  defaults,noatime,nofail  0  2
+
+
+# =============================================================================
+# TIPS AND TROUBLESHOOTING
+# =============================================================================
+#
+# Validate before reboot:
+#   sudo findmnt --verify          # check for syntax errors
+#   sudo mount -a --fake           # dry-run all mounts (catches most issues)
+#   sudo mount -a                  # actually mount everything
+#   sudo systemctl daemon-reload   # reload after any fstab change
+#
+# Debug mount failures:
+#   journalctl -b -u 'mnt-*.mount'          # mount unit logs
+#   journalctl -b -u 'mnt-*.automount'      # automount unit logs
+#   systemctl list-units --type=mount        # all mount units and status
+#   systemctl list-units --type=automount    # all automount units
+#
+# Emergency mode recovery:
+#   If you end up in emergency mode due to fstab errors:
+#   1. Run: mount -o remount,rw /          # make root writable
+#   2. Edit /etc/fstab and fix the issue   # or add nofail to problem mounts
+#   3. Run: systemctl daemon-reload
+#   4. Run: exit                           # continue boot
+#
+# Performance notes:
+#   - noatime is safe for almost everything and reduces unnecessary I/O
+#   - compress=zstd:1 on btrfs: level 1 is fastest, negligible CPU overhead on SSDs
+#   - NFS soft mounts: set x-systemd.mount-timeout to match your network reliability
+#   - mergerfs cache.files=partial: good default; use =full only if you trust no
+#     external modifications to the underlying drives

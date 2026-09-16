@@ -1,0 +1,14 @@
+# github-release package missing its required "repo" field. Asset is now
+# optional (empty = auto-detect), so repo is the field whose absence is invalid.
+
+[intents.base]
+description = "test"
+default = true
+packages = ["eza"]
+
+[[package]]
+name = "eza"
+backend = "github-release"
+tag = "v0.21.0"
+asset = "eza_x86_64-unknown-linux-gnu.tar.gz"
+sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

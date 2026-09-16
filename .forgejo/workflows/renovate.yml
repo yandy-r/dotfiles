@@ -1,0 +1,70 @@
+name: Renovate
+
+# Self-hosted Renovate for the Forgejo origin. See docs/renovate.md and spike
+# #58 for the full rationale.
+#
+# INERT BY DEFAULT. This workflow does nothing on its own. It only ever acts
+# after the maintainer:
+#   1. creates a `renovate-bot` Forgejo user with a full name + email and a PAT
+#      (repo/user/issue/organization scopes),
+#   2. adds the PAT as the `RENOVATE_TOKEN` Actions secret (and optionally
+#      `RENOVATE_GIT_AUTHOR`), and
+#   3. runs this workflow manually (workflow_dispatch) or uncomments the
+#      `schedule` block below.
+# No `RENOVATE_TOKEN` secret exists yet, so even a manual run is a no-op:
+# Renovate exits without a token and opens no pull requests.
+#
+# Why self-hosted on Forgejo (spike #58 findings):
+#   - Renovate supports Forgejo first-class as a self-hosted bot
+#     (RENOVATE_PLATFORM=forgejo).
+#   - The hosted Mend app is out: it has no Forgejo support and cannot reach the
+#     tailnet-only endpoint.
+#   - The GitHub-mirror route is a dead end: origin -> github is a one-way
+#     force-push mirror, so pull requests opened on the mirror cannot flow back.
+#
+# Runner note: this uses the official Renovate container image instead of
+# `renovatebot/github-action`, because Forgejo cannot resolve arbitrary
+# marketplace actions from its DEFAULT_ACTIONS_URL (data.forgejo.org mirrors
+# only actions/* and forgejo/*) -- the same constraint documented in go.yml and
+# release.yml. The image also bundles the Go and Node toolchains Renovate needs
+# to compute gomod/npm updates. The `${{ github.server_url }}` templating mirrors
+# release.yml so the instance hostname is never committed.
+
+on:
+  workflow_dispatch:
+  # Uncomment AFTER configuring RENOVATE_TOKEN to enable low-noise weekly runs.
+  # The renovate.json `schedule` field additionally gates when pull requests are
+  # actually opened or refreshed.
+  # schedule:
+  #   - cron: "0 7 * * 1"  # 07:00 UTC every Monday
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    container:
+      # Pinned to the current Renovate major (43.x). Bump when Renovate cuts a
+      # new major; once active, Renovate's own github-actions manager can keep
+      # this reference current.
+      image: ghcr.io/renovatebot/renovate:43
+    steps:
+      - name: Run Renovate
+        # Renovate clones the target repository itself using RENOVATE_TOKEN and
+        # RENOVATE_ENDPOINT, so no actions/checkout step is needed. It reads the
+        # repository config from renovate.json.
+        run: renovate
+        env:
+          RENOVATE_PLATFORM: forgejo
+          RENOVATE_ENDPOINT: ${{ github.server_url }}/api/v1/
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+          # Optional. If unset, Renovate derives the author from the renovate-bot
+          # account (which must have a full name + email set in Forgejo).
+          # Documented literal form: "renovate-bot <renovate-bot@users.noreply.INSTANCE>".
+          RENOVATE_GIT_AUTHOR: ${{ secrets.RENOVATE_GIT_AUTHOR }}
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_AUTODISCOVER: "false"
+          LOG_LEVEL: info

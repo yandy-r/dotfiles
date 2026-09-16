@@ -1,0 +1,14 @@
+node_modules/
+vendor/
+.git/
+.cache/
+.direnv/
+.venv/
+venv/
+coverage/
+dist/
+build/
+out/
+target/
+tmp/
+temp/

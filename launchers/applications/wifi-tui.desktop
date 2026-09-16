@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Wi-Fi (NetworkManager)
+Comment=Manage Wi-Fi with nmtui or nmcli (NetworkManager)
+Icon=network-wireless
+Type=Application
+TryExec=alacritty
+Terminal=false
+Exec=alacritty --class wifi-tui -e wifi-tui.sh
+Categories=Network
+StartupNotify=true
+StartupWMClass=wifi-tui

@@ -1,0 +1,23 @@
+---
+# Prompt configuration (Starship)
+
+- name: Check prompt config source file exists
+  ansible.builtin.stat:
+    path: '{{ dotfiles_dir }}/{{ item.src }}'
+  register: prompt_src_check
+  loop: '{{ prompt_config }}'
+  loop_control:
+    label: '{{ item.src }}'
+
+- name: Create symlink for Starship prompt config
+  ansible.builtin.file:
+    src: '{{ dotfiles_dir }}/{{ item.item.src }}'
+    dest: '{{ home_dir }}/{{ item.item.dest }}'
+    state: link
+    force: '{{ force_symlinks }}'
+  when:
+    - not dry_run
+    - item.stat.exists
+  loop: '{{ prompt_src_check.results }}'
+  loop_control:
+    label: '{{ item.item.dest }}'

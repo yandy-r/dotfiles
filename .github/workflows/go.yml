@@ -1,0 +1,122 @@
+name: Go
+
+on:
+  pull_request:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'manifest/**'
+      - 'bin/**'
+      - 'plasma/**'
+      - 'bootstrap.sh'
+      - '.goreleaser.yml'
+      - '.goreleaser.forgejo.yml'
+      - '.github/workflows/go.yml'
+      - '.golangci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'manifest/**'
+      - 'bin/**'
+      - 'plasma/**'
+      - 'bootstrap.sh'
+      - '.goreleaser.yml'
+      - '.goreleaser.forgejo.yml'
+      - '.github/workflows/go.yml'
+      - '.golangci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@9fae48acfc02a90574d7c304a1758ef9895495fa # v7.0.1
+        with:
+          version: v2.12.2
+
+  fedora:
+    # Distro axis (ADR-15). This is the only job that runs the Go suite and dotf
+    # itself against a real Fedora userspace -- a real /etc/os-release, real dnf5
+    # and a real rpm database. Every other Fedora assertion in the repo runs
+    # against exec.Fake. No arm64 runner is bought: architecture variance is
+    # rehearsed locally instead (see docs/fedora-rehearsal.md).
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Install container prerequisites
+        # fedora:latest ships dnf5, rpm, bash, curl, tar and sudo but NOT git or
+        # gcc: actions/checkout silently degrades to a REST tarball without git,
+        # and `go test -race` fails with "-race requires cgo" without gcc.
+        run: dnf -y install --setopt=install_weak_deps=False git gcc tar gzip findutils diffutils
+
+      - name: Trust the workspace
+        # The workspace is created by the runner host but the container's git
+        # runs as a different uid, so git's dubious-ownership guard rejects the
+        # repo. `go vet` and `go test` do not care, but `go build` stamps VCS
+        # metadata and fails with "error obtaining VCS status: exit status 128",
+        # which would break the Smoke step only. Marking the workspace safe is
+        # narrower than passing -buildvcs=false, which would silently drop the
+        # stamping that `dotf version` reports.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Go
+        # cache is off deliberately: the toolchain cache buys little for a
+        # secondary job and is the most likely thing to misbehave inside a
+        # distro container.
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Smoke
+        # Critical test #6 (design section 7): the platform contract and both
+        # dry-run surfaces, asserted against a real Fedora host rather than a
+        # fake. Deliberately does NOT assert the absence of plan.apt-repo -- that
+        # is WS1's verification, so this job stays green independently.
+        run: |
+          set -euo pipefail
+          go build -o /tmp/dotf ./cmd/dotf
+          out="$(/tmp/dotf platform)"
+          echo "dotf platform: $out"
+          case "$out" in
+            *os=redhat*) ;;
+            *) echo "expected os=redhat in: $out" >&2; exit 1 ;;
+          esac
+          case "$out" in
+            *pkg=dnf*) ;;
+            *) echo "expected pkg=dnf in: $out" >&2; exit 1 ;;
+          esac
+          /tmp/dotf apply --dry-run --headless
+          /tmp/dotf link --dry-run

@@ -1,0 +1,452 @@
+{
+  "language_models": {
+    "ollama": {
+      "context_window": 32768
+    }
+  },
+  "vim": {
+    "use_smartcase_find": true
+  },
+  "agent_servers": {
+    "opencode": {
+      "type": "registry"
+    }
+  },
+  "context_servers": {
+    "terraform-context-server": {
+      "enabled": true,
+      "remote": false,
+      "settings": {}
+    },
+    "mcp-server-github": {
+      "enabled": true,
+      "remote": false,
+      "settings": {
+        "github_personal_access_token": "GITHUB_TOKEN_HERE"
+      }
+    }
+  },
+  "agent": {
+    "inline_assistant_model": {
+      "provider": "ollama",
+      "model": "qwen3-coder:30b",
+      "enable_thinking": false
+    },
+    "default_model": {
+      "provider": "copilot_chat",
+      "model": "claude-sonnet-4.6",
+      "effort": "high",
+      "enable_thinking": true
+    },
+    "inline_alternatives": [
+      {
+        "provider": "copilot_chat",
+        "model": "claude-opus-4.6",
+        "effort": "high",
+        "enable_thinking": true
+      },
+      {
+        "provider": "copilot_chat",
+        "model": "gpt-5.3-codex",
+        "effort": "high",
+        "enable_thinking": true
+      },
+      {
+        "provider": "zed.dev",
+        "model": "claude-sonnet-4-6",
+        "effort": "high",
+        "enable_thinking": true
+      }
+    ],
+    "favorite_models": [
+      {
+        "provider": "copilot_chat",
+        "model": "gpt-5.3-codex",
+        "enable_thinking": true,
+        "effort": "high"
+      },
+      {
+        "provider": "copilot_chat",
+        "model": "claude-opus-4.6",
+        "enable_thinking": true,
+        "effort": "high"
+      },
+      {
+        "provider": "copilot_chat",
+        "model": "claude-sonnet-4.6",
+        "enable_thinking": true,
+        "effort": "high"
+      },
+      {
+        "provider": "zed.dev",
+        "model": "gpt-5.2-codex",
+        "enable_thinking": true,
+        "effort": "high"
+      },
+      {
+        "provider": "zed.dev",
+        "model": "claude-sonnet-4-6",
+        "enable_thinking": true,
+        "effort": "high"
+      },
+      {
+        "provider": "zed.dev",
+        "model": "claude-opus-4-6",
+        "enable_thinking": true,
+        "effort": "high"
+      },
+      {
+        "provider": "zed.dev",
+        "model": "gpt-5.3-codex",
+        "enable_thinking": false
+      }
+    ],
+    "model_parameters": []
+  },
+  "edit_predictions": {
+    "ollama": {
+      "prompt_format": "qwen",
+      "model": "qwen2.5-coder:7b",
+      "api_url": "http://localhost:11434"
+    },
+    "codestral": {
+      "api_url": "https://codestral.mistral.ai"
+    },
+    "provider": "ollama",
+    "copilot": {
+      "enable_next_edit_suggestions": true
+    }
+  },
+  "ssh_connections": [
+    {
+      "host": "ubsrv",
+      "args": [],
+      "projects": [
+        {
+          "paths": ["/home/yandy/.config/dotfiles"]
+        },
+        {
+          "paths": ["/home/yandy/Projects/github.com/yandy-r/praxrr/./"]
+        },
+        {
+          "paths": ["/home/yandy/Projects/github.com/yandy-r/private-apps"]
+        }
+      ]
+    },
+    {
+      "host": "ubdevsrv",
+      "args": [],
+      "projects": [
+        {
+          "paths": ["/home/yandy/.config/dotfiles/./"]
+        },
+        {
+          "paths": ["/home/yandy/Projects/github.com/yandy-r/praxrr/./"]
+        }
+      ]
+    }
+  ],
+  "telemetry": {
+    "diagnostics": false,
+    "metrics": false
+  },
+  "load_direnv": "direct",
+  "theme": {
+    "mode": "system",
+    "light": "Catppuccin Latte",
+    "dark": "Catppuccin Mocha"
+  },
+  "icon_theme": "Catppuccin Mocha",
+  "ui_font_size": 18,
+  "buffer_font_size": 18,
+  "buffer_font_family": "JetBrainsMono Nerd Font",
+  "buffer_font_weight": 500,
+  "ui_font_family": "JetBrainsMono Nerd Font",
+  "vim_mode": true,
+  "relative_line_numbers": "enabled",
+  "use_autoclose": true,
+  "show_completions_on_input": true,
+  "git_panel": {
+    "button": true
+  },
+  "multi_cursor_modifier": "cmd_or_ctrl",
+  "sticky_scroll": {
+    "enabled": true
+  },
+  "gutter": {
+    "line_numbers": true
+  },
+  "minimap": {
+    "show": "never",
+    "max_width_columns": 120
+  },
+  "format_on_save": "on",
+  "formatter": "auto",
+  "cursor_shape": "bar",
+  "file_types": {
+    "shellscript": ["zshrc"],
+    "javascript": ["*.js"],
+    "nginx": ["default"],
+    "graphql": ["*.prisma"],
+    "mdx": ["*.mdx"],
+    "typescript": ["*.ts"],
+    "yaml": ["*.yml", "*.yaml"],
+    "javascriptreact": ["*.jsx"],
+    "plaintext": ["*.txt"],
+    "markdown": ["*.md"]
+  },
+  "colorize_brackets": true,
+  "auto_indent_on_paste": true,
+  "linked_edits": true,
+  "use_on_type_format": false,
+  "show_edit_predictions": true,
+  "wrap_guides": [100, 120],
+  "hard_tabs": false,
+  "tab_size": 2,
+  "base_keymap": "VSCode",
+  "tab_bar": {
+    "show": true
+  },
+  "tabs": {
+    "close_position": "right",
+    "file_icons": true,
+    "git_status": true
+  },
+  "scrollbar": {
+    "show": "auto"
+  },
+  "cursor_blink": false,
+  "preview_tabs": {
+    "enabled": true,
+    "enable_preview_from_file_finder": true
+  },
+  "indent_guides": {
+    "enabled": true,
+    "coloring": "indent_aware"
+  },
+  "centered_layout": {
+    "left_padding": 0.15,
+    "right_padding": 0.15
+  },
+  "preferred_line_length": 120,
+  "soft_wrap": "none",
+  "show_whitespaces": "boundary",
+  "terminal": {
+    "default_height": 1300.0,
+    "font_size": 15.0,
+    "font_family": "JetBrainsMono Nerd Font",
+    "max_scroll_history_lines": 100000,
+    "copy_on_select": true,
+    "working_directory": "current_project_directory"
+  },
+  "git": {
+    "inline_blame": {
+      "enabled": true,
+      "delay_ms": 500
+    }
+  },
+  "project_panel": {
+    "dock": "left",
+    "git_status": true,
+    "auto_fold_dirs": false
+  },
+  "outline_panel": {
+    "dock": "right"
+  },
+  "collaboration_panel": {
+    "dock": "left"
+  },
+  "notification_panel": {
+    "dock": "right"
+  },
+  "auto_update": true,
+  "auto_install_extensions": {
+    "ansible": true,
+    "biome": true,
+    "catppuccin": true,
+    "catppuccin-icons": true,
+    "csv": true,
+    "docker-compose": true,
+    "dockerfile": true,
+    "env": true,
+    "git-firefly": true,
+    "gosum": true,
+    "html": true,
+    "ini": true,
+    "jinja2": true,
+    "log": true,
+    "lua": true,
+    "make": true,
+    "markdown-oxide": true,
+    "mcp-server-github": true,
+    "mermaid": true,
+    "rainbow-csv": true,
+    "sql": true,
+    "svelte": true,
+    "swift": true,
+    "terraform": true,
+    "toml": true,
+    "xml": true,
+    "zig": true
+  },
+  "languages": {
+    "Python": {
+      "format_on_save": "on",
+      "formatter": {
+        "external": {
+          "command": "black",
+          "arguments": ["-", "--line-length", "120"]
+        }
+      },
+      "tab_size": 4
+    },
+    "TypeScript": {
+      "format_on_save": "on",
+      "tab_size": 2,
+      "formatter": {
+        "external": {
+          "command": "prettier",
+          "arguments": ["--config", ".prettierrc", "--stdin-filepath", "{buffer_path}"]
+        }
+      }
+    },
+    "TSX": {
+      "format_on_save": "on",
+      "tab_size": 2,
+      "formatter": {
+        "external": {
+          "command": "prettier",
+          "arguments": ["--config", ".prettierrc", "--stdin-filepath", "{buffer_path}"]
+        }
+      }
+    },
+    "JavaScript": {
+      "format_on_save": "on",
+      "tab_size": 2,
+      "formatter": {
+        "external": {
+          "command": "prettier",
+          "arguments": ["--config", ".prettierrc", "--stdin-filepath", "{buffer_path}"]
+        }
+      }
+    },
+    "JSON": {
+      "format_on_save": "on",
+      "tab_size": 2,
+      "formatter": {
+        "external": {
+          "command": "prettier",
+          "arguments": ["--config", ".prettierrc", "--stdin-filepath", "{buffer_path}"]
+        }
+      }
+    },
+    "YAML": {
+      "tab_size": 2,
+      "format_on_save": "on",
+      "formatter": {
+        "external": {
+          "command": "prettier",
+          "arguments": ["--config", ".prettierrc", "--stdin-filepath", "{buffer_path}"]
+        }
+      }
+    },
+    "Go": {
+      "format_on_save": "on",
+      "tab_size": 4,
+      "hard_tabs": true,
+      "formatter": {
+        "external": {
+          "command": "goimports"
+        }
+      }
+    },
+    "Rust": {
+      "format_on_save": "on",
+      "tab_size": 4,
+      "formatter": {
+        "external": {
+          "command": "rustfmt",
+          "arguments": ["--edition", "2021"]
+        }
+      }
+    },
+    "Markdown": {
+      "soft_wrap": "none",
+      "preferred_line_length": 120,
+      "format_on_save": "on",
+      "formatter": {
+        "external": {
+          "command": "prettier",
+          "arguments": [
+            "--stdin-filepath",
+            "{buffer_path}",
+            "--parser",
+            "markdown",
+            "--prose-wrap",
+            "always",
+            "--print-width",
+            "100"
+          ]
+        }
+      }
+    },
+    "Lua": {
+      "format_on_save": "on",
+      "tab_size": 2,
+      "formatter": {
+        "external": {
+          "command": "stylua",
+          "arguments": ["-"]
+        }
+      }
+    },
+    "TOML": {
+      "format_on_save": "on",
+      "tab_size": 2
+    },
+    "Shell Script": {
+      "format_on_save": "on",
+      "tab_size": 2,
+      "formatter": {
+        "external": {
+          "command": "shfmt",
+          "arguments": ["-i", "2", "-ci", "-bn"]
+        }
+      }
+    },
+    "HTML": {
+      "format_on_save": "on",
+      "tab_size": 2,
+      "formatter": {
+        "external": {
+          "command": "prettier",
+          "arguments": ["--config", ".prettierrc", "--stdin-filepath", "{buffer_path}"]
+        }
+      }
+    },
+    "CSS": {
+      "format_on_save": "on",
+      "tab_size": 2,
+      "formatter": {
+        "external": {
+          "command": "prettier",
+          "arguments": ["--config", ".prettierrc", "--stdin-filepath", "{buffer_path}"]
+        }
+      }
+    }
+  },
+  "lsp": {
+    "rust-analyzer": {
+      "initialization_options": {
+        "check": {
+          "command": "clippy"
+        },
+        "inlayHints": {
+          "lifetimeElisionHints": {
+            "enable": "skip_trivial"
+          }
+        }
+      }
+    }
+  }
+}

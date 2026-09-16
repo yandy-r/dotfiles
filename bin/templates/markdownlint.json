@@ -1,0 +1,81 @@
+{
+  // JSON Schema for IDE autocomplete
+  "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint/main/schema/markdownlint-config-schema.json",
+
+  // Default state for all rules
+  "default": true,
+
+  // Heading rules
+  "MD001": true,
+  "MD002": false,
+  "MD003": false,
+  "MD041": false,
+  "MD025": true,
+
+  // Line length
+  "MD013": false,
+
+  // Lists
+  "MD004": {
+    "style": "consistent"
+  },
+  "MD005": true,
+  "MD007": {
+    "indent": 2
+  },
+  "MD029": false,
+  "MD030": true,
+  "MD032": true,
+
+  // Code blocks
+  "MD014": true,
+  "MD031": true,
+  "MD033": false,
+  "MD040": false,
+  "MD046": {
+    "style": "fenced"
+  },
+
+  // Links and emphasis
+  "MD042": false,
+  "MD051": false,
+  "MD034": true,
+  "MD036": false,
+  "MD037": true,
+  "MD049": {
+    "style": "underscore"
+  },
+  "MD050": {
+    "style": "asterisk"
+  },
+
+  // Whitespace
+  "MD009": {
+    "br_spaces": 2,
+    "list_item_empty_lines": false,
+    "strict": false
+  },
+  "MD010": true,
+  "MD012": {
+    "maximum": 2
+  },
+  "MD022": true,
+  "MD023": true,
+  "MD027": true,
+  "MD028": true,
+  "MD047": true,
+
+  // Misc
+  "MD011": true,
+  "MD018": true,
+  "MD019": true,
+  "MD024": {
+    "siblings_only": true
+  },
+  "MD026": true,
+  "MD035": true,
+  "MD038": true,
+  "MD039": true,
+  "MD056": false,
+  "MD059": false
+}

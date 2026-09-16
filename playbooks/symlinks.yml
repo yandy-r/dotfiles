@@ -1,0 +1,246 @@
+---
+# ================================================================
+# Dotfiles Symlinks Management Playbook
+# ================================================================
+# Comprehensive, safe, and robust symlink management for dotfiles.
+#
+# Structure:
+#   vars/symlinks.yml    - All variable definitions
+#   tasks/*.yml          - Task files grouped by function
+#
+# Usage:
+#   ansible-playbook playbooks/symlinks.yml
+#   ansible-playbook playbooks/symlinks.yml -e dryrun=true
+#   ansible-playbook playbooks/symlinks.yml -e backup=true
+#   ansible-playbook playbooks/symlinks.yml -e linux_desktop=true -e backup=true
+
+- name: Manage dotfiles symlinks
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars_files:
+    - vars/symlinks.yml
+
+  # ================================================================
+  # PRE-FLIGHT CHECKS AND SETUP
+  # ================================================================
+
+  pre_tasks:
+    - name: Resolve dotfiles directory
+      ansible.builtin.set_fact:
+        dotfiles_dir: "{{ dotfiles_dir | default(ansible_facts['env']['HOME'] ~ '/.config/dotfiles', true) }}"
+      tags: [always]
+
+    - name: Display configuration summary
+      ansible.builtin.debug:
+        msg:
+          - 'Dotfiles directory: {{ dotfiles_dir }}'
+          - 'Backup directory: {{ backup_dir }}'
+          - 'Force symlinks: {{ force_symlinks }}'
+          - 'Create backups: {{ create_backups }}'
+          - 'Dry run mode: {{ dry_run }}'
+          - 'Validate after: {{ validate_after }}'
+          - 'Generic Linux desktop activation: {{ manage_linux_desktop }}'
+      tags: [always]
+
+    - name: Validate dotfiles directory exists
+      ansible.builtin.stat:
+        path: '{{ dotfiles_dir }}'
+      register: dotfiles_stat
+      failed_when: not dotfiles_stat.stat.exists
+      tags: [always]
+
+    - name: Create backup directory if needed
+      ansible.builtin.file:
+        path: '{{ backup_dir }}'
+        state: directory
+        mode: '0755'
+      when: create_backups and not dry_run
+      tags: [always]
+
+    - name: Create required directories
+      ansible.builtin.file:
+        path: '{{ item }}'
+        state: directory
+        mode: '0755'
+      loop:
+        - '{{ home_dir }}/.ssh'
+        - '{{ home_dir }}/.zsh/completions'
+        - '{{ config_dir }}'
+        - '{{ home_dir }}/.branchlet'
+        - '{{ config_dir }}/atuin'
+        - '{{ config_dir }}/herdr'
+        - '{{ config_dir }}/lazygit'
+        - '{{ config_dir }}/systemd/user'
+        - '{{ config_dir }}/zed'
+        - '{{ home_dir }}/.local/share/applications'
+      when: not dry_run
+      tags: [always]
+
+    - name: Report Hyprland config mode
+      ansible.builtin.debug:
+        msg: >-
+          {{
+            'Generic Linux desktop activation is enabled; ~/.config/hypr, ~/.config/waybar, ~/.config/swayosd, ~/.config/mako, ~/.config/wlogout, and ~/.config/fuzzel will be managed. Use dryrun=true first and backup=true for live migration.'
+            if (is_linux_family and manage_linux_desktop)
+            else 'Generic Linux desktop configs are skipped. Enable with linux_desktop=true to manage ~/.config/hypr, ~/.config/waybar, ~/.config/swayosd, ~/.config/mako, ~/.config/wlogout, and ~/.config/fuzzel.'
+          }}
+      tags: [always]
+
+    - name: Require backup or dry-run for generic Linux desktop activation
+      ansible.builtin.fail:
+        msg: >-
+          Generic Linux desktop activation can replace existing ~/.config/hypr, ~/.config/waybar, ~/.config/swayosd, ~/.config/mako, ~/.config/wlogout, and ~/.config/fuzzel directories.
+          Run a preview with -e dryrun=true -e linux_desktop=true first, then apply live with -e backup=true -e linux_desktop=true.
+      when:
+        - is_linux_family
+        - manage_linux_desktop
+        - not dry_run
+        - not create_backups
+      tags: [always]
+
+    - name: Build managed symlink inventory
+      ansible.builtin.set_fact:
+        managed_symlink_configs: >-
+          {{
+            bash_files
+            + zsh_files
+            + common_files
+            + prompt_config
+            + app_configs
+            + (macos_configs if ansible_facts['os_family'] == 'Darwin' else [])
+            + (linux_configs if is_linux_family else [])
+            + (generic_linux_desktop_configs if (is_linux_family and manage_linux_desktop) else [])
+            + (launcher_configs if (is_linux_family and manage_linux_desktop) else [])
+            + (archlinux_configs if ansible_facts['os_family'] == 'Archlinux' else [])
+            + (windows_configs if ansible_facts['os_family'] == 'Windows' else [])
+            + utility_dirs
+            + completions
+            + special_symlinks
+          }}
+      tags: [always]
+
+  # ================================================================
+  # TASKS (imported from tasks/*.yml)
+  # ================================================================
+
+  tasks:
+    - name: Backup existing configurations
+      ansible.builtin.import_tasks: tasks/backup.yml
+      tags: [backup]
+
+    - name: Unified file management
+      ansible.builtin.import_tasks: tasks/unified-cleanup.yml
+      tags: [always]
+
+    - name: Manage shell configurations
+      ansible.builtin.import_tasks: tasks/shells.yml
+      tags: [shells]
+
+    - name: Manage Starship prompt configuration
+      ansible.builtin.import_tasks: tasks/prompt.yml
+      tags: [prompt, starship]
+
+    - name: Manage application configurations
+      ansible.builtin.import_tasks: tasks/applications.yml
+      tags: [applications]
+
+    - name: Manage macOS-specific configurations
+      ansible.builtin.import_tasks: tasks/macos.yml
+      tags: [macos]
+
+    - name: Manage Linux-specific configurations
+      ansible.builtin.import_tasks: tasks/linux.yml
+      tags: [linux]
+
+    - name: Manage generic Linux desktop configurations
+      ansible.builtin.import_tasks: tasks/linux-desktop.yml
+      tags: [linux, desktop, hypr, waybar, swayosd, mako, wlogout, fuzzel]
+
+    - name: Manage desktop application launchers
+      ansible.builtin.import_tasks: tasks/launchers.yml
+      tags: [linux, desktop, launchers]
+
+    - name: Manage Arch Linux-specific configurations
+      ansible.builtin.import_tasks: tasks/archlinux.yml
+      tags: [archlinux]
+
+    - name: Manage Windows-specific configurations
+      ansible.builtin.import_tasks: tasks/windows.yml
+      tags: [windows]
+
+    - name: Manage utility directories
+      ansible.builtin.import_tasks: tasks/utilities.yml
+      tags: [utilities]
+
+    - name: Manage shell completions
+      ansible.builtin.import_tasks: tasks/completions.yml
+      tags: [completions]
+
+    - name: Manage special symlinks
+      ansible.builtin.import_tasks: tasks/special.yml
+      tags: [special]
+
+    - name: Deploy Zed settings (copy, overwrite to propagate updates)
+      ansible.builtin.import_tasks: tasks/zed.yml
+      tags: [zed, special]
+
+  # ================================================================
+  # POST-LINK VALIDATION AND REPORTING
+  # ================================================================
+
+  post_tasks:
+    - name: Validate symlinks
+      block:
+        - name: Validate managed symlinks
+          ansible.builtin.stat:
+            path: '{{ home_dir }}/{{ item.dest }}'
+          register: symlink_validation
+          loop: '{{ managed_symlink_configs }}'
+          when: validate_after
+          loop_control:
+            label: '{{ item.dest }}'
+
+        - name: Report symlink validation results
+          ansible.builtin.debug:
+            msg:
+              - "✓ {{ item.item.dest }}: {{ 'Valid symlink' if (item.stat is defined and item.stat.islnk is defined and item.stat.islnk and item.stat.exists) else 'Skipped or missing' }}"
+              - '  Source: {{ dotfiles_dir }}/{{ item.item.src }}'
+              - '  Target: {{ home_dir }}/{{ item.item.dest }}'
+          when:
+            - validate_after
+            - item.stat is defined
+            - item.stat.exists is defined
+          loop: '{{ symlink_validation.results | default([]) }}'
+          loop_control:
+            label: '{{ item.item.dest }}'
+
+        - name: Report any broken symlinks
+          ansible.builtin.fail:
+            msg: 'Broken symlinks detected! Check the validation results above.'
+          when:
+            - validate_after
+            - symlink_validation.results | default([]) | selectattr('stat.exists', 'defined') | selectattr('stat.exists', 'equalto', true) | selectattr('stat.islnk', 'defined') | selectattr('stat.islnk', 'equalto', false) | list | length > 0
+
+        - name: Generate symlink summary
+          ansible.builtin.debug:
+            msg:
+              - 'Symlink creation completed!'
+              - 'Total symlinks processed: {{ managed_symlink_configs | length }}'
+              - "Backup directory: {{ backup_dir if create_backups else 'No backups created' }}"
+              - "Mode: {{ 'Dry run' if dry_run else 'Live execution' }}"
+          when: validate_after
+      tags: [validation]
+
+  handlers:
+    - name: shell config changed
+      ansible.builtin.debug:
+        msg: 'Shell configuration updated. Restart your shell to apply changes.'
+
+    - name: hyprland config changed
+      ansible.builtin.command:
+        cmd: hyprctl reload
+      when: ansible_facts['env']['HYPRLAND_INSTANCE_SIGNATURE'] is defined
+      changed_when: true
+      failed_when: false

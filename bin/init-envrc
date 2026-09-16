@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+# ================================================================
+# .envrc Generator
+# ================================================================
+# Creates a .envrc file in the current directory that loads .env
+# and provides a template for project-specific environment setup
+
+set -euo pipefail
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+info() {
+    echo -e "${GREEN}[INFO]${NC} $*"
+}
+
+warn() {
+    echo -e "${YELLOW}[WARN]${NC} $*"
+}
+
+error() {
+    echo -e "${RED}[ERROR]${NC} $*"
+}
+
+success() {
+    echo -e "${BLUE}[SUCCESS]${NC} $*"
+}
+
+# Get project name from directory or allow override
+PROJECT_NAME="${1:-$(basename "$PWD")}"
+ENVRC_FILE=".envrc"
+ENV_FILE=".env"
+ENV_EXAMPLE_FILE=".env.example"
+
+# Check if .envrc already exists
+if [[ -f "$ENVRC_FILE" ]]; then
+    warn ".envrc already exists in this directory"
+    read -p "Do you want to overwrite it? [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        info "Keeping existing .envrc file"
+        exit 0
+    fi
+fi
+
+# Create .envrc file
+info "Creating .envrc for project: $PROJECT_NAME"
+
+cat > "$ENVRC_FILE" << 'EOF'
+#!/usr/bin/env bash
+# ==================================================
+# PROJECT_NAME - direnv configuration
+# ==================================================
+# Automatically loads environment variables when entering directory
+# Run 'direnv allow' after creating/modifying this file
+
+# Load .env file if it exists
+if [[ -f .env ]]; then
+    set -a  # Mark all variables for export
+    source .env
+    set +a  # Stop marking for export
+fi
+
+# Load .env file if it exists using dotenvx
+# if [[ -f .env ]]; then
+#     set -a  # Mark all variables for export
+#     eval "$(dotenvx get -q -f .env --format eval)"
+#     set +a  # Stop marking for export
+# fi
+
+# ================================================================
+# Project-specific environment configuration
+# ================================================================
+
+# Uncomment and customize as needed:
+
+# Add project bin directory to PATH
+# export PATH="$PWD/bin:$PATH"
+
+# Add node_modules/.bin to PATH for npm/yarn projects
+# export PATH="$PWD/node_modules/.bin:$PATH"
+
+# Set project root
+# export PROJECT_ROOT="$PWD"
+
+# Language/runtime version management
+# Example for Node.js with nvm:
+# use node 20.0.0
+
+# Example for Python with virtualenv:
+# Option 1: Use direnv's layout python (recommended - auto-manages venv)
+# layout python python3
+#
+# Option 2: Use existing virtualenv
+# export VIRTUAL_ENV="$PWD/.venv"
+# export PATH="$VIRTUAL_ENV/bin:$PATH"
+#
+# Option 3: Specific Python version
+# layout python python3.11
+
+# Example for Ruby with rbenv:
+# use ruby 3.2.0
+
+# Example for Go:
+# export GOPATH="$PWD/.go"
+# export PATH="$GOPATH/bin:$PATH"
+
+# Cloud provider configurations
+# export AWS_PROFILE="project-dev"
+# export GCP_PROJECT="my-project"
+# export AZURE_SUBSCRIPTION_ID="..."
+
+# Development tool configurations
+# export DOCKER_BUILDKIT=1
+# export COMPOSE_PROJECT_NAME="project-name"
+
+# Custom aliases for this project (use 'watch_file' to reload on changes)
+# watch_file package.json
+# watch_file Makefile
+
+# ================================================================
+# Helper functions
+# ================================================================
+
+# Example: Load secrets from 1Password
+# load_1password_secrets() {
+#     if command -v op &> /dev/null; then
+#         export DB_PASSWORD=$(op read "op://vault/item/field")
+#     fi
+# }
+
+# Example: Verify required tools are installed
+# check_dependencies() {
+#     local deps=("node" "docker" "kubectl")
+#     for dep in "${deps[@]}"; do
+#         if ! command -v "$dep" &> /dev/null; then
+#             echo "ERROR: Required dependency '$dep' not found"
+#             return 1
+#         fi
+#     done
+# }
+
+# Uncomment to run checks on load
+# check_dependencies
+
+# ================================================================
+# Load completion
+# ================================================================
+
+# Optional: Print loaded environment info
+# echo "✓ Environment loaded for: PROJECT_NAME"
+# echo "  Project root: $PWD"
+# echo "  PATH: ${PATH%%:*}:..."  # Show first PATH entry
+EOF
+
+# Replace PROJECT_NAME placeholder
+sed -i.bak "s/PROJECT_NAME/$PROJECT_NAME/g" "$ENVRC_FILE" && rm "${ENVRC_FILE}.bak"
+
+success ".envrc created successfully!"
+echo
+
+# Create .env.example if it doesn't exist
+if [[ ! -f "$ENV_EXAMPLE_FILE" ]]; then
+    info "Creating .env.example template..."
+    cat > "$ENV_EXAMPLE_FILE" << EOF
+# ==================================================
+# $PROJECT_NAME - Environment Variables
+# ==================================================
+# Copy this file to .env and fill in the values
+# .env is gitignored and should never be committed
+
+# Application settings
+# APP_ENV=development
+# APP_DEBUG=true
+# LOG_LEVEL=info
+
+# Database configuration
+# DB_HOST=localhost
+# DB_PORT=5432
+# DB_NAME=${PROJECT_NAME}_dev
+# DB_USER=postgres
+# DB_PASSWORD=
+
+# API Keys and Secrets (use 1Password or similar)
+# API_KEY=
+# SECRET_KEY=
+# JWT_SECRET=
+
+# External services
+# REDIS_URL=redis://localhost:6379
+# RABBITMQ_URL=amqp://localhost:5672
+
+# Feature flags
+# ENABLE_FEATURE_X=false
+# ENABLE_METRICS=true
+EOF
+    success ".env.example created!"
+fi
+
+# Create .env if it doesn't exist (copy from .env.example)
+if [[ ! -f "$ENV_FILE" ]] && [[ -f "$ENV_EXAMPLE_FILE" ]]; then
+    info "Creating .env from .env.example..."
+    cp "$ENV_EXAMPLE_FILE" "$ENV_FILE"
+    success ".env created from template!"
+    warn "Remember to fill in actual values in .env"
+fi
+
+# Check if .gitignore exists and add .env if needed
+if [[ -f .gitignore ]]; then
+    if ! grep -q "^\.env$" .gitignore; then
+        info "Adding .env to .gitignore..."
+        echo "" >> .gitignore
+        echo "# Environment variables" >> .gitignore
+        echo ".env" >> .gitignore
+        success ".env added to .gitignore"
+    fi
+else
+    info "Creating .gitignore with .env entry..."
+    cat > .gitignore << 'EOF'
+# Environment variables
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+EOF
+    success ".gitignore created!"
+fi
+
+echo
+info "Next steps:"
+echo "  1. Edit .env with your actual values"
+echo "  2. Customize .envrc with project-specific configuration"
+echo "  3. Run: direnv allow"
+echo "  4. Environment will auto-load when entering this directory"
+echo
+warn "Security reminder: Never commit .env files to version control!"

@@ -1,0 +1,10 @@
+# Backend value outside the eight canonical Backend values.
+
+[intents.base]
+description = "test"
+default = true
+packages = ["thing"]
+
+[[package]]
+name = "thing"
+backend = "npm"

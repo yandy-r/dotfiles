@@ -1,0 +1,8 @@
+# git-clone is excluded from the PATH-install backends, so an explicit
+# installed_when probe is rejected — the clone dest is the intrinsic probe.
+[[package]]
+name = "tool"
+backend = "git-clone"
+url = "https://github.com/example/tool"
+dest = ".config/tool"
+installed_when = { path = "~/.config/tool" }

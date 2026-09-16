@@ -1,0 +1,72 @@
+name: Shell
+
+# Shell axis. Runs shellcheck through the repo's single style dispatcher
+# (bin/lint.sh --shell -> `shellcheck --severity=warning` over every tracked
+# *.sh), so CI and `npm run lint` cannot drift apart. Fedora's provisioning
+# correctness lives as much in common/ and bin/ as it does in Go, and neither
+# was gated by any workflow before.
+
+on:
+  pull_request:
+    paths:
+      - '**.sh'
+      - 'common/**'
+      - 'bin/**'
+      - 'bash/**'
+      - 'zsh/**'
+      - 'shellcheck/**'
+      - '.github/workflows/shell.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - '**.sh'
+      - 'common/**'
+      - 'bin/**'
+      - 'bash/**'
+      - 'zsh/**'
+      - 'shellcheck/**'
+      - '.github/workflows/shell.yml'
+
+permissions:
+  contents: read
+
+env:
+  # Pinned to the version the tree is verified clean against at
+  # --severity=warning. Bumping it is a deliberate change that may surface new
+  # findings across common/ and bin/, so it does not ride along with unrelated
+  # work.
+  SHELLCHECK_VERSION: v0.9.0
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install shellcheck
+        # Installed from the pinned upstream tarball rather than the runner's
+        # preinstalled copy or a third-party action, so both CI systems run the
+        # identical binary. Installed under $HOME so no sudo is required.
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
+            | tar -xJf - -C /tmp
+          install -m 0755 "/tmp/shellcheck-${SHELLCHECK_VERSION}/shellcheck" "$HOME/.local/bin/shellcheck"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install the repo's shellcheck policy
+        # shellcheck reads its rc from $HOME/.shellcheckrc, and on a provisioned
+        # machine `dotf link` puts the repo's own shellcheck/shellcheckrc there
+        # (internal/symlink/table.go). A CI runner has no such symlink, so
+        # without this step CI would enforce a stricter policy than the repo
+        # declares and than any developer sees locally. Copying the tracked file
+        # keeps a single source of truth for the disabled checks.
+        run: install -m 0644 shellcheck/shellcheckrc "$HOME/.shellcheckrc"
+
+      - name: Shellcheck
+        run: |
+          shellcheck --version
+          bin/lint.sh --shell

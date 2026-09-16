@@ -1,0 +1,170 @@
+# Starship Configuration - Unified for Bash and ZSH
+format = """
+[](fg:blue)\
+$os\
+$username\
+$hostname\
+[](bg:peach fg:blue)\
+$directory\
+[](fg:peach bg:green)\
+$git_branch\
+$git_status\
+[](fg:green bg:teal)\
+$nodejs\
+$python\
+$golang\
+$rust\
+[](fg:teal bg:mauve)\
+$kubernetes\
+$docker_context\
+[](fg:mauve)\
+$line_break\
+$character"""
+
+palette = 'catppuccin_mocha'
+
+[palettes.catppuccin_mocha]
+rosewater = "#f5e0dc"
+flamingo = "#f2cdcd"
+pink = "#f5c2e7"
+mauve = "#cba6f7"
+red = "#f38ba8"
+maroon = "#eba0ac"
+peach = "#fab387"
+yellow = "#f9e2af"
+green = "#a6e3a1"
+teal = "#94e2d5"
+sky = "#89dceb"
+sapphire = "#74c7ec"
+blue = "#89b4fa"
+lavender = "#b4befe"
+text = "#cdd6f4"
+subtext1 = "#bac2de"
+subtext0 = "#a6adc8"
+overlay2 = "#9399b2"
+overlay1 = "#7f849c"
+overlay0 = "#6c7086"
+surface2 = "#585b70"
+surface1 = "#45475a"
+surface0 = "#313244"
+base = "#1e1e2e"
+mantle = "#181825"
+crust = "#11111b"
+
+[os]
+disabled = false
+style = "bg:blue fg:mantle"
+
+[os.symbols]
+Macos = "🍎"
+Ubuntu = "🐧"
+Linux = "🐧"
+
+[username]
+show_always = true
+style_user = "bg:blue fg:mantle"
+style_root = "bg:blue fg:mantle"
+format = '[ $user]($style)'
+
+[hostname]
+ssh_only = false
+style = "bg:blue fg:mantle"
+format = '[@$hostname ]($style)'
+
+[directory]
+style = "fg:mantle bg:peach"
+format = "[ $path ]($style)"
+truncation_length = 3
+truncation_symbol = "…/"
+
+[git_branch]
+symbol = "🌱"
+style = "bg:green"
+format = '[[ $symbol $branch ](fg:mantle bg:green)]($style)'
+
+[git_status]
+style = "bg:green"
+format = '[[($all_status$ahead_behind )](fg:mantle bg:green)]($style)'
+conflicted = "⚔"
+ahead = "⇡"
+behind = "⇣"
+diverged = "⇕"
+untracked = "?"
+stashed = "*"
+modified = "!"
+staged = "+"
+renamed = "»"
+deleted = "✘"
+
+[nodejs]
+symbol = "⬢"
+style = "bg:teal"
+format = '[[ $symbol $version ](fg:mantle bg:teal)]($style)'
+
+[python]
+symbol = "🐍"
+style = "bg:teal"
+format = '[[ $symbol $version ](fg:mantle bg:teal)]($style)'
+
+[golang]
+symbol = "🐹"
+style = "bg:teal"
+format = '[[ $symbol $version ](fg:mantle bg:teal)]($style)'
+
+[rust]
+symbol = "🦀"
+style = "bg:teal"
+format = '[[ $symbol $version ](fg:mantle bg:teal)]($style)'
+
+[kubernetes]
+symbol = "󱃾"
+style = "bg:mauve"
+format = '[[ $symbol $context\[($namespace)\] ](fg:mantle bg:mauve)]($style)'
+disabled = false
+
+[terraform]
+symbol = "󱁢"
+style = "bg:mauve"
+format = '[[ $symbol $workspace ](fg:mantle bg:mauve)]($style)'
+disabled = true
+
+[aws]
+symbol = "☁️"
+style = "bg:mauve"
+format = '[[ $symbol $profile ](fg:mantle bg:mauve)]($style)'
+disabled = false
+
+[azure]
+symbol = "󰠅"
+style = "bg:mauve"
+format = '[[ $symbol $subscription ](fg:mantle bg:mauve)]($style)'
+disabled = true
+
+[gcloud]
+symbol = "󱇶"
+style = "bg:mauve"
+format = '[[ $symbol $project ](fg:mantle bg:mauve)]($style)'
+disabled = true
+
+[docker_context]
+symbol = "🐋"
+style = "bg:mauve"
+format = '[[ $symbol $context ](fg:mantle bg:mauve)]($style)'
+
+[time]
+disabled = true
+time_format = "%R"
+style = "bg:surface0"
+format = '[[  $time ](fg:text bg:surface0)]($style)'
+
+[character]
+success_symbol = '[❯](bold green)'
+error_symbol = '[❯](bold red)'
+vimcmd_symbol = '[❮](bold green)'
+
+[cmd_duration]
+min_time = 3000
+format = 'took [$duration](bold yellow) '
+
+[direnv]
+format = '[$symbol$loaded/$allowed]($style) '

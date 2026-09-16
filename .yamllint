@@ -1,0 +1,56 @@
+---
+# yamllint configuration for ansible playbooks
+# Compatible with ansible-lint requirements
+
+extends: default
+
+rules:
+  # 2-space indentation - relaxed to allow ansiblels formatting
+  indentation:
+    spaces: 2
+    indent-sequences: consistent
+    check-multi-line-strings: false
+  
+  # Required by ansible-lint: must be false
+  comments-indentation: false
+  
+  # Allow long lines (common in ansible with jinja2)
+  line-length:
+    max: 200
+    level: warning
+  
+  # Allow duplicate keys (ansible sometimes uses this intentionally)
+  key-duplicates:
+    level: warning
+  
+  # Allow trailing spaces
+  trailing-spaces:
+    level: warning
+  
+  # Allow empty lines
+  empty-lines:
+    max: 2
+  
+  # Truthy values (yes/no/true/false/on/off)
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no']
+    check-keys: false
+  
+  # Comments
+  comments:
+    min-spaces-from-content: 1
+  
+  # Brackets
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+  
+  # Braces  
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+  
+  # Required by ansible-lint
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true

@@ -1,0 +1,10 @@
+# Intent references a package name that no [[package]] defines.
+
+[intents.base]
+description = "test"
+default = true
+packages = ["ghost"]
+
+[[package]]
+name = "real"
+backend = "aur"

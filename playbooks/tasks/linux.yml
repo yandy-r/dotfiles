@@ -1,0 +1,25 @@
+---
+# Linux-specific configurations
+
+- name: Check Linux source files exist
+  ansible.builtin.stat:
+    path: '{{ dotfiles_dir }}/{{ item.src }}'
+  register: linux_src_check
+  loop: '{{ linux_configs }}'
+  when: ansible_facts["os_family"] == "RedHat" or ansible_facts["os_family"] == "Debian" or ansible_facts["os_family"] == "Suse" or ansible_facts["os_family"] == "Archlinux"
+  loop_control:
+    label: '{{ item.src }}'
+
+- name: Create symlinks for Linux configs
+  ansible.builtin.file:
+    src: '{{ dotfiles_dir }}/{{ item.item.src }}'
+    dest: '{{ home_dir }}/{{ item.item.dest }}'
+    state: link
+    force: '{{ force_symlinks }}'
+  when:
+    - not dry_run
+    - ansible_facts["os_family"] == "RedHat" or ansible_facts["os_family"] == "Debian" or ansible_facts["os_family"] == "Suse" or ansible_facts["os_family"] == "Archlinux"
+    - item.stat.exists
+  loop: '{{ linux_src_check.results | default([]) }}'
+  loop_control:
+    label: '{{ item.item.dest }}'

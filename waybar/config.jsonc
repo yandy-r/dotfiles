@@ -1,0 +1,78 @@
+{
+  "layer": "top",
+  "position": "top",
+  "height": 24,
+  "spacing": 6,
+  "margin-top": 4,
+  "margin-left": 8,
+  "margin-right": 8,
+  "modules-left": ["hyprland/workspaces"],
+  "modules-center": ["clock"],
+  "modules-right": ["tray", "custom/disk", "custom/net", "wireplumber", "battery", "custom/power"],
+
+  "hyprland/workspaces": {
+    "format": "{id}",
+    "on-click": "activate",
+    "sort-by-number": true,
+    "active-only": false,
+    "all-outputs": true,
+  },
+
+  "clock": {
+    "format": "{:%a %b %e  %H:%M}",
+    "format-alt": "{:%H:%M}",
+    "tooltip-format": "<big>{:%A, %B %e}</big>\n<tt>{calendar}</tt>",
+    "calendar": {
+      "mode": "month",
+      "mode-mon-col": 3,
+      "weeks-pos": "right",
+      "on-scroll": 1,
+    },
+  },
+
+  "custom/disk": {
+    "exec": "~/.config/dotfiles/bin/waybar-disk-activity.sh",
+    "return-type": "json",
+    "interval": 2,
+  },
+
+  "custom/power": {
+    "format": "⏻",
+    "tooltip": "Session / Power",
+    "on-click": "wlogout",
+  },
+
+  "tray": {
+    "icon-size": 14,
+    "spacing": 6,
+  },
+
+  "custom/net": {
+    "exec": "~/.config/dotfiles/bin/waybar-net-activity.sh",
+    "return-type": "json",
+    "interval": 2,
+  },
+
+  "wireplumber": {
+    "format": "{icon} {volume}%",
+    "format-muted": "󰕿",
+    "format-icons": ["󰕿", "󰖀", "󰕾"],
+    "tooltip-format": "{node_name}",
+    "scroll-step": 5,
+    "max-volume": 100,
+    "min-length": 0,
+    "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+  },
+
+  "battery": {
+    "states": {
+      "warning": 30,
+      "critical": 15,
+    },
+    "format": "BAT {capacity}%",
+    "format-charging": "CHR {capacity}%",
+    "format-plugged": "AC {capacity}%",
+    "format-full": "FULL {capacity}%",
+    "tooltip-format": "{timeTo}\n{power}W draw",
+  },
+}

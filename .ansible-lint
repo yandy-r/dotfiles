@@ -1,0 +1,16 @@
+---
+# Ansible-lint configuration aligned with ansiblels
+
+exclude_paths:
+  - .cache/
+  - .git/
+  - .github/
+  - venv/
+
+skip_list:
+  - yaml[line-length]
+  - yaml[comments-indentation]
+
+# Move indentation to warnings since ansiblels uses flow-style formatting
+warn_list:
+  - yaml[indentation]

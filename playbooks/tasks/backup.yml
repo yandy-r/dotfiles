@@ -1,0 +1,45 @@
+---
+# Backup existing configurations before creating symlinks
+
+- name: Find existing config files to backup
+  ansible.builtin.stat:
+    path: '{{ home_dir }}/{{ item.dest }}'
+  register: existing_configs
+  loop: >-
+    {{
+      bash_files
+      + zsh_files
+      + common_files
+      + prompt_config
+      + (managed_symlink_configs | selectattr('dest', 'equalto', '.config/herdr/config.toml') | list)
+    }}
+  when: create_backups
+
+- name: Create backup subdirectories
+  ansible.builtin.file:
+    path: '{{ backup_dir }}/{{ item.item.dest | dirname }}'
+    state: directory
+    mode: '0755'
+  when:
+    - create_backups
+    - not dry_run
+    - item.stat.exists
+    - not item.stat.islnk
+    - (item.item.dest | dirname) != "."
+  loop: '{{ existing_configs.results }}'
+  loop_control:
+    label: '{{ item.item.dest }}'
+
+- name: Backup existing files (non-symlinks only)
+  ansible.builtin.copy:
+    src: '{{ home_dir }}/{{ item.item.dest }}'
+    dest: '{{ backup_dir }}/{{ item.item.dest }}'
+    backup: yes
+  when:
+    - create_backups
+    - not dry_run
+    - item.stat.exists
+    - not item.stat.islnk
+  loop: '{{ existing_configs.results }}'
+  loop_control:
+    label: '{{ item.item.dest }}'

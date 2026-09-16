@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+TryExec=gedit
+Exec=gedit %F
+Icon=org.gnome.gedit
+Terminal=false
+Categories=Utility;TextEditor;GNOME;GTK;
+MimeType=text/plain;
+
+Name=Gedit (Floating)
+GenericName=Text Editor
+Comment=Gedit text editor — opens floating in Hyprland (see hypr/windows.lua)
+StartupNotify=true
+StartupWMClass=org.gnome.gedit

@@ -1,0 +1,27 @@
+#!/usr/bin/env zsh
+# ================================================================
+# ZSH Profile - Login Shell Setup
+# ================================================================
+# This file is sourced for login shells AFTER /etc/zprofile
+# It ensures our custom PATH setup takes precedence over path_helper
+
+# Get the dotfiles root directory
+DOTFILES_ROOT="${DOTFILES_ROOT:-$HOME/.config/dotfiles}"
+
+# Source our common configuration for login shells
+if [[ -f "$DOTFILES_ROOT/common/platform.sh" ]]; then
+    source "$DOTFILES_ROOT/common/platform.sh"
+fi
+
+if [[ -f "$DOTFILES_ROOT/common/paths.sh" ]]; then
+    source "$DOTFILES_ROOT/common/paths.sh"
+fi
+
+# Ensure this file is only run once per session
+if [[ -z "$ZPROFILE_LOADED" ]]; then
+    export ZPROFILE_LOADED=1
+    
+    # After macOS path_helper runs, aggressively fix our Homebrew path order
+    # This is critical for tmux sessions which start as login shells
+    fix_homebrew_path_order
+fi

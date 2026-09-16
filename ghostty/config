@@ -1,0 +1,312 @@
+# ================================================================
+# Ghostty Configuration
+# ================================================================
+# Comprehensive configuration matching WezTerm setup
+
+# ================================================================
+# THEME & APPEARANCE
+# ================================================================
+
+# Color scheme - Catppuccin Mocha (matches WezTerm default)
+theme = Catppuccin Mocha
+
+# Font configuration (matches WezTerm JetBrainsMono setup)
+font-family = "JetBrainsMono Nerd Font"
+font-size = 14
+font-style = regular
+font-feature = -calt
+
+# Window appearance (matches WezTerm window settings)
+background-opacity = 0.95
+# Renamed from `background-blur-radius` in Ghostty 1.2 (old name still aliased)
+background-blur = 40
+window-decoration = true
+window-title-font-family = "JetBrainsMono Nerd Font"
+
+# Window sizing and padding (matches alacritty's 140x60 grid)
+# NOTE: Ghostty renders one column MORE than requested (139 -> 140, 140 -> 141),
+# so 139 here is what actually yields a 140-column grid. Rows are exact.
+window-width = 139
+window-height = 60
+window-padding-x = 8
+window-padding-y = 8
+
+# ================================================================
+# CURSOR CONFIGURATION
+# ================================================================
+
+# Cursor styling (matches WezTerm cursor settings)
+cursor-style = block
+cursor-style-blink = false
+cursor-click-to-move = true
+
+# ================================================================
+# BEHAVIOR SETTINGS
+# ================================================================
+
+# Selection and clipboard (matches WezTerm behavior)
+copy-on-select = clipboard
+
+# Scrolling behavior (matches WezTerm scrollback)
+scrollback-limit = 99999
+
+# Shell integration (matches WezTerm shell detection)
+shell-integration = detect
+shell-integration-features = cursor,sudo,title
+
+# Confirmation settings (matches WezTerm no confirmation)
+confirm-close-surface = false
+quit-after-last-window-closed = true
+
+# ================================================================
+# MOUSE & KEYBOARD
+# ================================================================
+
+# Mouse settings
+mouse-hide-while-typing = true
+mouse-shift-capture = true
+
+# Keyboard behavior
+macos-non-native-fullscreen = true
+macos-option-as-alt = left
+macos-titlebar-style = native
+
+# ================================================================
+# TAB BAR SETTINGS
+# ================================================================
+
+# Tab bar configuration (bottom for tmux-style compact tabs)
+gtk-tabs-location = bottom
+window-theme = ghostty
+gtk-toolbar-style = flat
+gtk-wide-tabs = false
+gtk-custom-css = gtk-custom.css
+
+# ================================================================
+# PERFORMANCE SETTINGS
+# ================================================================
+
+# Rendering optimization (matches WezTerm performance settings)
+resize-overlay = never
+resize-overlay-position = center
+
+# ================================================================
+# BELL CONFIGURATION
+# ================================================================
+
+# Audio bell disabled (matches WezTerm audible bell disabled)
+# Note: Ghostty handles bell differently - visual bell is default behavior
+
+# ================================================================
+# ADVANCED FEATURES
+# ================================================================
+
+# Clipboard integration
+clipboard-read = allow
+clipboard-write = allow
+clipboard-paste-protection = true
+clipboard-paste-bracketed-safe = true
+
+# Image support -- value is in BYTES, not megabytes. `320` meant 320 bytes,
+# which effectively disabled the Kitty graphics protocol. This is the 320MB default.
+image-storage-limit = 320000000
+
+# Working directory
+working-directory = inherit
+
+# ================================================================
+# KEYBINDINGS
+# ================================================================
+# Three layers:
+#   1. ctrl+a prefix sequences (tmux-compatible, primary on Linux/Hyprland)
+#   2. Direct shortcuts (ctrl+shift, ctrl+alt, alt+arrow)
+#   3. super+key shortcuts (macOS-style, secondary — intercepted by Hyprland)
+#
+# Tmux prefix = ctrl+a. Key sequences use ">" syntax:
+#   ctrl+a>v means press ctrl+a, release, then press v
+
+# ================================================================
+# TMUX-COMPATIBLE: SPLITS (prefix required)
+# ================================================================
+# prefix + | → split right (side by side)
+keybind = ctrl+a>shift+backslash=new_split:right
+# prefix + - → split down (stacked)
+keybind = ctrl+a>minus=new_split:down
+# prefix + v → split right (vim-style)
+keybind = ctrl+a>v=new_split:right
+# prefix + s → split down (vim-style)
+keybind = ctrl+a>s=new_split:down
+
+# ================================================================
+# TMUX-COMPATIBLE: PANE NAVIGATION (prefix required)
+# ================================================================
+keybind = ctrl+a>h=goto_split:left
+keybind = ctrl+a>j=goto_split:down
+keybind = ctrl+a>k=goto_split:up
+keybind = ctrl+a>l=goto_split:right
+# prefix + o → cycle to previous pane
+keybind = ctrl+a>o=goto_split:previous
+
+# ================================================================
+# PANE NAVIGATION (no prefix — matches tmux Alt-arrow bindings)
+# ================================================================
+keybind = alt+left=goto_split:left
+keybind = alt+right=goto_split:right
+keybind = alt+up=goto_split:up
+keybind = alt+down=goto_split:down
+
+# ================================================================
+# TMUX-COMPATIBLE: TAB/WINDOW MANAGEMENT (prefix required)
+# ================================================================
+# prefix + c → new tab
+keybind = ctrl+a>c=new_tab
+# prefix + n / prefix + space → next tab
+keybind = ctrl+a>n=next_tab
+keybind = ctrl+a>space=next_tab
+# prefix + p / prefix + backspace → previous tab
+keybind = ctrl+a>p=previous_tab
+keybind = ctrl+a>backspace=previous_tab
+# prefix + g → tab overview (closest to tmux "go to window")
+keybind = ctrl+a>g=toggle_tab_overview
+# prefix + 1-9 → go to tab by number
+keybind = ctrl+a>1=goto_tab:1
+keybind = ctrl+a>2=goto_tab:2
+keybind = ctrl+a>3=goto_tab:3
+keybind = ctrl+a>4=goto_tab:4
+keybind = ctrl+a>5=goto_tab:5
+keybind = ctrl+a>6=goto_tab:6
+keybind = ctrl+a>7=goto_tab:7
+keybind = ctrl+a>8=goto_tab:8
+keybind = ctrl+a>9=last_tab
+
+# ================================================================
+# TMUX-COMPATIBLE: KILL / CLOSE (prefix required)
+# ================================================================
+# prefix + x → close pane
+keybind = ctrl+a>x=close_surface
+# prefix + X → close tab
+keybind = ctrl+a>shift+x=close_tab
+# prefix + Q → close all windows
+keybind = ctrl+a>shift+q=close_all_windows
+
+# ================================================================
+# TMUX-COMPATIBLE: PANE OPERATIONS (prefix required)
+# ================================================================
+# prefix + z → zoom current pane (toggle)
+keybind = ctrl+a>z=toggle_split_zoom
+# prefix + E → equalize all splits
+keybind = ctrl+a>shift+e=equalize_splits
+# prefix + enter → equalize splits (closest to tmux "next layout")
+keybind = ctrl+a>enter=equalize_splits
+
+# ================================================================
+# PANE RESIZE (no prefix)
+# ================================================================
+keybind = ctrl+alt+h=resize_split:left,10
+keybind = ctrl+alt+j=resize_split:down,10
+keybind = ctrl+alt+k=resize_split:up,10
+keybind = ctrl+alt+l=resize_split:right,10
+
+# ================================================================
+# TMUX-COMPATIBLE: COPY / PASTE (prefix required)
+# ================================================================
+# prefix + ] → paste
+keybind = ctrl+a>right_bracket=paste_from_clipboard
+# prefix + P → paste
+keybind = ctrl+a>shift+p=paste_from_clipboard
+
+# ================================================================
+# TMUX-COMPATIBLE: OTHER (prefix required)
+# ================================================================
+# prefix + R → reload config
+keybind = ctrl+a>shift+r=reload_config
+# prefix + L → clear screen
+keybind = ctrl+a>shift+l=clear_screen
+# prefix + a → send literal ctrl+a (beginning of line / vim increment)
+keybind = ctrl+a>a=text:\x01
+
+# ================================================================
+# TAB REORDERING (no prefix — matches tmux C-S-Left/Right)
+# ================================================================
+keybind = ctrl+shift+left=move_tab:-1
+keybind = ctrl+shift+right=move_tab:1
+
+# ================================================================
+# DIRECT SHORTCUTS (no prefix)
+# ================================================================
+# Tab cycling
+keybind = ctrl+tab=next_tab
+keybind = ctrl+shift+tab=previous_tab
+
+# Search
+keybind = ctrl+shift+f=start_search
+
+# Copy/paste
+keybind = ctrl+shift+c=copy_to_clipboard
+keybind = ctrl+shift+v=paste_from_clipboard
+
+# Zoom / fullscreen
+keybind = ctrl+shift+enter=toggle_split_zoom
+keybind = ctrl+enter=toggle_fullscreen
+
+# Scrolling
+keybind = shift+page_up=scroll_page_up
+keybind = shift+page_down=scroll_page_down
+keybind = shift+home=scroll_to_top
+keybind = shift+end=scroll_to_bottom
+
+# ================================================================
+# SUPER+KEY SHORTCUTS (macOS-style, secondary layer)
+# ================================================================
+# NOTE: On Hyprland, most super+key combos are intercepted by the WM.
+# These are kept for macOS compatibility.
+keybind = super+n=new_window
+keybind = super+,=open_config
+keybind = super+equal=increase_font_size:1
+keybind = super+minus=decrease_font_size:1
+keybind = super+zero=reset_font_size
+keybind = super+c=copy_to_clipboard
+keybind = super+v=paste_from_clipboard
+keybind = super+shift+f=toggle_fullscreen
+
+# ================================================================
+# THEME VARIANTS (commented alternatives)
+# ================================================================
+
+# Light theme alternative
+# theme = Catppuccin Latte
+
+# Other popular themes
+# theme = Tokyo Night
+# theme = Nord
+# theme = Dracula
+# theme = Gruvbox Dark
+
+# ================================================================
+# ENVIRONMENT VARIABLES
+# ================================================================
+
+# Set environment variables for better integration
+# These help with shell integration and tool compatibility
+env = TERM=xterm-256color
+env = COLORTERM=truecolor
+
+# ================================================================
+# PLATFORM-SPECIFIC SETTINGS
+# ================================================================
+
+# macOS specific settings
+macos-titlebar-proxy-icon = visible
+
+# ================================================================
+# EXPERIMENTAL FEATURES
+# ================================================================
+
+# Enable experimental features for better performance
+auto-update = check
+
+# Slowdown mouse scrolling
+mouse-scroll-multiplier = 0.95
+
+# Fix general slowness on hyprland (https://github.com/ghostty-org/ghostty/discussions/3224)
+async-backend = epoll

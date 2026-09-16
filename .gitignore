@@ -1,0 +1,93 @@
+# Created by venv; see https://docs.python.org/3/library/venv.html
+.venv/
+hypr/shaders
+# Hyprland auto-generates this stub when hyprland.lua is the active root
+hypr/hyprland.conf
+.env.encrypted
+.env.local
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+*~
+
+# Editor temporary files
+*.tmp
+*.swp
+*.swo
+*.bak
+.*.swp
+.*.swo
+/temp/**
+
+# Neovim plugin lock file (user-specific, auto-generated)
+lazy-lock.json
+nvim/lazy-lock.json
+opencodetmp/
+
+# Large generated/editor state that should not live in dotfiles history
+SublimeText/
+weechat/logs/
+
+# Desktop wallpapers live outside the repo at ~/.config/wallpapers/desktop
+wallpapers/
+
+# Historical downloaded binaries; installers/scripts should fetch these instead
+bin/aws-iam-authenticator
+bin/helm-2.6.1
+bin/heptio-authenticator-aws
+bin/istioctl
+bin/kubectl-aws
+bin/kubectl-az
+
+# mise (prevent accidental repo-root configs; managed config is in mise/config.toml)
+mise.toml
+.mise.toml
+
+# NODE
+node_modules
+
+# Ansible
+.ansible/
+.ansible/**
+/tasks/
+
+# Un-ignore encrypted .env file
+!.env
+.env.keys
+.gemini/installation_id
+.gemini/history/praxrr/.project_root
+.gemini/projects.json
+
+# Logs
+logs**
+temp.md
+
+# Go
+/dotf
+*.test
+*.out
+coverage.*
+
+# GoReleaser build output
+/dist/
+
+# PRP research backstops (transient; regenerated per prp-plan run)
+docs/prps/plans/.prp-research/
+
+# graphify knowledge-graph output (large, machine-local, regenerated via `graphify update .`)
+graphify-out/

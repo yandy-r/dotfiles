@@ -1,0 +1,86 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/jesseduffield/lazygit/master/schema/config.json
+#
+# Lazygit configuration — managed by dotfiles
+# Docs: https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md
+
+gui:
+  nerdFontsVersion: '3'
+  showFileIcons: true
+  filterMode: 'fuzzy'
+  border: 'rounded'
+  expandFocusedSidePanel: true
+  showCommandLog: false
+os:
+  editPreset: 'nvim-remote'
+git:
+  diffRenderers:
+    - # delta's navigate=true from gitconfig is harmless here (no pager to use n/N in)
+      command: 'delta --paging=never'
+  autoFetch: true
+  autoRefresh: true
+  autoStageResolvedConflicts: true
+  parseEmoji: false
+  log:
+    order: 'topo-order'
+    showGraph: 'always'
+  mainBranches:
+    - 'master'
+    - 'main'
+  commit:
+    autoWrapCommitMessage: true
+    autoWrapWidth: 72
+disableStartupPopups: true
+promptToReturnFromSubprocess: false
+notARepository: 'quit'
+quitOnTopLevelReturn: false
+customCommands:
+  # Conventional commit helper (Ctrl+v)
+  - key: '<c-v>'
+    context: 'global'
+    description: 'Create conventional commit'
+    prompts:
+      - type: 'menu'
+        key: 'Type'
+        title: 'Type of change'
+        options:
+          - name: 'feat'
+            value: 'feat'
+          - name: 'fix'
+            value: 'fix'
+          - name: 'docs'
+            value: 'docs'
+          - name: 'refactor'
+            value: 'refactor'
+          - name: 'chore'
+            value: 'chore'
+          - name: 'test'
+            value: 'test'
+          - name: 'style'
+            value: 'style'
+          - name: 'perf'
+            value: 'perf'
+          - name: 'ci'
+            value: 'ci'
+          - name: 'build'
+            value: 'build'
+      - type: 'input'
+        title: 'Scope (optional)'
+        key: 'Scope'
+      - type: 'input'
+        title: 'Message'
+        key: 'Message'
+    command: "git commit -m '{{.Form.Type}}{{ if .Form.Scope }}({{ .Form.Scope }}){{ end }}: {{.Form.Message}}'"
+    loadingText: 'Committing...'
+  # Open PR in browser (requires gh CLI)
+  - key: 'O'
+    context: 'localBranches'
+    description: 'Open PR in browser'
+    command: 'gh pr view -w {{.SelectedLocalBranch.Name}}'
+    output: log
+  # Prune branches deleted on remote
+  - key: 'G'
+    context: 'localBranches'
+    description: 'Prune branches gone from remote'
+    command: >-
+      git fetch -p && for branch in $(git for-each-ref --format '%(refname) %(upstream:track)' refs/heads | awk '$2 == "[gone]" {sub("refs/heads/", "", $1); print $1}'); do git branch -D $branch; done
+    loadingText: 'Pruning...'

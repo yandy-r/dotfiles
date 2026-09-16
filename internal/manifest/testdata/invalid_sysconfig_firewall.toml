@@ -1,0 +1,6 @@
+# Golden fixture: an unknown [sysconfig] firewall value must fail validation
+# with a *manifest.ValidationError. "iptables" is not one of the accepted
+# modes (ufw|firewalld|auto|off).
+
+[sysconfig]
+firewall = "iptables"

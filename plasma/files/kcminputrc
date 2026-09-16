@@ -1,0 +1,12 @@
+[Libinput][1133][50504][Logitech USB Receiver Mouse]
+NaturalScroll=true
+
+[Libinput][1267][12572][DLL0945:00 04F3:311C Touchpad]
+ClickMethod=2
+LmrTapButtonMap=false
+MiddleButtonEmulation=false
+NaturalScroll=true
+TapToClick=false
+
+[Libinput][13364][3648][Keychron Keychron K4 HE Keyboard]
+NaturalScroll=false

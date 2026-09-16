@@ -1,0 +1,42 @@
+# shellcheck shell=bash
+# ================================================================
+# Cross-Platform Bash Profile
+# ================================================================
+# This file is loaded for login shells. It should be kept minimal
+# and delegate to the modern configuration system.
+
+# Prevent circular loading
+[[ -n "$DOTFILES_BASH_PROFILE_LOADED" ]] && return 0
+export DOTFILES_BASH_PROFILE_LOADED=1
+
+# Source the main bashrc configuration
+if [[ -f ~/.bashrc ]]; then
+    source ~/.bashrc
+fi
+
+# Legacy dotfiles support (optional)
+for file in ~/.{path,extra}; do
+    [[ -r "$file" ]] && source "$file"
+done
+unset file
+
+# Cargo environment (if Rust is installed)
+if [[ -f "$HOME/.cargo/env" ]]; then
+    source "$HOME/.cargo/env"
+fi
+
+# Direnv (cross-platform support)
+if command -v direnv >/dev/null 2>&1; then
+    eval "$(direnv hook bash)"
+fi
+
+if [[ -f "$HOME/.atuin/bin/env" ]]; then
+    source "$HOME/.atuin/bin/env"
+fi
+
+# Added by CodeRabbit CLI installer
+export PATH="/home/yandy/.local/bin:$PATH"
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/yandy/.lmstudio/bin"
+# End of LM Studio CLI section

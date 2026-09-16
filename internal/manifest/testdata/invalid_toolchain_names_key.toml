@@ -1,0 +1,13 @@
+# toolchain package whose names key is not a toolchain tool: toolchain
+# packages key names by tool (cargo, npm), not by package manager.
+
+[intents.base]
+description = "test"
+default = true
+packages = ["bat"]
+
+[[package]]
+name = "bat"
+backend = "toolchain"
+tool = "cargo"
+names = { apt = "bat" }

@@ -1,0 +1,11 @@
+# Distinguishable fixture for Resolve's $DOTF_MANIFEST env branch — the
+# intents.base.description marker is asserted on in TestResolve_Precedence.
+
+[intents.base]
+description = "loaded-from-env"
+default = true
+packages = ["marker"]
+
+[[package]]
+name = "marker"
+backend = "aur"

@@ -1,0 +1,58 @@
+name: Release
+
+# Forgejo-native release. Publishes the dotf binaries to THIS Forgejo instance's
+# Releases page (GoReleaser's gitea target), independently of the GitHub release
+# cut by .github/workflows/release.yml. Forgejo reads .forgejo/workflows/ in
+# preference to .github/workflows/, so this file -- not the GitHub one -- runs on
+# origin. goreleaser/goreleaser-action is not resolvable from Forgejo's
+# DEFAULT_ACTIONS_URL (data.forgejo.org), so GoReleaser is installed with
+# `go install` instead of the action.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install GoReleaser
+        run: go install github.com/goreleaser/goreleaser/v2@latest
+
+      - name: Run GoReleaser
+        # Publishes to the Forgejo instance this workflow runs on. gitea_urls in
+        # .goreleaser.forgejo.yml are templated from GITEA_API_URL/GITEA_DOWNLOAD_URL
+        # so the instance hostname is never committed. Use the curated notes at
+        # docs/releases/<tag>.md as the body (fails loudly if absent), matching
+        # the GitHub workflow. GITEA_TOKEN defaults to the auto-injected Actions
+        # token; set a FORGEJO_RELEASE_TOKEN secret (a PAT with release scope) to
+        # override if the auto-token lacks permission to create releases.
+        #
+        # Forgejo auto-injects GITHUB_TOKEN into the job environment. GoReleaser
+        # aborts with "multiple tokens found" when both GITHUB_TOKEN and
+        # GITEA_TOKEN are set, so drop GITHUB_TOKEN here -- the gitea publisher
+        # must see GITEA_TOKEN only.
+        run: |
+          unset GITHUB_TOKEN
+          "$(go env GOPATH)/bin/goreleaser" release --clean \
+            --config .goreleaser.forgejo.yml \
+            --release-notes=docs/releases/${{ github.ref_name }}.md
+        env:
+          GITEA_TOKEN: ${{ secrets.FORGEJO_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          GITEA_API_URL: ${{ github.server_url }}/api/v1
+          GITEA_DOWNLOAD_URL: ${{ github.server_url }}

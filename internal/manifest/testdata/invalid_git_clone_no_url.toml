@@ -1,0 +1,5 @@
+# git-clone backend requires url.
+[[package]]
+name = "tool"
+backend = "git-clone"
+dest = ".config/tool"

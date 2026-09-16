@@ -1,0 +1,37 @@
+
+# ignore swap files
+*.swp
+
+# Compiled Python files
+*.pyc
+#
+# # Folder view configuration files
+.DS_Store
+Desktop.ini
+#
+# # Thumbnail cache files
+._*
+Thumbs.db
+#
+# # Files that might appear on external disks
+.Spotlight-V100
+.Trashes
+
+# ignore pydev project files
+*.project
+*.pydevproject
+
+# ignore sublime project files
+*.sublime-project
+*.sublime-workspace
+debug*
+.Ulysses*
+
+
+# Environment variables
+.env
+
+**/.claude/settings.local.json
+
+# graphify knowledge-graph output (large, machine-local, regenerated via `graphify update .`)
+graphify-out/

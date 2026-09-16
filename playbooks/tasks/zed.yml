@@ -1,0 +1,31 @@
+---
+# Zed settings (copy-based, not symlink - needs local secrets)
+
+- name: Check Zed settings source exists
+  ansible.builtin.stat:
+    path: '{{ dotfiles_dir }}/zed/settings.json'
+  register: zed_src_check
+
+- name: Check existing Zed settings at destination
+  ansible.builtin.stat:
+    path: '{{ config_dir }}/zed/settings.json'
+  register: zed_dest_check
+
+- name: Remove old Zed symlink if present
+  ansible.builtin.file:
+    path: '{{ config_dir }}/zed/settings.json'
+    state: absent
+  when:
+    - not dry_run
+    - zed_dest_check.stat.exists
+    - zed_dest_check.stat.islnk
+
+- name: Copy Zed settings (overwrite to propagate updates)
+  ansible.builtin.copy:
+    src: '{{ dotfiles_dir }}/zed/settings.json'
+    dest: '{{ config_dir }}/zed/settings.json'
+    force: true
+    mode: '0644'
+  when:
+    - not dry_run
+    - zed_src_check.stat.exists

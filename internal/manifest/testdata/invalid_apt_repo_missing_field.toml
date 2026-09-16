@@ -1,0 +1,12 @@
+# apt-repo package missing required apt_repo.sources_path field.
+
+[intents.base]
+description = "test"
+default = true
+packages = ["docker-ce"]
+
+[[package]]
+name = "docker-ce"
+backend = "apt-repo"
+names = { apt = "docker-ce" }
+apt_repo = { key_url = "https://download.docker.com/linux/ubuntu/gpg", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu stable" }

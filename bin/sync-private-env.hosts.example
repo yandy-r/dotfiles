@@ -1,0 +1,9 @@
+# SSH host aliases or user@host entries for sync-private-env.sh
+# Copy to ~/.config/sync-private-env/hosts and edit (not tracked in git).
+#
+#   mkdir -p ~/.config/sync-private-env
+#   cp ~/.config/dotfiles/bin/sync-private-env.hosts.example ~/.config/sync-private-env/hosts
+#
+# One host per line. Lines starting with # are ignored.
+
+yrmbp14

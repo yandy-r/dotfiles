@@ -1,0 +1,4 @@
+[General]
+IgnoreImages=false
+IgnoreSelection=true
+MaxClipItems=100

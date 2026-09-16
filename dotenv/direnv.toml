@@ -1,0 +1,61 @@
+# ==================================================
+# Direnv Configuration
+# ==================================================
+# This file configures direnv behavior globally
+# Symlinked to ~/.config/direnv/direnv.toml
+
+[global]
+# Hide environment variable diff output
+# This prevents direnv from showing the long list of variables
+# when loading .envrc files, while keeping the loading message
+hide_env_diff = true
+
+# Increase timeout for slow operations
+warn_timeout = "5m"
+
+# Disable strict_env for better compatibility
+strict_env = false
+
+# ==================================================
+# Whitelist Configuration
+# ==================================================
+# Auto-allow .envrc files in trusted directories
+# SECURITY: Only add directories you completely trust
+# .envrc files can execute arbitrary code!
+
+[whitelist]
+# Prefix-based whitelisting - matches directory and all subdirectories
+# NOTE: Paths must be absolute (use $HOME or full path, NOT ~)
+# Example: "/Users/username/projects" or "$HOME/projects"
+prefix = [
+  # Dotfiles repository (auto-allow all .envrc in dotfiles)
+  "/Users/yandy/.config/dotfiles",
+  "/Users/yandy/Projects",
+  "/home/yandy/.config/dotfiles",
+  "/home/yandy/Projects",
+
+  # Common development directories (customize for your workflow)
+  # "/Users/yandy/projects",
+  # "/Users/yandy/code",
+  # "/Users/yandy/dev",
+  # "/Users/yandy/workspace",
+
+  # Work/company repositories
+  # "/Users/yandy/work",
+  # "/Users/yandy/company-repos",
+
+  # Personal projects
+  # "/Users/yandy/personal",
+  # "/Users/yandy/side-projects",
+
+  # Temporary/experimental directories
+  # "/Users/yandy/tmp",
+  # "/Users/yandy/experiments",
+]
+
+# Exact path whitelisting - only specific directories (not subdirectories)
+# Use this for single projects you trust but don't want to whitelist entire trees
+# exact = [
+#     "/Users/yandy/specific-project",
+#     "/Users/yandy/trusted-repo",
+# ]

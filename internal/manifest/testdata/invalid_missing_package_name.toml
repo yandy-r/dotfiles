@@ -1,0 +1,3 @@
+[[package]]
+backend = "pkg"
+names = { pacman = "ripgrep" }

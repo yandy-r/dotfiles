@@ -1,0 +1,22 @@
+# ================================================================
+# Bash Profile Loader
+# ================================================================
+# This file is symlinked to ~/.profile and loads the main bash_profile
+# for login shells. NVM and Cargo are handled by the modern config system.
+
+# Prevent circular loading
+[[ -n "$DOTFILES_PROFILE_LOADED" ]] && return 0
+export DOTFILES_PROFILE_LOADED=1
+
+# Source .bash_profile if it exists
+if [[ -f ~/.bash_profile ]]; then
+    source ~/.bash_profile
+fi
+. "$HOME/.cargo/env"
+
+. "$HOME/.atuin/bin/env"
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/yandy/.lmstudio/bin"
+# End of LM Studio CLI section
+

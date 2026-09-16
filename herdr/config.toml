@@ -1,0 +1,49 @@
+onboarding = false
+
+[theme]
+name = "catppuccin"
+
+[ui]
+tab_bar_position = "bottom"
+
+[keys]
+prefix = "ctrl+b"
+goto = "prefix+g"
+new_tab = "prefix+c"
+next_tab = "prefix+n"
+previous_tab = "prefix+p"
+switch_tab = "prefix+1..9"
+focus_pane_left = "prefix+h"
+focus_pane_down = "prefix+j"
+focus_pane_up = "prefix+k"
+focus_pane_right = "prefix+l"
+split_vertical = ["prefix+v", "prefix+|"]
+split_horizontal = ["prefix+s", "prefix+minus"]
+close_pane = "prefix+x"
+close_tab = "prefix+shift+x"
+last_pane = "prefix+o"
+zoom = "prefix+z"
+copy_mode = "prefix+["
+detach = ["prefix+d", "prefix+q"]
+reload_config = "prefix+shift+r"
+toggle_sidebar = "prefix+shift+b"
+open_notification_target = "prefix+shift+o"
+settings = "prefix+shift+s"
+
+[[keys.command]]
+key = "prefix+t"
+type = "plugin_action"
+command = "herdr-navigator.open"
+description = "jump to anything"
+
+[[keys.command]]
+key = "prefix+e"
+type = "plugin_action"
+command = "chmarax.herdr-nvim.toggle"
+description = "nvim sidebar"
+
+[[keys.command]]
+key = "prefix+shift+e"
+type = "plugin_action"
+command = "chmarax.herdr-nvim.pick-file"
+description = "open file from agent output"

@@ -1,0 +1,8 @@
+# post_install is only valid on the git-clone backend, not custom-script.
+[[package]]
+name = "tool"
+backend = "custom-script"
+script = "bin/install-tool.sh"
+class = "managed"
+justification = "setup step"
+post_install = [{ run = ["install"] }]

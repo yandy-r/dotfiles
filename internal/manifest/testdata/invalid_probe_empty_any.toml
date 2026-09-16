@@ -1,0 +1,10 @@
+# provides_any entries must be non-empty (whitespace-only counts as empty).
+# class/justification are present so the empty-entry error is the SOLE
+# validation failure — the fixture must isolate the branch it names.
+[[package]]
+name = "blank"
+backend = "custom-script"
+script = "bin/install-blank.sh"
+provides_any = ["  "]
+class = "rolling"
+justification = "vendor installer tracks latest"

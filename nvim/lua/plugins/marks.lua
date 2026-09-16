@@ -1,0 +1,40 @@
+return {
+  {
+    "chentoast/marks.nvim",
+    event = "VeryLazy",
+    opts = {
+      default_mappings = true,
+      builtin_marks = { ".", "<", ">", "^" },
+      cyclic = true,
+      force_write_shada = false,
+      refresh_interval = 250,
+      sign_priority = { lower = 10, upper = 15, builtin = 8, bookmark = 20 },
+      excluded_filetypes = {
+        "qf",
+        "NvimTree",
+        "toggleterm",
+        "TelescopePrompt",
+        "alpha",
+        "netrw",
+        "lazy",
+        "mason",
+        "notify",
+        "snacks_dashboard",
+      },
+      bookmark_0 = {
+        sign = "⚑",
+        virt_text = "bookmark",
+        annotate = false,
+      },
+      mappings = {
+        set_next = "m,",
+        next = "m]",
+        prev = "m[",
+        preview = "m:",
+        set_bookmark0 = "m0",
+        delete_bookmark = "dm-",
+        delete_bookmark0 = "dm=",
+      },
+    },
+  },
+}

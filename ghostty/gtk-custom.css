@@ -1,0 +1,27 @@
+/* Catppuccin Mocha tab bar theme for Ghostty */
+
+/* Tab bar container — match terminal base */
+tabbar {
+  background-color: #1e1e2e;
+}
+
+/* Individual tabs — subtle surface color */
+tab {
+  color: #a6adc8;
+  background-color: #1e1e2e;
+  padding: 4px 12px;
+  border: none;
+}
+
+/* Active/selected tab — brighter with accent underline */
+tab:checked {
+  color: #cdd6f4;
+  background-color: #313244;
+  border-bottom: 2px solid #89b4fa;
+}
+
+/* Hover state */
+tab:hover {
+  background-color: #45475a;
+  color: #cdd6f4;
+}

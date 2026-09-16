@@ -1,0 +1,5 @@
+[[package]]
+name = "bad"
+backend = "github-release"
+repo = "owner/repo"
+asset = "release.tar.gz"

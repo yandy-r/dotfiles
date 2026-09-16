@@ -1,0 +1,100 @@
+version = 1
+
+[[package]]
+  name = 'lazygit-bin'
+  backend = 'github-release'
+  tag = 'v0.64.1'
+
+  [[package.artifact]]
+    os = 'arch'
+    arch = 'amd64'
+    asset = 'lazygit_0.64.1_linux_x86_64.tar.gz'
+    binary = 'lazygit'
+    sha256 = 'f8ea237c41f194cd799b48505518bfdaae4edf5a2ad6bd3d898e939785ee4532'
+
+  [[package.artifact]]
+    os = 'debian'
+    arch = 'amd64'
+    asset = 'lazygit_0.64.1_linux_x86_64.tar.gz'
+    binary = 'lazygit'
+    sha256 = 'f8ea237c41f194cd799b48505518bfdaae4edf5a2ad6bd3d898e939785ee4532'
+
+  [[package.artifact]]
+    os = 'redhat'
+    arch = 'amd64'
+    asset = 'lazygit_0.64.1_linux_x86_64.tar.gz'
+    binary = 'lazygit'
+    sha256 = 'f8ea237c41f194cd799b48505518bfdaae4edf5a2ad6bd3d898e939785ee4532'
+
+  [[package.artifact]]
+    os = 'redhat'
+    arch = 'arm64'
+    asset = 'lazygit_0.64.1_linux_arm64.tar.gz'
+    binary = 'lazygit'
+    sha256 = '8b7ca3b344e60340ad1f89f29b9868ee39bcaba5bb92ee818bbe65476bb8b6e7'
+
+[[package]]
+  name = 'turso'
+  backend = 'github-release'
+  tag = 'v1.0.29'
+
+  [[package.artifact]]
+    os = 'arch'
+    arch = 'amd64'
+    asset = 'turso-cli_Linux_x86_64.tar.gz'
+    binary = 'turso'
+    sha256 = '0eae140b030b11ad98540ed85ceb62575100135e51038009064e50675822c0f5'
+
+  [[package.artifact]]
+    os = 'debian'
+    arch = 'amd64'
+    asset = 'turso-cli_Linux_x86_64.tar.gz'
+    binary = 'turso'
+    sha256 = '0eae140b030b11ad98540ed85ceb62575100135e51038009064e50675822c0f5'
+
+  [[package.artifact]]
+    os = 'redhat'
+    arch = 'amd64'
+    asset = 'turso-cli_Linux_x86_64.tar.gz'
+    binary = 'turso'
+    sha256 = '0eae140b030b11ad98540ed85ceb62575100135e51038009064e50675822c0f5'
+
+  [[package.artifact]]
+    os = 'redhat'
+    arch = 'arm64'
+    asset = 'turso-cli_Linux_arm64.tar.gz'
+    binary = 'turso'
+    sha256 = 'f94fafc61a093f97a609e3ff65313734f2abf3659eed43e4872c52ba3fb82bc5'
+
+[[package]]
+  name = 'yazi-bin'
+  backend = 'github-release'
+  tag = 'v26.8.15'
+
+  [[package.artifact]]
+    os = 'arch'
+    arch = 'amd64'
+    asset = 'yazi-x86_64-unknown-linux-gnu.zip'
+    binary = 'yazi'
+    sha256 = 'cc67eb7991550c2f9407cda52d3f5af0937627aa6884e7de99a04fcf059807e0'
+
+  [[package.artifact]]
+    os = 'debian'
+    arch = 'amd64'
+    asset = 'yazi-x86_64-unknown-linux-gnu.zip'
+    binary = 'yazi'
+    sha256 = 'cc67eb7991550c2f9407cda52d3f5af0937627aa6884e7de99a04fcf059807e0'
+
+  [[package.artifact]]
+    os = 'redhat'
+    arch = 'amd64'
+    asset = 'yazi-x86_64-unknown-linux-gnu.zip'
+    binary = 'yazi'
+    sha256 = 'cc67eb7991550c2f9407cda52d3f5af0937627aa6884e7de99a04fcf059807e0'
+
+  [[package.artifact]]
+    os = 'redhat'
+    arch = 'arm64'
+    asset = 'yazi-aarch64-unknown-linux-gnu.zip'
+    binary = 'yazi'
+    sha256 = 'f5a85771f06bb0e8c488136ae0aedaec8d341a7cee995549df391d7d852fe8d1'

@@ -1,0 +1,83 @@
+# Valid fixture mirroring manifest/packages.toml's shape: one package per
+# supported backend, an intent referencing them all, and a few symlinks.
+
+[intents.base]
+description = "Minimal baseline tools for any machine"
+default = true
+packages = ["ripgrep", "eza", "lutris", "bat", "docker-ce", "starship", "atuin"]
+
+[intents.empty]
+description = "Intent with no packages"
+default = false
+packages = []
+
+# --- pkg -----------------------------------------------------------------
+[[package]]
+name = "ripgrep"
+backend = "pkg"
+names = { pacman = "ripgrep", apt = "ripgrep", dnf = "ripgrep", yum = "ripgrep", homebrew = "ripgrep", zypper = "ripgrep" }
+
+# --- github-release --------------------------------------------------------
+[[package]]
+name = "eza"
+backend = "github-release"
+repo = "eza-community/eza"
+tag = "v0.21.0"
+asset = "eza_x86_64-unknown-linux-gnu.tar.gz"
+sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+# --- aur -------------------------------------------------------------------
+[[package]]
+name = "lutris"
+backend = "aur"
+
+# --- toolchain ---------------------------------------------------------------
+[[package]]
+name = "bat"
+backend = "toolchain"
+tool = "cargo"
+names = { cargo = "bat" }
+
+# --- apt-repo -----------------------------------------------------------------
+[[package]]
+name = "docker-ce"
+backend = "apt-repo"
+names = { apt = "docker-ce" }
+apt_repo = { key_url = "https://download.docker.com/linux/ubuntu/gpg", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb [arch={{.Arch}} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{.Codename}} stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
+
+# --- script-url -------------------------------------------------------------
+[[package]]
+name = "starship"
+backend = "script-url"
+url = "https://starship.rs/install.sh"
+sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+# --- custom-script -----------------------------------------------------------
+[[package]]
+name = "atuin"
+backend = "custom-script"
+script = "bin/install-atuin.sh"
+class = "rolling"
+justification = "official installer tracks latest; no single pinnable artifact"
+
+[[symlink]]
+src = "starship.toml"
+dest = ".config/starship.toml"
+
+[[symlink]]
+src = "nvim"
+dest = ".config/nvim"
+type = "directory"
+
+[[symlink]]
+src = "aerospace"
+dest = ".config/aerospace"
+type = "directory"
+os = "macos"
+
+# --- sysconfig ---------------------------------------------------------------
+[sysconfig]
+timezone = "America/New_York"
+locale = "en_US.UTF-8"
+shell = "zsh"
+firewall = "ufw"

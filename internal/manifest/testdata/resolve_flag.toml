@@ -1,0 +1,11 @@
+# Distinguishable fixture for Resolve's flag-path branch — the
+# intents.base.description marker is asserted on in TestResolve_Precedence.
+
+[intents.base]
+description = "loaded-from-flag"
+default = true
+packages = ["marker"]
+
+[[package]]
+name = "marker"
+backend = "aur"

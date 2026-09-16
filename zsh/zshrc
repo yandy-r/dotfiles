@@ -1,0 +1,470 @@
+#!/usr/bin/env zsh
+# ================================================================
+# Enhanced Zsh Configuration
+# ================================================================
+# Cross-platform zsh configuration with modern features
+# Uses common configurations for consistency with bash
+
+# ================================================================
+# DOTFILES CONFIGURATION
+# ================================================================
+
+# Dotfiles root directory - always use the ~/.config/dotfiles location
+export DOTFILES_ROOT="${DOTFILES_ROOT:-$HOME/.config/dotfiles}"
+
+# Load platform detection and common configurations
+source "$DOTFILES_ROOT/common/platform.sh"
+source "$DOTFILES_ROOT/common/exports.sh"
+source "$DOTFILES_ROOT/common/paths.sh"
+source "$DOTFILES_ROOT/common/aliases.sh"
+source "$DOTFILES_ROOT/common/functions.sh"
+source "$DOTFILES_ROOT/common/tools.sh"
+
+# ================================================================
+# ZSH-SPECIFIC CONFIGURATION
+# ================================================================
+
+# ================================================================
+# ZSH OPTIONS AND KEYBINDINGS
+# ================================================================
+
+# Vi mode settings (matching bash configuration)
+export KEYTIMEOUT=1
+bindkey -v
+bindkey -M viins 'jj' vi-cmd-mode
+bindkey -M viins '^A' beginning-of-line
+bindkey -M viins '^E' end-of-line
+
+# Additional zsh options for better UX
+setopt AUTO_CD              # Change directory without typing cd
+unsetopt CORRECT            # Disable command correction (prevents "correct X to Y?" prompts)
+unsetopt CORRECT_ALL        # Disable argument correction
+setopt EXTENDED_GLOB        # Extended globbing
+setopt GLOB_DOTS            # Include dotfiles in globbing
+setopt NOMATCH              # Print error if pattern has no matches
+setopt NOTIFY               # Report background job status immediately
+setopt PROMPT_SUBST         # Allow parameter expansion in prompts
+
+# History options (enhanced from common exports.sh)
+setopt EXTENDED_HISTORY     # Record timestamp and duration
+setopt HIST_EXPIRE_DUPS_FIRST
+setopt HIST_FIND_NO_DUPS
+setopt HIST_IGNORE_SPACE
+setopt HIST_IGNORE_DUPS
+setopt HIST_IGNORE_ALL_DUPS
+# setopt HIST_REDUCE_BLANKS  # Disabled to preserve multiline command formatting
+setopt HIST_SAVE_NO_DUPS
+setopt HIST_VERIFY          # Don't execute immediately upon expansion
+setopt SHARE_HISTORY        # Share history between sessions
+setopt INC_APPEND_HISTORY   # Append to history file immediately
+
+# Completion options
+setopt AUTO_LIST            # List choices on ambiguous completion
+setopt AUTO_MENU            # Show completion menu on successive tab press
+setopt ALWAYS_TO_END        # Move cursor to end if word had one match
+setopt COMPLETE_IN_WORD     # Complete from both ends of word
+setopt FLOW_CONTROL         # Disable start/stop characters
+unsetopt MENU_COMPLETE      # Don't autoselect the first completion entry
+
+# ================================================================
+# ZSH COMPLETION SYSTEM
+# ================================================================
+
+# Enhanced completion system setup
+if [[ -n "$DOTFILES_HOMEBREW_PATH" ]]; then
+    FPATH="$DOTFILES_HOMEBREW_PATH/share/zsh/site-functions:$FPATH"
+    FPATH="$DOTFILES_HOMEBREW_PATH/share/zsh-completions:$FPATH"
+fi
+
+# Add custom completions
+FPATH="$DOTFILES_ROOT/zsh/completions:$FPATH"
+
+# Completion styling
+zstyle ':completion:*' menu select
+zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*' 'l:|=* r:|=*'
+zstyle ':completion:*' group-name ''
+zstyle ':completion:*:descriptions' format '%F{yellow}-- %d --%f'
+zstyle ':completion:*:warnings' format '%F{red}No matches found%f'
+
+# Initialize the completion system BEFORE any compdef calls.
+#
+# common/completions.sh (sourced via common/tools.sh at the top of this file)
+# already initializes it — it has to, because it registers completions and would
+# otherwise run against a shell with no compdef/complete. So this is normally a
+# no-op and exists as the fallback for a zshrc loaded without that chain. Each
+# half is guarded because compinit is among the slowest steps in zsh startup and
+# there is nothing to gain from running it twice.
+typeset -f compdef >/dev/null 2>&1 || { autoload -Uz compinit && compinit -i; }
+typeset -f complete >/dev/null 2>&1 || { autoload -U +X bashcompinit && bashcompinit; }
+
+# ================================================================
+# LEGACY FUNCTION LOADING
+# ================================================================
+
+# Load legacy functions if they exist
+[[ -f "$HOME/.functions.zsh" ]] && source "$HOME/.functions.zsh"
+
+# ================================================================
+# ENHANCED COMPLETION SETUP
+# ================================================================
+
+# Legacy completions (should be moved to tools.sh)
+if command -v vault >/dev/null 2>&1; then
+    compctl -f -x 'p[1]' -k '(auth delete list read write)' -- vault
+fi
+
+# Azure CLI completion (if available)
+if [[ -n "$DOTFILES_HOMEBREW_PATH" && -f "$DOTFILES_HOMEBREW_PATH/etc/bash_completion.d/az" ]]; then
+    source "$DOTFILES_HOMEBREW_PATH/etc/bash_completion.d/az"
+fi
+
+# ================================================================
+# 1PASSWORD CONFIGURATION
+# ================================================================
+
+# Load 1Password service account token if available
+if [[ -f ~/.config/secrets/1password-service-account && -r ~/.config/secrets/1password-service-account ]]; then
+    export OP_SERVICE_ACCOUNT_TOKEN="$(cat ~/.config/secrets/1password-service-account)"
+fi
+
+# 1Password CLI completions
+if command -v op >/dev/null 2>&1; then
+    eval "$(op completion zsh)"
+    compdef _op op
+fi
+
+## AI TOOLS CONFIGURATION
+
+# GEMINI API KEY
+if [[ -f ~/.config/secrets/gemini_api_key && -r ~/.config/secrets/gemini_api_key ]]; then
+  export GEMINI_API_KEY="$(cat ~/.config/secrets/gemini_api_key)"
+fi
+
+# OPENAI API KEY
+if [[ -f ~/.config/secrets/openai_api_key && -r ~/.config/secrets/openai_api_key ]]; then
+  export OPENAI_API_KEY="$(cat ~/.config/secrets/openai_api_key)"
+fi
+
+# ANTHROPIC API KEY
+if [[ -f ~/.config/secrets/anthropic_api_key && -r ~/.config/secrets/anthropic_api_key ]]; then
+  export ANTHROPIC_API_KEY="$(cat ~/.config/secrets/anthropic_api_key)"
+fi
+
+# ================================================================
+# CDKTF COMPLETIONS
+# ================================================================
+
+if command -v cdktf >/dev/null 2>&1; then
+    _cdktf_yargs_completions() {
+        local reply
+        local si=$IFS
+        IFS=$'\n' reply=($(COMP_CWORD="$((CURRENT - 1))" COMP_LINE="$BUFFER" COMP_POINT="$CURSOR" cdktf --get-yargs-completions "${words[@]}"))
+        IFS=$si
+        _describe 'values' reply
+    }
+    compdef _cdktf_yargs_completions cdktf
+fi
+
+# ================================================================
+# RUNTIME VERSION MANAGEMENT
+# ================================================================
+# Note: Runtime management is handled by mise via common/tools.sh
+
+# ================================================================
+# FZF SETUP
+# ================================================================
+# Note: FZF setup is now handled by common/tools.sh
+# This is kept for immediate compatibility
+
+# ================================================================
+# ZSH ENHANCEMENTS
+# ================================================================
+# Modern ZSH plugins for better shell experience
+# Note: Autosuggestions and syntax highlighting are now loaded by common/tools.sh
+# This ensures consistent cross-platform plugin loading with proper fallback paths
+
+# Re-bind vi mode keys after autosuggestions loads (if it was loaded)
+if typeset -f _zsh_autosuggest_bind_widgets &>/dev/null; then
+    bindkey -M viins 'jj' vi-cmd-mode
+    bindkey -M viins '^A' beginning-of-line
+    bindkey -M viins '^E' end-of-line
+fi
+
+# FZF integration
+if command -v fzf-share >/dev/null 2>&1; then
+    source "$(fzf-share)/key-bindings.zsh"
+    source "$(fzf-share)/completion.zsh"
+fi
+
+[[ -f ~/.fzf.zsh ]] && source ~/.fzf.zsh
+
+# ================================================================
+# PYTHON VIRTUAL ENVIRONMENT
+# ================================================================
+# Note: Python venv setup is now handled by common/tools.sh
+# This is kept for immediate compatibility
+
+# Legacy Python venv function (now handled by tools.sh)
+python_venv() {
+    local venv_dir=".venv"
+    if [[ -d "$venv_dir" ]]; then
+        source "$venv_dir/bin/activate" 2>/dev/null
+    else
+        if [[ -n "${VIRTUAL_ENV:-}" ]]; then
+            deactivate 2>/dev/null || true
+        fi
+    fi
+}
+
+# Set up chpwd hook
+autoload -U add-zsh-hook
+add-zsh-hook chpwd python_venv
+python_venv  # Run once for current directory
+
+# ================================================================
+# ADDITIONAL TOOL INITIALIZATION
+# ================================================================
+
+# Initialize thefuck if available
+if command -v thefuck >/dev/null 2>&1; then
+    eval "$(thefuck --alias)"
+fi
+
+# ================================================================
+# CARAPACE UNIVERSAL COMPLETION
+# ================================================================
+
+if command -v carapace >/dev/null 2>&1; then
+    export CARAPACE_BRIDGES='zsh,fish,bash,inshellisense'
+    zstyle ':completion:*' format $'\e[2;37mCompleting %d\e[m'
+    source <(carapace _carapace)
+fi
+
+# ================================================================
+# ZSH-SPECIFIC ALIASES
+# ================================================================
+# Note: Most aliases are now handled by common/aliases.sh
+# These are zsh-specific or legacy aliases
+
+# Legacy aliases (kept for backward compatibility)
+alias mtr="sudo mtr"
+
+# Editor shortcuts (enhanced from common)
+alias vi='nvim'
+alias vim='nvim'
+alias edit='$EDITOR'
+
+# Quick shortcuts
+alias g="git"
+alias v="vim"
+
+# TMUX shortcuts - defined in common/functions.sh and common/aliases.sh
+
+# Legacy macOS-specific aliases (should be in common/macos/aliases.sh)
+if is_macos; then
+    alias hosts='sudo $EDITOR /etc/hosts'
+    alias trimcopy="tr -d '\n' | pbcopy"
+    alias cleanup="find . -name '*.DS_Store' -type f -ls -delete"
+    alias emptytrash="sudo rm -rfv /Volumes/*/.Trashes; rm -rfv ~/.Trash/*"
+fi
+
+# ================================================================
+# ZSH-SPECIFIC MODERN TOOL ALIASES
+# ================================================================
+# Note: Most aliases are now in common/aliases.sh
+# These are zsh-specific enhancements
+
+# Enhanced eza aliases with icons (zsh-specific feature)
+if command -v eza >/dev/null 2>&1; then
+    alias la="eza -lg --all --group-directories-first --color always --icons always"
+    alias ld="eza -lDg --color always --icons always"
+    alias lf="eza -lfg --color always --icons always"
+    alias lh="eza -dlg .* --color always --icons always --group-directories-first"
+    alias lt="eza -alg --color always --icons always --group-directories-first --sort=modified"
+fi
+
+# 1Password run aliases
+if command -v op >/dev/null 2>&1; then
+    alias opr="op run --no-masking --"
+    alias opl="op run --no-masking"
+    alias ope="op run --no-masking --env-file"
+fi
+
+# Enhanced ripgrep
+if command -v rg >/dev/null 2>&1; then
+    alias rg="rg --hidden --smart-case"
+    alias rgr="rg --hidden --smart-case"  # Consistent with other configs
+fi
+
+# ================================================================
+# PROMPT SETUP - STARSHIP
+# ================================================================
+
+# Initialize Starship prompt (unified for bash and zsh)
+if command -v starship >/dev/null 2>&1; then
+    eval "$(starship init zsh)"
+else
+    # Fallback: Auto-install Starship if not available
+    if [[ -t 1 ]]; then
+        echo "🌟 Setting up Starship prompt..."
+        if command -v brew >/dev/null 2>&1; then
+            brew install starship 2>/dev/null && eval "$(starship init zsh)"
+        fi
+    fi
+fi
+
+# ================================================================
+# DIRENV SETUP
+# ================================================================
+
+# Initialize direnv for automatic environment management
+if command -v direnv >/dev/null 2>&1; then
+    eval "$(direnv hook zsh)"
+fi
+
+# ================================================================
+# ATUIN SETUP
+# ================================================================
+
+# Initialize atuin for shell history sync and search
+if command -v atuin >/dev/null 2>&1; then
+    eval "$(atuin init zsh)"
+elif [[ -f "$HOME/.atuin/bin/atuin" ]]; then
+    export PATH="$HOME/.atuin/bin:$PATH"
+    eval "$(atuin init zsh)"
+fi
+
+
+# ================================================================
+# USER CUSTOMIZATIONS
+# ================================================================
+
+# Load user-specific zsh customizations
+[[ -f ~/.zshrc.local ]] && source ~/.zshrc.local || true
+
+# Note: WezTerm theme is defined in common/exports.sh
+
+# macOS-specific tools and configurations
+if is_macos; then
+    # Turso CLI
+    if [[ -d "$HOME/.turso" ]]; then
+        append_path "$HOME/.turso"
+    fi
+
+    # Docker Desktop CLI completions (fpath only, compinit already loaded)
+    if [[ -d "$HOME/.docker/completions" ]]; then
+        fpath=("$HOME/.docker/completions" $fpath)
+    fi
+
+    # Unlock Keychain on SSH login
+    if [ -n "$SSH_CONNECTION" ] && [ -z "$KEYCHAIN_UNLOCKED" ]; then
+        security unlock-keychain ~/Library/Keychains/login.keychain-db 2>/dev/null
+        export KEYCHAIN_UNLOCKED=true
+    fi
+fi
+ulimit -n 65536
+
+# ================================================================
+# FINAL PATH CLEANUP
+# ================================================================
+
+# Remove unwanted paths that may have been added by plugins/tools
+# This runs AFTER all shell initialization to ensure clean PATH
+
+# Debug: Store original PATH length
+_orig_path_len=$(echo "$PATH" | tr ':' '\n' | wc -l)
+
+# Remove Nix paths (not used on any platform)
+PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '\.nix-profile' | grep -v '^/nix/' | tr '\n' ':' | sed 's/:$//')
+
+# Platform-specific cleanup using DOTFILES_OS variable
+if [[ "$DOTFILES_OS" == "debian" ]] || [[ "$DOTFILES_OS" == "ubuntu" ]] || [[ "$DOTFILES_OS" == "linux" ]] || [[ "$DOTFILES_OS" == "redhat" ]] || [[ "$DOTFILES_OS" == "arch" ]]; then
+    # Remove macOS-specific paths when on Linux
+    PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '/opt/homebrew' | grep -v '^/Users/' | tr '\n' ':' | sed 's/:$//')
+elif [[ "$DOTFILES_OS" == "macos" ]]; then
+    # Remove Linux-specific Homebrew paths when on macOS
+    PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '^/home/linuxbrew/.linuxbrew' | tr '\n' ':' | sed 's/:$//')
+fi
+
+# Final deduplication
+PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '^$' | awk '!seen[$0]++' | tr '\n' ':' | sed 's/:$//')
+
+# CRITICAL: After all cleanup, ensure Homebrew and custom paths are at the front
+# This fixes issues where path_helper or other tools may have reordered PATH
+if is_macos; then
+    # Force correct order: Homebrew and user paths before system paths
+    fix_homebrew_path_order
+fi
+
+# Debug: Calculate cleanup results
+_new_path_len=$(echo "$PATH" | tr ':' '\n' | wc -l)
+_removed=$((_orig_path_len - _new_path_len))
+
+# Only show debug if DOTFILES_DEBUG is set
+if [[ -n "${DOTFILES_DEBUG:-}" ]]; then
+    echo "[DOTFILES] PATH cleanup removed $_removed entries ($_orig_path_len -> $_new_path_len)"
+fi
+
+export PATH
+
+# Note: kubectl aliases are defined in common/aliases.sh
+# Note: kubectl completions are loaded by common/lazy-completions.sh
+# Note: KUBECONFIG is defined in common/exports.sh
+# Note: Node.js runtime is managed by mise (configured in common/tools.sh)
+
+# rfmedia shell completion
+fpath=(~/.zfunc $fpath)
+autoload -Uz compinit && compinit
+
+# pnpm
+export PNPM_HOME="/home/yandy/.local/share/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end
+
+# Added by Antigravity
+export PATH="${HOME}/.antigravity/antigravity/bin:$PATH"
+# The following lines have been added by Docker Desktop to enable Docker CLI completions.
+fpath=("${HOME}/.docker/completions" $fpath)
+autoload -Uz compinit
+compinit
+# End of Docker CLI completions
+
+
+# Branchlet setup: added on 2026-03-01
+_branchlet() {
+  local -a commands
+  commands=(
+    'create:Create a new worktree'
+    'list:List all worktrees'
+    'delete:Delete a worktree'
+    'settings:Manage configuration'
+  )
+  _arguments -C \
+    '(-h --help)'{-h,--help}'[Show help]' \
+    '(-v --version)'{-v,--version}'[Show version]' \
+    '(-m --mode)'{-m,--mode}'[Set mode]:mode:(menu create list delete settings)' \
+    '--from-wrapper[Called from shell wrapper]' \
+    '1:command:->command'
+  case "$state" in
+    command)
+      _describe -t commands 'branchlet commands' commands
+      ;;
+  esac
+}
+compdef _branchlet branchlet
+branchlet() {
+  if [ $# -eq 0 ]; then
+    local dir=$(FORCE_COLOR=3 command branchlet --from-wrapper)
+    if [ -n "$dir" ]; then
+      builtin cd "$dir" && echo "Branchlet: Navigated to $(pwd)"
+    fi
+  else
+    command branchlet "$@"
+  fi
+}
+# End Branchlet setup
+

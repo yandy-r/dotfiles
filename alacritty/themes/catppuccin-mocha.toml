@@ -1,0 +1,117 @@
+# ================================================================
+# Catppuccin Mocha Theme for Alacritty
+# ================================================================
+# A soothing pastel theme for the high-spirited!
+# https://github.com/catppuccin/alacritty
+
+# ================================================================
+# PRIMARY COLORS
+# ================================================================
+
+[colors.primary]
+background = "#1e1e2e"  # Base
+foreground = "#cdd6f4"  # Text
+dim_foreground = "#7f849c"  # Subtext1
+bright_foreground = "#cdd6f4"  # Text
+
+# ================================================================
+# CURSOR COLORS
+# ================================================================
+
+[colors.cursor]
+text = "#1e1e2e"        # Base
+cursor = "#f5e0dc"      # Rosewater
+
+# ================================================================
+# VI MODE CURSOR COLORS
+# ================================================================
+
+[colors.vi_mode_cursor]
+text = "#1e1e2e"        # Base  
+cursor = "#b4befe"      # Lavender
+
+# ================================================================
+# SEARCH COLORS
+# ================================================================
+
+[colors.search.matches]
+foreground = "#1e1e2e"  # Base
+background = "#a6adc8"  # Subtext0
+
+[colors.search.focused_match]
+foreground = "#1e1e2e"  # Base
+background = "#a6e3a1"  # Green
+
+# ================================================================
+# KEYBOARD HINTS
+# ================================================================
+
+[colors.hints.start]
+foreground = "#1e1e2e"  # Base
+background = "#f9e2af"  # Yellow
+
+[colors.hints.end]
+foreground = "#1e1e2e"  # Base
+background = "#a6adc8"  # Subtext0
+
+# ================================================================
+# SELECTION COLORS
+# ================================================================
+
+[colors.selection]
+text = "#cdd6f4"        # Text
+background = "#414559"  # Surface2
+
+# ================================================================
+# NORMAL COLORS
+# ================================================================
+
+[colors.normal]
+black = "#45475a"       # Surface1
+red = "#f38ba8"         # Red
+green = "#a6e3a1"       # Green  
+yellow = "#f9e2af"      # Yellow
+blue = "#89b4fa"        # Blue
+magenta = "#f5c2e7"     # Pink
+cyan = "#94e2d5"        # Teal
+white = "#bac2de"       # Subtext1
+
+# ================================================================
+# BRIGHT COLORS
+# ================================================================
+
+[colors.bright]
+black = "#585b70"       # Surface2
+red = "#f38ba8"         # Red
+green = "#a6e3a1"       # Green
+yellow = "#f9e2af"      # Yellow
+blue = "#89b4fa"        # Blue
+magenta = "#f5c2e7"     # Pink
+cyan = "#94e2d5"        # Teal
+white = "#a6adc8"       # Subtext0
+
+# ================================================================
+# DIM COLORS
+# ================================================================
+
+[colors.dim]
+black = "#313244"       # Surface0
+red = "#eba0ac"         # Maroon
+green = "#94e2d5"       # Teal
+yellow = "#f2cdcd"      # Flamingo
+blue = "#74c7ec"        # Sapphire
+magenta = "#cba6f7"     # Mauve
+cyan = "#89dceb"        # Sky
+white = "#9399b2"       # Overlay1
+
+# ================================================================
+# INDEXED COLORS (16-255)
+# ================================================================
+
+[[colors.indexed_colors]]
+index = 16
+color = "#fab387"       # Peach
+
+[[colors.indexed_colors]]
+index = 17  
+color = "#f5e0dc"       # Rosewater

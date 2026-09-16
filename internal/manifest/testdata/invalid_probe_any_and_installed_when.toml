@@ -1,0 +1,11 @@
+# provides_any and installed_when are mutually exclusive (installed_when is a
+# filesystem-path probe, not a PATH-binary probe). class/justification are
+# present so the mutual-exclusion error is the SOLE validation failure.
+[[package]]
+name = "conflict"
+backend = "custom-script"
+script = "bin/install-conflict.sh"
+provides_any = ["foo", "foo-bin"]
+installed_when = { path = "~/foo" }
+class = "rolling"
+justification = "vendor installer tracks latest"

@@ -1,0 +1,6 @@
+# provides/installed_when is only valid for the PATH-install backends, not pkg.
+[[package]]
+name = "git"
+backend = "pkg"
+names = { pacman = "git", apt = "git", dnf = "git", zypper = "git", homebrew = "git" }
+provides = ["git"]

@@ -1,0 +1,5 @@
+[[package]]
+name = "bad"
+backend = "script-url"
+url = "http://example.com/install.sh"
+sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

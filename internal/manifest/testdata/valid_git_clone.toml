@@ -1,0 +1,13 @@
+# A valid git-clone package: https url + $HOME-relative dest, optional ref, and
+# a typed post_install argv step (no shell).
+[intents.t]
+description = "t"
+packages = ["tool"]
+
+[[package]]
+name = "tool"
+backend = "git-clone"
+url = "https://github.com/example/tool"
+ref = "v1.2.3"
+dest = ".config/tool"
+post_install = [{ run = ["install", "--all"] }]

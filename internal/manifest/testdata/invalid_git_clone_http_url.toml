@@ -1,0 +1,6 @@
+# git-clone backend requires an https url, not http.
+[[package]]
+name = "tool"
+backend = "git-clone"
+url = "http://github.com/example/tool"
+dest = ".config/tool"

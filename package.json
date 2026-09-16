@@ -1,0 +1,55 @@
+{
+  "name": "dotfiles-scripts",
+  "version": "1.0.0",
+  "description": "TypeScript utility scripts for dotfiles",
+  "type": "commonjs",
+  "private": true,
+  "scripts": {
+    "smartsheet": "tsx smartsheet-cli.ts",
+    "install-deps": "npm install",
+    "lint": "bin/lint.sh --python --shell --go",
+    "lint:modified": "bin/lint.sh --modified --python --shell --go",
+    "lint:staged": "bin/lint.sh --staged --python --shell --go",
+    "lint:unstaged": "bin/lint.sh --unstaged --python --shell --go",
+    "lint:fix": "bin/lint.sh --fix --python --shell --go",
+    "lint:fix:modified": "bin/lint.sh --fix --modified --python --shell --go",
+    "lint:fix:staged": "bin/lint.sh --fix --staged --python --shell --go",
+    "lint:fix:unstaged": "bin/lint.sh --fix --unstaged --python --shell --go",
+    "lint:md": "bin/lint.sh --docs",
+    "lint:md:modified": "bin/lint.sh --modified --docs",
+    "lint:md:staged": "bin/lint.sh --staged --docs",
+    "lint:md:unstaged": "bin/lint.sh --unstaged --docs",
+    "format": "bin/format.sh --python --docs --go",
+    "format:modified": "bin/format.sh --modified --python --docs --go",
+    "format:staged": "bin/format.sh --staged --python --docs --go",
+    "format:unstaged": "bin/format.sh --unstaged --python --docs --go",
+    "format:md": "bin/format.sh --docs",
+    "format:md:modified": "bin/format.sh --modified --docs",
+    "format:md:staged": "bin/format.sh --staged --docs",
+    "format:md:unstaged": "bin/format.sh --unstaged --docs",
+    "go:test": "go test ./...",
+    "go:vet": "go vet ./...",
+    "go:build": "go build -o dotf ./cmd/dotf"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "ora": "^8.1.0",
+    "prompts": "^2.4.2",
+    "smartsheet": "^4.3.0"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "@types/node": "^22.10.5",
+    "@types/prompts": "^2.4.9",
+    "markdownlint-cli2": "^0.23.0",
+    "prettier": "^3.9.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+# ================================================================
+# Enhanced Bash Configuration
+# ================================================================
+# Cross-platform bash configuration with modern features
+# Aligned with zsh configuration for consistency
+
+# If not running interactively, don't do anything
+case $- in
+*i*) ;;
+*) return ;;
+esac
+
+# Prevent infinite loading loops
+if [[ -n "${DOTFILES_BASHRC_LOADED}" ]]; then
+	return 0
+fi
+export DOTFILES_BASHRC_LOADED=1
+
+# Ensure we have a minimal PATH (critical for system stability)
+if [[ -z "$PATH" ]]; then
+	export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin"
+fi
+
+# ================================================================
+# DOTFILES CONFIGURATION
+# ================================================================
+
+# Dotfiles root directory - always use the ~/.config/dotfiles location
+export DOTFILES_ROOT="${DOTFILES_ROOT:-$HOME/.config/dotfiles}"
+
+# Load platform detection and common configurations
+source "$DOTFILES_ROOT/common/platform.sh"
+source "$DOTFILES_ROOT/common/exports.sh"
+source "$DOTFILES_ROOT/common/paths.sh"
+source "$DOTFILES_ROOT/common/aliases.sh"
+source "$DOTFILES_ROOT/common/functions.sh"
+source "$DOTFILES_ROOT/common/tools.sh"
+
+# ================================================================
+# BASH-SPECIFIC SETTINGS
+# ================================================================
+
+# Shell options
+shopt -s histappend   # Append to history file
+shopt -s checkwinsize # Update LINES and COLUMNS after each command
+shopt -s cdspell      # Correct minor spelling errors in cd commands
+shopt -s dotglob      # Include dotfiles in pathname expansion
+shopt -s extglob      # Extended pattern matching
+shopt -s nocaseglob   # Case-insensitive globbing
+
+# Modern bash features (bash 4.0+)
+if [[ "${BASH_VERSION%%.*}" -ge 4 ]]; then
+	shopt -s globstar # Enable ** globbing
+	shopt -s dirspell # Correct minor spelling errors in directory names
+	shopt -s autocd   # Change directory without typing cd
+else
+	# Warn about old bash version
+	if [[ -t 1 ]]; then # Only show warning in interactive shells
+		echo "⚠️  Using bash ${BASH_VERSION}. For best experience, install modern bash:"
+		echo "   brew install bash && chsh -s /opt/homebrew/bin/bash"
+	fi
+fi
+
+# Bind keys for better navigation (similar to zsh)
+bind 'set completion-ignore-case on'
+bind 'set show-all-if-ambiguous on'
+bind 'set show-all-if-unmodified on'
+bind 'set colored-stats on'
+bind 'set visible-stats on'
+bind 'set mark-symlinked-directories on'
+bind 'set colored-completion-prefix on'
+bind 'set menu-complete-display-prefix on'
+
+# Vi mode keybindings (to match zsh vi mode)
+set -o vi
+bind -m vi-insert '"jj": vi-movement-mode'
+
+# History search with up/down arrows
+bind '"\e[A": history-search-backward'
+bind '"\e[B": history-search-forward'
+
+# ================================================================
+# PROMPT SETUP - STARSHIP
+# ================================================================
+
+# Initialize Starship prompt (unified for bash and zsh)
+if command -v starship >/dev/null 2>&1; then
+	eval "$(starship init bash)"
+else
+	# Fallback: Auto-install Starship if not available
+	if [[ -t 1 ]]; then
+		echo "🌟 Setting up Starship prompt..."
+		if command -v brew >/dev/null 2>&1; then
+			brew install starship 2>/dev/null && eval "$(starship init bash)"
+		else
+			# Use custom prompt if Starship can't be installed
+			source "$DOTFILES_ROOT/bash/prompt.sh" 2>/dev/null || {
+				PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+			}
+		fi
+	else
+		# Non-interactive: use custom prompt
+		source "$DOTFILES_ROOT/bash/prompt.sh" 2>/dev/null || {
+			PS1='\u@\h:\w\$ '
+		}
+	fi
+fi
+
+# ================================================================
+# COMPLETION SYSTEM
+# ================================================================
+
+# Load bash completion
+if ! shopt -oq posix; then
+	if [[ -f /usr/share/bash-completion/bash_completion ]]; then
+		source /usr/share/bash-completion/bash_completion
+	elif [[ -f /etc/bash_completion ]]; then
+		source /etc/bash_completion
+	fi
+fi
+
+# Homebrew completions
+if [[ -n "$DOTFILES_HOMEBREW_PATH" && -f "$DOTFILES_HOMEBREW_PATH/etc/profile.d/bash_completion.sh" ]]; then
+	source "$DOTFILES_HOMEBREW_PATH/etc/profile.d/bash_completion.sh"
+fi
+
+# ================================================================
+# LEGACY COMPATIBILITY
+# ================================================================
+
+# Load legacy aliases if they exist
+[[ -f ~/.aliases ]] && source ~/.aliases
+[[ -f ~/.bash_aliases ]] && source ~/.bash_aliases
+
+# Legacy profile loading - DISABLED to prevent circular sourcing
+# Note: ~/.profile sources ~/.bash_profile which sources ~/.bashrc creating a loop
+# [[ -f ~/.profile ]] && source ~/.profile
+
+# ================================================================
+# TOOL COMPLETIONS
+# ================================================================
+# Note: Most completions are handled by common/completions.sh via tools.sh
+
+# Vault completion (if installed locally)
+[[ -f /usr/local/bin/vault ]] && complete -C /usr/local/bin/vault vault
+
+# ================================================================
+# DEVELOPMENT ENVIRONMENT COMPATIBILITY
+# ================================================================
+# Note: These are handled by tools.sh but kept for immediate compatibility
+
+# Cargo (Rust) - handled by tools.sh but sourced directly for immediate availability
+[[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
+
+# ================================================================
+# DIRENV SETUP
+# ================================================================
+
+# Initialize direnv for automatic environment management
+if command -v direnv >/dev/null 2>&1; then
+	eval "$(direnv hook bash)"
+fi
+
+# ================================================================
+# ATUIN SETUP
+# ================================================================
+
+# Initialize atuin for shell history sync and search
+if command -v atuin >/dev/null 2>&1; then
+	eval "$(atuin init bash)"
+elif [[ -f "$HOME/.atuin/bin/atuin" ]]; then
+	export PATH="$HOME/.atuin/bin:$PATH"
+	eval "$(atuin init bash)"
+fi
+
+# ================================================================
+# POST-LOAD CUSTOMIZATIONS
+# ================================================================
+
+# Load user-specific bash customizations
+[[ -f ~/.bashrc.local ]] && source ~/.bashrc.local || true
+
+# Set terminal title (similar to zsh behavior)
+case "$TERM" in
+xterm* | rxvt* | screen*)
+	# Append to PROMPT_COMMAND instead of overwriting it
+	PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND; }echo -ne '\033]0;${USER}@${HOSTNAME}: ${PWD}\007'"
+	;;
+esac
+
+# Note: kubectl aliases are defined in common/aliases.sh
+# Note: WEZTERM_THEME is defined in common/exports.sh
+# Note: KUBECONFIG is defined in common/exports.sh
+# Note: zoxide uses 'z' command (not replacing cd) - initialized in tools.sh
+
+# opencode
+export PATH=/home/yandy/.opencode/bin:$PATH

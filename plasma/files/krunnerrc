@@ -1,0 +1,4 @@
+[General]
+FreeFloating=true
+RetainPriorSearch=false
+historyBehavior=ImmediateCompletion

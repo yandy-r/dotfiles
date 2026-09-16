@@ -1,0 +1,39 @@
+# lefthook config for dotfiles
+# Install: `lefthook install` (wires hooks into .git/hooks/)
+# Docs:    docs/pre-commit-recommendation.md
+
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      # Uses the repo's mixed-language linter (shell + python + go + markdown).
+      # --staged validates exactly the files about to be committed. --docs runs
+      # markdownlint on staged Markdown only, so the repo's markdown backlog
+      # never blocks unrelated commits.
+      run: bin/lint.sh --staged --shell --python --go --docs
+      stage_fixed: false
+      fail_text: |
+        ✗ lint failed. Fix with:
+            npm run lint:fix:staged   # code
+            npm run format:md:staged  # markdown
+        Or stage only the files you already cleaned and retry the commit.
+
+commit-msg:
+  commands:
+    commitlint:
+      # Validates Conventional Commits 1.0.0 (see commitlint.config.cjs).
+      run: npx --no -- commitlint --edit {1}
+      fail_text: |
+        ✗ commit message does not match Conventional Commits 1.0.0.
+        Format:  <type>(<scope>): <subject>
+        Types:   feat, fix, docs, refactor, perf, test, build, ci, chore, style, revert
+        Example: feat(bash): add starship integration
+
+pre-push:
+  commands:
+    lint-full:
+      # Full lint pass on the whole repo before pushing.
+      run: npm run lint
+      fail_text: |
+        ✗ full lint failed. Fix with:
+            npm run lint:fix

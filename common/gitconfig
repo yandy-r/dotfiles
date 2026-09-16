@@ -1,0 +1,200 @@
+[alias]
+    ## STATUS / DIFF
+    s = status --short --branch --untracked-files=all
+    stat = status --long --branch --untracked-files=all
+    d = diff --patch-with-stat
+    dc = diff --cached --patch-with-stat
+
+    ## LOGS / HISTORY
+    l = log --oneline --graph --decorate -n 20
+    lo = log --oneline --graph --decorate -n 20
+    lga = log --graph --oneline --all --decorate
+    last = log -1 --stat
+    current = branch --show-current
+
+    ## BRANCHING / SWITCHING
+    co = switch
+    cb = switch -c
+    go = switch -C
+    bv = branch -vva
+    bm = branch -m
+    bd = branch -d
+    bd-f = branch -D
+
+    ## RESET / RESTORE / STASH
+    rem = rm -r --cached
+    unstage = restore --staged --
+    discard = restore --worktree --
+    ucm = reset --soft HEAD^
+    uca = reset --soft
+    uhcm = reset --hard HEAD^
+    uhca = reset --hard
+    umcm = reset --mixed HEAD^
+    umca = reset --mixed
+    st = stash push --include-untracked
+    sta = stash push --keep-index --include-untracked
+
+    ## COMMITS / AMEND
+    cam = commit -am
+    cm = commit
+    ca = commit -a
+    cmm = commit -m
+    cma = commit --amend
+    credit = "!f() { git commit --amend --author \"$1 <$2>\" -C HEAD; }; f"
+
+    ## FETCH / PULL / REBASE
+    chkr = remote update --prune
+    f = fetch --prune --tags
+    pl = pull --ff-only
+    reb = "!r() { git rebase -i HEAD~$1; }; r"
+    m = merge --verbose
+
+    ## PUSH / REMOTES
+    p = push
+    po = push -u origin HEAD
+    pof = push --force-with-lease origin HEAD
+    pu-del = push --delete
+    tags = tag -l
+    branches = branch -a
+    remotes = remote -v
+
+    ## CLONE / TREE / WORKTREE
+    cl = clone --recurse-submodules
+    lsf = "!f() { git ls-tree -rt --name-only \"${1:-HEAD}\"; }; f"
+    wt = worktree
+    wta = worktree add
+    wtl = worktree list
+    wtr = worktree remove
+
+[apply]
+    # Detect whitespace errors when applying a patch
+    whitespace = fix
+
+[core]
+    # Use custom `.gitignore` and `.gitattributes`
+	excludesfile = ~/.gitignore
+    attributesfile = ~/.gitattributes
+    # Treat spaces before tabs, lines that are indented with 8 or more spaces, and all kinds of trailing whitespace as an error
+    whitespace = space-before-tab,indent-with-non-tab,trailing-space
+	editor = nvim
+    autocrlf = input
+	pager = delta
+
+[interactive]
+	diffFilter = delta --color-only
+
+[delta]
+	navigate = true
+  side-by-side = true
+  line-numbers = true
+
+    # delta detects terminal colors automatically; set one of these to disable auto-detection
+    dark = true
+	light = false
+    # light = true
+
+[color]
+    # Use colors in Git commands that are capable of colored output when outputting to the terminal
+    ui = auto
+[color "branch"]
+    current = yellow reverse
+    local = yellow
+    remote = green
+[color "diff"]
+    meta = yellow bold
+    frag = magenta bold
+    old = red bold
+    new = green bold
+[color "status"]
+    added = yellow
+    changed = green
+    untracked = cyan
+
+# URL shorthands
+[url "git@github.com:"]
+    insteadOf = "gh:"
+    pushInsteadOf = "github:"
+    pushInsteadOf = "git://github.com/"
+[url "git://github.com/"]
+    insteadOf = "github:"
+[url "git@gist.github.com:"]
+    insteadOf = "gst:"
+    pushInsteadOf = "gist:"
+    pushInsteadOf = "git://gist.github.com/"
+[url "git://gist.github.com/"]
+    insteadOf = "gist:"
+
+[push]
+	default = current
+	autoSetupRemote = true
+	followTags = true
+[fetch]
+	prune = true
+	pruneTags = true
+[rebase]
+	autoStash = true
+	updateRefs = true
+[rerere]
+	enabled = true
+	autoupdate = true
+[init]
+	defaultBranch = main
+[branch]
+	sort = -committerdate
+[user]
+	name = Yandy Ramirez
+	email = yandyr@gmail.com
+[help]
+	autoCorrect = prompt
+[filter "media"]
+	clean = git-media-clean %f
+	smudge = git-media-smudge %f
+
+[merge]
+    # Include summaries of merged commits in newly created merge commit messages
+    log = true
+	tool = kdiff3
+	conflictstyle = zdiff3
+[mergetool "kdiff3"]
+	cmd = code-insiders --wait --merge $LOCAL
+	trustExitCode = false
+[diff]
+	tool = kdiff3
+	guitool = kdiff3
+  colorMoved = default
+[difftool "kdiff3"]
+    cmd = code-insiders --wait --diff $LOCAL $REMOTE
+
+[difftool "sourcetree"]
+	cmd = opendiff \"$LOCAL\" \"$REMOTE\"
+	path =
+[mergetool "sourcetree"]
+	cmd = /Applications/Sourcetree.app/Contents/Resources/opendiff-w.sh \"$LOCAL\" \"$REMOTE\" -ancestor \"$BASE\" -merge \"$MERGED\"
+	trustExitCode = true
+[credential]
+	# Use credential cache for HTTPS authentication (1 hour timeout)
+	helper = cache --timeout=3600
+	# For macOS, use osxkeychain instead:
+	# helper = osxkeychain
+	# For Linux with libsecret:
+	# helper = /usr/share/doc/git/contrib/credential/libsecret/git-credential-libsecret
+
+[pull]
+	rebase = true
+	ff = only
+[filter "lfs"]
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+	clean = git-lfs clean -- %f
+
+[worktree]
+	# Automatically delete branches when worktrees are removed
+	pruneOnRemove = true
+
+# CodeRabbit Configuration
+# Note: machineId is machine-specific and should NOT be committed to this shared config.
+# Set it locally in each machine with:
+#   git config --global coderabbit.machineId "cli/YOUR_MACHINE_ID"
+[coderabbit]
+	machineId = cli/f6bc8850f58d416482deeaaccfb601de

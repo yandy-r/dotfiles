@@ -1,0 +1,11 @@
+# names key that isn't one of the known platform.PkgMgr values.
+
+[intents.base]
+description = "test"
+default = true
+packages = ["ripgrep"]
+
+[[package]]
+name = "ripgrep"
+backend = "pkg"
+names = { npm = "ripgrep" }

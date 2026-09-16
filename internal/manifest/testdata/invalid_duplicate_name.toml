@@ -1,0 +1,14 @@
+# Two [[package]] entries sharing the same name.
+
+[intents.base]
+description = "test"
+default = true
+packages = ["dup"]
+
+[[package]]
+name = "dup"
+backend = "aur"
+
+[[package]]
+name = "dup"
+backend = "aur"

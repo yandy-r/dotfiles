@@ -1,0 +1,107 @@
+---
+# ================================================================
+# Symlink Variable Definitions
+# ================================================================
+# All symlink mappings and configuration options for the symlinks playbook.
+
+# Core directories
+backup_dir: "{{ ansible_facts['env']['HOME'] }}/.config/dotfiles_backup_{{ ansible_facts['date_time']['epoch'] }}"
+config_dir: "{{ ansible_facts['env']['HOME'] }}/.config"
+home_dir: "{{ ansible_facts['env']['HOME'] }}"
+
+# Configuration options
+force_symlinks: '{{ force | default(false) | bool }}'
+create_backups: '{{ backup | default(false) | bool }}'
+dry_run: '{{ dryrun | default(false) | bool }}'
+validate_after: '{{ validate | default(true) | bool }}'
+manage_linux_desktop: '{{ linux_desktop | default(false) | bool }}'
+is_linux_family: "{{ ansible_facts['os_family'] == 'RedHat' or ansible_facts['os_family'] == 'Debian' or ansible_facts['os_family'] == 'Suse' or ansible_facts['os_family'] == 'Archlinux' }}"
+
+# Shell configurations (updated for new common system)
+bash_files:
+  - { src: 'bash/bashrc', dest: '.bashrc' }
+  - { src: 'bash/bash_profile', dest: '.bash_profile' }
+  - { src: 'bash/profile', dest: '.profile' }
+
+zsh_files:
+  - { src: 'zsh/zshrc', dest: '.zshrc' }
+  - { src: 'zsh/zprofile', dest: '.zprofile' }
+  - { src: 'zsh/functions.zsh', dest: '.functions.zsh' }
+  - { src: 'zsh/fzf.zsh', dest: '.fzf.zsh' }
+
+# Common configurations
+common_files:
+  - { src: 'common/gitconfig', dest: '.gitconfig' }
+  - { src: 'common/gitignore', dest: '.gitignore' }
+  - { src: 'common/tmux.conf', dest: '.tmux.conf' }
+  - { src: 'common/screenrc', dest: '.screenrc' }
+  - { src: 'common/wgetrc', dest: '.wgetrc' }
+  - { src: 'shellcheck/shellcheckrc', dest: '.shellcheckrc' }
+
+# Prompt configuration (Starship)
+prompt_config:
+  - { src: 'starship.toml', dest: '.config/starship.toml' }
+
+# Application configurations
+app_configs:
+  - { src: 'nvim', dest: '.config/nvim', type: 'directory' }
+  - { src: 'wezterm', dest: '.config/wezterm', type: 'directory' }
+  - { src: 'ghostty', dest: '.config/ghostty', type: 'directory' }
+  - { src: 'mise', dest: '.config/mise', type: 'directory' }
+  - { src: 'alacritty', dest: '.config/alacritty', type: 'directory' }
+
+# macOS-specific configurations
+macos_configs:
+  - { src: 'aerospace', dest: '.config/aerospace', type: 'directory' }
+  - { src: 'herdr/config.toml', dest: '.config/herdr/config.toml' }
+
+# Linux-specific configurations (systemd user services; ADR-12 — the tmux unit
+# orders on graphical-session-pre.target and runs a repo script, so it is not
+# Arch-specific)
+linux_configs:
+  - { src: 'common/systemd/user/tmux.service', dest: '.config/systemd/user/tmux.service' }
+  - { src: 'herdr/config.toml', dest: '.config/herdr/config.toml' }
+
+# Generic Linux desktop configuration
+generic_linux_desktop_configs:
+  - { src: 'hypr', dest: '.config/hypr', type: 'directory' }
+  - { src: 'waybar', dest: '.config/waybar', type: 'directory' }
+  - { src: 'swayosd', dest: '.config/swayosd', type: 'directory' }
+  - { src: 'mako', dest: '.config/mako', type: 'directory' }
+  - { src: 'wlogout', dest: '.config/wlogout', type: 'directory' }
+  - { src: 'fuzzel', dest: '.config/fuzzel', type: 'directory' }
+  - { src: 'satty', dest: '.config/satty', type: 'directory' }
+
+# Desktop application launchers (individual .desktop files)
+launcher_configs:
+  - {
+      src: 'launchers/applications/alacritty-float.desktop',
+      dest: '.local/share/applications/alacritty-float.desktop',
+    }
+  - { src: 'launchers/applications/arch-update.desktop', dest: '.local/share/applications/arch-update.desktop' }
+  - { src: 'launchers/applications/gedit-float.desktop', dest: '.local/share/applications/gedit-float.desktop' }
+  - { src: 'launchers/applications/wifi-tui.desktop', dest: '.local/share/applications/wifi-tui.desktop' }
+
+# Arch Linux-specific configurations (none; the tmux user unit moved to
+# linux_configs — ADR-12)
+archlinux_configs: []
+
+# Windows-specific configurations
+windows_configs: []
+
+# Utility directories
+utility_dirs:
+  - { src: 'bin', dest: '.bin', type: 'directory' }
+
+# Shell completions (none - files are named correctly in zsh/completions/ which is in FPATH)
+completions: []
+
+# Special symlinks
+special_symlinks:
+  - { src: 'ssh/config', dest: '.ssh/config' }
+  - { src: 'ansible.cfg', dest: '.ansible.cfg' }
+  - { src: 'dotenv', dest: '.config/direnv', type: 'directory' }
+  - { src: 'branchlet/settings.json', dest: '.branchlet/settings.json' }
+  - { src: 'atuin/config.toml', dest: '.config/atuin/config.toml' }
+  - { src: 'lazygit/config.yml', dest: '.config/lazygit/config.yml' }
+  - { src: 'zed/keymap.json', dest: '.config/zed/keymap.json' }

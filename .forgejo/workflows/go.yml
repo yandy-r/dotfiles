@@ -1,0 +1,146 @@
+name: Go
+
+# Forgejo-native CI. Forgejo reads workflows from .forgejo/workflows/ in
+# preference to .github/workflows/ (the two directories are never merged), so
+# this mirrors .github/workflows/go.yml for the self-hosted origin. There are
+# two substantive differences. First, the Lint step: golangci-lint-action is not
+# resolvable from Forgejo's DEFAULT_ACTIONS_URL (data.forgejo.org mirrors only
+# actions/* and forgejo/*), so golangci-lint is installed via its pinned
+# upstream script instead. Second, the fedora job installs one extra package,
+# nodejs, because act_runner needs node inside the container image before any
+# JavaScript action can run. Keep this in sync with .github/workflows/go.yml.
+
+on:
+  pull_request:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'manifest/**'
+      - 'bin/**'
+      - 'plasma/**'
+      - 'bootstrap.sh'
+      - '.goreleaser.yml'
+      - '.goreleaser.forgejo.yml'
+      - '.forgejo/workflows/go.yml'
+      - '.golangci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'manifest/**'
+      - 'bin/**'
+      - 'plasma/**'
+      - 'bootstrap.sh'
+      - '.goreleaser.yml'
+      - '.goreleaser.forgejo.yml'
+      - '.forgejo/workflows/go.yml'
+      - '.golangci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Lint
+        # golangci-lint-action 404s on Forgejo (see header). Pin the installer
+        # and version to match .golangci.yml (version: "2").
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/v2.12.2/install.sh \
+            | sh -s -- -b "$(go env GOPATH)/bin" v2.12.2
+          "$(go env GOPATH)/bin/golangci-lint" run ./...
+
+  fedora:
+    # Distro axis (ADR-15). This is the only job that runs the Go suite and dotf
+    # itself against a real Fedora userspace -- a real /etc/os-release, real dnf5
+    # and a real rpm database. Every other Fedora assertion in the repo runs
+    # against exec.Fake. No arm64 runner is bought: architecture variance is
+    # rehearsed locally instead (see docs/fedora-rehearsal.md).
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Install container prerequisites
+        # fedora:latest ships dnf5, rpm, bash, curl, tar and sudo but NOT git or
+        # gcc: actions/checkout silently degrades to a REST tarball without git,
+        # and `go test -race` fails with "-race requires cgo" without gcc.
+        # nodejs is extra here: GitHub mounts the runner's own node into a
+        # container job, so fedora:latest needs none there, but Forgejo's
+        # act_runner requires node INSIDE the image before any JavaScript action
+        # (actions/checkout, actions/setup-go) can run.
+        run: dnf -y install --setopt=install_weak_deps=False git gcc tar gzip findutils diffutils nodejs
+
+      - name: Trust the workspace
+        # The workspace is created by the runner host but the container's git
+        # runs as a different uid, so git's dubious-ownership guard rejects the
+        # repo. `go vet` and `go test` do not care, but `go build` stamps VCS
+        # metadata and fails with "error obtaining VCS status: exit status 128",
+        # which would break the Smoke step only. Marking the workspace safe is
+        # narrower than passing -buildvcs=false, which would silently drop the
+        # stamping that `dotf version` reports.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Go
+        # cache is off deliberately: the toolchain cache buys little for a
+        # secondary job and is the most likely thing to misbehave inside a
+        # distro container.
+        # actions/setup-go is an actions/* action and so IS resolvable from
+        # Forgejo's DEFAULT_ACTIONS_URL. If it ever proves flaky inside this
+        # container, replace this step with a raw-shell Go tarball install that
+        # parses the version from go.mod -- note go.mod pins `go 1.26` with no
+        # patch, so a raw install must resolve a concrete patch release (e.g.
+        # via https://go.dev/VERSION?m=text) rather than fetching go1.26.tar.gz,
+        # which does not exist.
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Smoke
+        # Critical test #6 (design section 7): the platform contract and both
+        # dry-run surfaces, asserted against a real Fedora host rather than a
+        # fake. Deliberately does NOT assert the absence of plan.apt-repo -- that
+        # is WS1's verification, so this job stays green independently.
+        run: |
+          set -euo pipefail
+          go build -o /tmp/dotf ./cmd/dotf
+          out="$(/tmp/dotf platform)"
+          echo "dotf platform: $out"
+          case "$out" in
+            *os=redhat*) ;;
+            *) echo "expected os=redhat in: $out" >&2; exit 1 ;;
+          esac
+          case "$out" in
+            *pkg=dnf*) ;;
+            *) echo "expected pkg=dnf in: $out" >&2; exit 1 ;;
+          esac
+          /tmp/dotf apply --dry-run --headless
+          /tmp/dotf link --dry-run

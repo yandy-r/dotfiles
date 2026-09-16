@@ -1,0 +1,6 @@
+# git-clone dest must be $HOME-contained: no ".." traversal segments.
+[[package]]
+name = "tool"
+backend = "git-clone"
+url = "https://github.com/example/tool"
+dest = "../../etc/cron.d/tool"
