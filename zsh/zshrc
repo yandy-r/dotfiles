@@ -417,11 +417,14 @@ export PATH
 fpath=(~/.zfunc $fpath)
 autoload -Uz compinit && compinit
 
+# pnpm 11+ globals live in $PNPM_HOME/bin. common/paths.sh adds the same dirs
+# when they exist; this block keeps a current-session PATH even before a
+# reload, and uses $HOME so the shared zshrc is not machine-specific.
 # pnpm
-export PNPM_HOME="/home/yandy/.local/share/pnpm"
+export PNPM_HOME="${HOME}/.local/share/pnpm"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
+  *":$PNPM_HOME/bin:"*) ;;
+  *) export PATH="$PNPM_HOME/bin:$PATH" ;;
 esac
 # pnpm end
 

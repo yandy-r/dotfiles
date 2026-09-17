@@ -326,7 +326,7 @@ setup_user_paths() {
     append_path "$HOME/.cargo/bin"              # Rust
     append_path "$HOME/.deno/bin"               # Deno
     append_path "$HOME/.bun/bin"                # Bun
-    append_path "$HOME/.local/share/pnpm"       # PNPM
+    setup_pnpm_paths                            # PNPM (v11+ bins in $PNPM_HOME/bin)
 
     # Go paths
     if [[ -n "${GOPATH:-}" ]]; then
@@ -548,6 +548,18 @@ setup_python_env() {
     export VIRTUALENVWRAPPER_PYTHON="${VIRTUALENVWRAPPER_PYTHON:-$(which python3)}"
 }
 
+# pnpm 11+ stores globally installed bins in $PNPM_HOME/bin (not $PNPM_HOME).
+# Keep $PNPM_HOME itself on PATH so leftover v10 globals still resolve.
+# append_path is a no-op when the directory does not exist yet.
+setup_pnpm_paths() {
+    local pnpm_home="${PNPM_HOME:-$HOME/.local/share/pnpm}"
+    if [[ -d "$pnpm_home" ]]; then
+        export PNPM_HOME="$pnpm_home"
+        append_path "$PNPM_HOME/bin"
+        append_path "$PNPM_HOME"
+    fi
+}
+
 # Node.js environment setup
 setup_node_env() {
     # Set npm global prefix to user-writable location (avoids sudo for global installs)
@@ -567,11 +579,7 @@ setup_node_env() {
         fi
     fi
 
-    # PNPM global directory
-    if [[ -d "$HOME/.local/share/pnpm" ]]; then
-        export PNPM_HOME="$HOME/.local/share/pnpm"
-        append_path "$PNPM_HOME"
-    fi
+    setup_pnpm_paths
 }
 
 # ================================================================
