@@ -57,6 +57,7 @@ packages = [
     "direnv",
     "lazygit-bin",
     "yazi-bin",
+    "yazi-debian-bin",
     "atuin",
     "docker-ce",
     # Shell/dev packages bootstrapped from native package managers. Entries that
@@ -73,6 +74,7 @@ packages = [
     "kate",
     "ruff",
     "ruff-macos",
+    "ruff-bin",
 ]
 
 [intents.fonts]
@@ -148,7 +150,7 @@ packages = ["tpm", "tmux-sessionizer", "gnu-utilities", "debtap"]
 # whose distro genuinely does not package the tool is OMITTED, never invented —
 # the entry reports applicable=false there instead of aborting the run. Any tool
 # omitted for some manager MUST be covered by a sibling entry on another backend
-# (see lazygit-bin / yazi-bin below); that reachability contract is enforced by
+# (see lazygit-bin / yazi-bin / yazi-debian-bin below); that reachability contract is enforced by
 # TestEmbeddedManifest_ToolsReachableOnSupportedManagers. apt's fdfind/batcat
 # binary renames are irrelevant here because installs are detected via
 # package-manager query, not a PATH probe.
@@ -237,7 +239,7 @@ justification = "Neovim's release archive includes a required runtime tree; the 
 [[package]]
 name = "yazi"
 backend = "pkg"
-names = { pacman = "yazi", apt = "yazi", homebrew = "yazi", zypper = "yazi" }
+names = { pacman = "yazi", homebrew = "yazi", zypper = "yazi" }
 
 [[package]]
 name = "direnv"
@@ -312,7 +314,7 @@ names = { pacman = "kate", apt = "kate", dnf = "kate", homebrew = "kate", zypper
 name = "ruff"
 backend = "pkg"
 os = "linux"
-names = { pacman = "ruff", apt = "ruff", dnf = "ruff" }
+names = { pacman = "ruff", dnf = "ruff" }
 
 [[package]]
 name = "ruff-macos"
@@ -383,9 +385,13 @@ binary = "lazygit"
 checksums_asset = "checksums.txt"
 
 # Fedora ships no `yazi` RPM either; same os = "redhat" sibling pattern (ADR-3).
-# Upstream publishes NO combined checksums sidecar — only per-asset .sha256 files,
-# which carry a bare hash with no filename column and so cannot be read by
-# checksums_asset — so the shas are pinned inline per target. Keys are
+# Official Ubuntu/Debian archives also lack `yazi` (apt-get cannot locate it), so
+# yazi-debian-bin below is the Debian-family path. os is a single token, so one
+# github-release entry cannot cover both redhat and debian without also becoming
+# applicable on Arch/SUSE (where the pkg entry already works). Upstream publishes
+# NO combined checksums sidecar — only per-asset .sha256 files, which carry a
+# bare hash with no filename column and so cannot be read by checksums_asset —
+# so the shas are pinned inline per target. Keys are
 # "<ReleaseOS>/<canonical-arch>" (internal/backend/github_release.go targetKey),
 # hence x86_64 rather than amd64. CAVEAT: the upstream archive also ships `ya`,
 # yazi's plugin manager; the single-binary github-release backend installs only
@@ -398,6 +404,30 @@ repo = "sxyazi/yazi"
 tag = "v26.8.15"
 binary = "yazi"
 checksums = { "linux/arm64" = "f5a85771f06bb0e8c488136ae0aedaec8d341a7cee995549df391d7d852fe8d1", "linux/x86_64" = "cc67eb7991550c2f9407cda52d3f5af0937627aa6884e7de99a04fcf059807e0" }
+
+[[package]]
+name = "yazi-debian-bin"
+backend = "github-release"
+os = "debian"
+repo = "sxyazi/yazi"
+tag = "v26.8.15"
+binary = "yazi"
+checksums = { "linux/arm64" = "f5a85771f06bb0e8c488136ae0aedaec8d341a7cee995549df391d7d852fe8d1", "linux/x86_64" = "cc67eb7991550c2f9407cda52d3f5af0937627aa6884e7de99a04fcf059807e0" }
+
+# Official Ubuntu/Debian archives have no installable `ruff` binary (referred
+# to by another package, but no candidate). Arch/Fedora keep the distro package;
+# macOS stays on Homebrew via ruff-macos. match.libc = gnu prefers the glibc
+# tarball over musl when auto-detecting. The release sha256.sum sidecar uses
+# `sha256 *filename` lines; checksumFor already strips the `*`.
+[[package]]
+name = "ruff-bin"
+backend = "github-release"
+os = "debian"
+repo = "astral-sh/ruff"
+tag = "0.16.8"
+binary = "ruff"
+checksums_asset = "sha256.sum"
+match = { libc = "gnu" }
 
 # --- font: patched Nerd Font families ----------------------------------
 # 22 config sites pin these family names by exact string. Arch ships patched

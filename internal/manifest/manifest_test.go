@@ -385,7 +385,7 @@ var supportedManagerHosts = []struct {
 // it here fails the test, which is the intended review prompt.
 var siblingGroups = [][]string{
 	{"lazygit", "lazygit-bin"},
-	{"yazi", "yazi-bin"},
+	{"yazi", "yazi-bin", "yazi-debian-bin"},
 	{"lutris", "lutris-pkg"},
 }
 
@@ -529,6 +529,105 @@ func TestEmbeddedManifest_HerdrRelease(t *testing.T) {
 			}
 			if !slices.Equal(got, target.want) {
 				t.Errorf("applicable Herdr packages = %v, want %v", got, target.want)
+			}
+		})
+	}
+}
+
+// TestEmbeddedManifest_UbuntuMissingAptSiblings pins the Debian-family
+// github-release fallbacks for yazi and ruff. Official Ubuntu/Debian archives
+// do not ship those apt names, so the shared pkg entries omit apt and these
+// siblings must be the only applicable install path on a debian+apt host.
+func TestEmbeddedManifest_UbuntuMissingAptSiblings(t *testing.T) {
+	m := loadEmbeddedManifest(t)
+	dev, ok := m.Intents["dev"]
+	if !ok {
+		t.Fatal(`Intents["dev"] missing from embedded manifest`)
+	}
+
+	names := []string{"yazi", "yazi-bin", "yazi-debian-bin", "ruff", "ruff-macos", "ruff-bin"}
+	byName := make(map[string]manifest.Package, len(m.Packages))
+	for _, pkg := range m.Packages {
+		byName[pkg.Name] = pkg
+	}
+
+	for _, name := range names {
+		if !slices.Contains(dev.Packages, name) {
+			t.Errorf("dev intent does not include %q", name)
+		}
+		if _, ok := byName[name]; !ok {
+			t.Fatalf("embedded manifest has no [[package]] named %q", name)
+		}
+	}
+
+	yaziDebian := byName["yazi-debian-bin"]
+	if yaziDebian.Backend != manifest.BackendGitHubRelease || yaziDebian.OS != "debian" {
+		t.Errorf("yazi-debian-bin backend/os = %q/%q, want github-release/debian", yaziDebian.Backend, yaziDebian.OS)
+	}
+	if yaziDebian.Repo != "sxyazi/yazi" || yaziDebian.Tag != "v26.8.15" || yaziDebian.Binary != "yazi" {
+		t.Errorf("yazi-debian-bin release = repo %q tag %q binary %q", yaziDebian.Repo, yaziDebian.Tag, yaziDebian.Binary)
+	}
+	if yaziDebian.Checksums["linux/x86_64"] == "" || yaziDebian.Checksums["linux/arm64"] == "" {
+		t.Errorf("yazi-debian-bin checksums = %v, want linux/x86_64 and linux/arm64 pins", yaziDebian.Checksums)
+	}
+
+	ruffBin := byName["ruff-bin"]
+	if ruffBin.Backend != manifest.BackendGitHubRelease || ruffBin.OS != "debian" {
+		t.Errorf("ruff-bin backend/os = %q/%q, want github-release/debian", ruffBin.Backend, ruffBin.OS)
+	}
+	if ruffBin.Repo != "astral-sh/ruff" || ruffBin.Tag != "0.16.8" || ruffBin.Binary != "ruff" {
+		t.Errorf("ruff-bin release = repo %q tag %q binary %q", ruffBin.Repo, ruffBin.Tag, ruffBin.Binary)
+	}
+	if ruffBin.ChecksumsAsset != "sha256.sum" {
+		t.Errorf("ruff-bin checksums_asset = %q, want sha256.sum", ruffBin.ChecksumsAsset)
+	}
+	if ruffBin.Match == nil || ruffBin.Match.Libc != "gnu" {
+		t.Errorf("ruff-bin match.libc = %v, want gnu", ruffBin.Match)
+	}
+
+	if _, ok := byName["yazi"].Names["apt"]; ok {
+		t.Error("yazi pkg still declares an apt name; Ubuntu archives do not ship it")
+	}
+	if _, ok := byName["ruff"].Names["apt"]; ok {
+		t.Error("ruff pkg still declares an apt name; Ubuntu archives have no installable candidate")
+	}
+
+	engine := backend.Default(exec.NewFake(), privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+	targets := []struct {
+		name string
+		info platform.Info
+		want []string
+	}{
+		{
+			name: "debian-apt",
+			info: platform.Info{OS: platform.OSDebian, Arch: platform.ArchX86_64, PkgMgr: platform.PkgMgrAPT},
+			want: []string{"yazi-debian-bin", "ruff-bin"},
+		},
+		{
+			name: "redhat-dnf",
+			info: platform.Info{OS: platform.OSRedHat, Arch: platform.ArchARM64, PkgMgr: platform.PkgMgrDNF},
+			want: []string{"yazi-bin", "ruff"},
+		},
+		{
+			name: "arch-pacman",
+			info: platform.Info{OS: platform.OSArch, Arch: platform.ArchX86_64, PkgMgr: platform.PkgMgrPacman},
+			want: []string{"yazi", "ruff"},
+		},
+	}
+	for _, target := range targets {
+		t.Run(target.name, func(t *testing.T) {
+			var got []string
+			for _, name := range names {
+				applicable, err := engine.Applicable(byName[name], target.info)
+				if err != nil {
+					t.Fatalf("Applicable(%q) error = %v", name, err)
+				}
+				if applicable {
+					got = append(got, name)
+				}
+			}
+			if !slices.Equal(got, target.want) {
+				t.Errorf("applicable yazi/ruff packages = %v, want %v", got, target.want)
 			}
 		})
 	}
