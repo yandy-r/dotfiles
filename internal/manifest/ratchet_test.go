@@ -19,7 +19,7 @@ import (
 // act. A bare `<=` ceiling would go stale — after migrating a script to a native
 // backend (count 16→15) it would still pass at 16, silently re-admitting a
 // future custom-script without review.
-const customScriptBaseline = 16
+const customScriptBaseline = 17
 
 // customScriptCount returns the number of custom-script packages in m.
 func customScriptCount(m *manifest.Manifest) int {

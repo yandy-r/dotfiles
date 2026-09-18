@@ -955,6 +955,49 @@ func TestEmbeddedManifest_Phase3Migrations(t *testing.T) {
 	}
 }
 
+// TestEmbeddedManifest_PlaywrightCLI pins the playwright-cli entry: it installs
+// the npm package AND fans the bundled agent skill out to every per-agent skill
+// directory, which upstream's `playwright-cli install --skills` cannot do (it
+// writes only .claude or .agents). That fan-out is why this is a custom-script
+// entry rather than a toolchain/npm one, so a future migration to toolchain
+// would silently drop the skill for Cursor, OpenCode, and Antigravity.
+func TestEmbeddedManifest_PlaywrightCLI(t *testing.T) {
+	m := loadEmbeddedManifest(t)
+
+	var pkg manifest.Package
+	var found bool
+	for _, p := range m.Packages {
+		if p.Name == "playwright-cli" {
+			pkg, found = p, true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("playwright-cli package missing from embedded manifest")
+	}
+
+	if pkg.Backend != manifest.BackendCustomScript {
+		t.Errorf("playwright-cli backend = %q, want custom-script (the skill fan-out is not expressible on toolchain/npm)", pkg.Backend)
+	}
+	if pkg.Script != "bin/install-playwright-cli.sh" {
+		t.Errorf("playwright-cli script = %q, want bin/install-playwright-cli.sh", pkg.Script)
+	}
+	if !slices.Equal(pkg.Provides, []string{"playwright-cli"}) {
+		t.Errorf("playwright-cli provides = %v, want [playwright-cli]", pkg.Provides)
+	}
+	if got := pkg.EffectiveClass(); got != manifest.ClassRolling {
+		t.Errorf("playwright-cli effective class = %q, want rolling", got)
+	}
+
+	ai, ok := m.Intents["ai"]
+	if !ok {
+		t.Fatal("intent \"ai\" missing from embedded manifest")
+	}
+	if !slices.Contains(ai.Packages, "playwright-cli") {
+		t.Errorf("intent ai packages = %v, want to contain playwright-cli", ai.Packages)
+	}
+}
+
 // TestEmbeddedManifest_RetainedCustomScriptSentinels pins the Phase 3 (#51)
 // installed-state sentinels: every retained custom-script entry carries an
 // explicit probe naming the real binary/binaries it installs, so status/diff
@@ -983,6 +1026,7 @@ func TestEmbeddedManifest_RetainedCustomScriptSentinels(t *testing.T) {
 		"lua":              {"luarocks"},
 		"claude":           {"claude"},
 		"coderabbit":       {"coderabbit"},
+		"playwright-cli":   {"playwright-cli"},
 		"aws-tools":        {"aws", "sam", "ecs-cli"},
 		"azure-cli":        {"az"},
 		"hashicorp-tools":  {"terraform", "tflint"},

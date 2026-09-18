@@ -107,7 +107,7 @@ packages = ["mise", "rust", "lua"]
 [intents.ai]
 description = "AI coding assistants and CLIs"
 default = false
-packages = ["claude", "codex", "opencode", "fabric", "coderabbit"]
+packages = ["claude", "codex", "opencode", "fabric", "coderabbit", "playwright-cli"]
 
 [intents.cloud]
 description = "Cloud, IaC, database, and container CLIs"
@@ -678,6 +678,22 @@ provides = ["coderabbit"]
 actions = ["remove"]
 class = "rolling"
 justification = "vendor curl installer tracks latest"
+
+# playwright-cli installs the npm package @playwright/cli AND fans its bundled
+# agent skill out to the per-agent skill directories (Claude's ~/.claude/skills,
+# the shared ~/.agents/skills that Codex/Cursor/Cursor Agent/OpenCode read, and
+# Antigravity's ~/.gemini/antigravity/skills). The upstream `playwright-cli
+# install --skills` only writes .claude or .agents, so a toolchain/npm entry
+# would install the binary and leave every other agent without the skill — the
+# skill fan-out is what keeps this a custom-script package.
+[[package]]
+name = "playwright-cli"
+backend = "custom-script"
+script = "bin/install-playwright-cli.sh"
+provides = ["playwright-cli"]
+actions = ["update", "remove"]
+class = "rolling"
+justification = "npm global install of the latest package version (PLAYWRIGHT_CLI_VERSION defaults to latest)"
 
 # cloud intent
 # Bundle: the installer provisions aws, sam, and ecs-cli; all-present so the

@@ -12,7 +12,7 @@ repository. All scripts are designed to be cross-platform and follow consistent 
 | Cloud Tools      | `install-aws-tools.sh`, `install-azure-cli.sh`                                       | Cloud CLI tools             |
 | DevOps           | `install-hashicorp-tools.sh`, `k8s-tools.sh`, `install-docker.sh`                    | Infrastructure tools        |
 | Modern CLI       | `install-modern-cli.sh`, `install-yazi.sh`                                           | Modern command-line tools   |
-| AI/Development   | `install-claude.sh`, `install-opencode.sh`, `install-fabric.sh`, `install-neovim.sh` | Development tools           |
+| AI/Development   | `install-claude.sh`, `install-opencode.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-neovim.sh` | Development tools           |
 | Utilities        | `dc-manage.sh`, `cleanup-*.sh`, `markdown-tools.sh`                                  | System utilities            |
 | Style / Lint     | `style.sh`, `lint.sh`, `format.sh`                                                   | Multi-language lint/format  |
 
@@ -268,6 +268,26 @@ installs V2 with the official per-OS method.
 
 # Remove binaries but keep configuration and data
 ./bin/install-opencode.sh --uninstall
+```
+
+#### install-playwright-cli.sh
+
+Install Microsoft's `@playwright/cli` npm package and its bundled agent skill. Skill scope defaults
+to global. Claude receives its native `.claude` copy, Codex/Cursor/Cursor Agent/OpenCode share the
+`.agents` copy, and Antigravity receives its native Gemini copy.
+
+```bash
+# Install CLI globally and skills for the current user (default)
+./bin/install-playwright-cli.sh
+
+# Install CLI globally and skills in the current project
+./bin/install-playwright-cli.sh --local
+
+# Install local skills for another project
+./bin/install-playwright-cli.sh --local --project ~/src/my-app
+
+# Refresh skills without reinstalling the CLI
+./bin/install-playwright-cli.sh --skills-only
 ```
 
 #### install-fabric.sh
