@@ -196,3 +196,5 @@ esac
 
 # opencode
 export PATH=/home/yandy/.opencode/bin:$PATH
+
+. "$HOME/.local/share/../bin/env"
