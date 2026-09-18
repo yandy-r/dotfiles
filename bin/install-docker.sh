@@ -77,6 +77,18 @@ is_interactive() {
 	[[ -t 0 ]] && [[ -t 1 ]]
 }
 
+# Membership recorded in the group database (takes effect on next login).
+docker_group_configured() {
+	id -nG "$USER" 2>/dev/null | tr ' ' '\n' | grep -qx docker
+}
+
+# Membership active in the *current* process credentials. A freshly added
+# supplementary group is absent here until the user re-logs in, so this is what
+# decides whether `docker` works without sudo right now.
+docker_group_active() {
+	id -nG 2>/dev/null | tr ' ' '\n' | grep -qx docker
+}
+
 prompt_confirmation() {
 	local prompt_message="$1"
 	local response
@@ -318,13 +330,18 @@ post_install_setup() {
 			sudo groupadd docker || true
 		fi
 
-		if groups "$USER" | grep -q '\bdocker\b'; then
-			log "User $USER is already in docker group"
+		if docker_group_configured; then
+			log "User $USER is already configured in docker group"
 		else
 			log "Adding user $USER to docker group..."
 			sudo usermod -aG docker "$USER"
-			log "Docker group added - you may need to log out and back in for changes to take effect"
-			log "Or run: newgrp docker"
+		fi
+
+		if docker_group_active; then
+			log "Docker group membership is active in this session"
+		else
+			log "Docker group membership is not active in this session"
+			log "Log out and back in, or run: newgrp docker"
 		fi
 
 		if check_command systemctl; then
@@ -380,6 +397,10 @@ verify_installation() {
 	log "Testing Docker with hello-world image..."
 	if docker run --rm hello-world >/dev/null 2>&1; then
 		log "Docker is working correctly!"
+	elif docker_group_configured && ! docker_group_active &&
+		check_command sg && sg docker -c "docker run --rm hello-world" >/dev/null 2>&1; then
+		log "Docker works via the docker group, but this session predates the group change"
+		log "Log out and back in, or run: newgrp docker"
 	else
 		log "Warning: Docker hello-world test failed"
 		log "This may be normal if:"
@@ -398,11 +419,14 @@ show_next_steps() {
 
 	case "$DOTFILES_OS" in
 	debian | redhat | arch | linux)
-		if ! groups "$USER" | grep -q '\bdocker\b'; then
+		if docker_group_active; then
+			log "1. Docker group membership active in this session"
+		elif docker_group_configured; then
+			log "1. Docker group membership configured but NOT active in this session"
+			log "   Log out and log back in, OR run: newgrp docker"
+		else
 			log "1. Log out and log back in to apply docker group membership"
 			log "   OR run: newgrp docker"
-		else
-			log "1. Docker group membership active"
 		fi
 		log "2. Test Docker: docker run hello-world"
 		log "3. Check Docker status: systemctl status docker"
