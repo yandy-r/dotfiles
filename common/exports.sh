@@ -123,6 +123,12 @@ else
     unset XERO_CLIENT_SECRET
 fi
 
+if nine_router_api_key="$(read_env_file "$XDG_CONFIG_HOME/env/9router_api_key")"; then
+    export NINE_ROUTER_API_KEY="$nine_router_api_key"
+else
+    unset NINE_ROUTER_API_KEY
+fi
+
 # ================================================================
 # EDITOR CONFIGURATION
 # ================================================================
