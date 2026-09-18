@@ -273,8 +273,12 @@ installs V2 with the official per-OS method.
 #### install-playwright-cli.sh
 
 Install Microsoft's `@playwright/cli` npm package and its bundled agent skill. Skill scope defaults
-to global. Claude receives its native `.claude` copy, Codex/Cursor/Cursor Agent/OpenCode share the
-`.agents` copy, and Antigravity receives its native Gemini copy.
+to global. Every agent receives its own native directory: Claude (`~/.claude/skills`), Codex
+(`~/.codex/skills`), Cursor/Cursor Agent (`~/.cursor/skills`), OpenCode
+(`~/.config/opencode/skills`), and Antigravity (`~/.gemini/antigravity/skills`), plus the shared
+`~/.agents/skills` copy for interoperability. Local installs write to `<project>/.claude/skills`,
+`<project>/.codex/skills`, `<project>/.cursor/skills`, `<project>/.opencode/skills`, and
+`<project>/.agents/skills`.
 
 ```bash
 # Install CLI globally and skills for the current user (default)

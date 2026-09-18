@@ -40,20 +40,25 @@ OPTIONS:
 
 SKILL TARGETS:
     Global:
-      Claude                 ~/.claude/skills/playwright-cli
-      Codex                  ~/.agents/skills/playwright-cli
-      Cursor/Cursor Agent    ~/.agents/skills/playwright-cli
-      OpenCode               ~/.agents/skills/playwright-cli
-      Antigravity            ~/.gemini/antigravity/skills/playwright-cli
+      Shared (.agents readers)  ~/.agents/skills/playwright-cli
+      Claude                    ~/.claude/skills/playwright-cli
+      Codex                     ~/.codex/skills/playwright-cli
+      Cursor/Cursor Agent       ~/.cursor/skills/playwright-cli
+      OpenCode                  ~/.config/opencode/skills/playwright-cli
+      Antigravity               ~/.gemini/antigravity/skills/playwright-cli
 
     Local:
-      Claude                 <project>/.claude/skills/playwright-cli
-      Codex, Cursor,
-      Cursor Agent, OpenCode,
-      Antigravity            <project>/.agents/skills/playwright-cli
+      Shared (.agents readers)  <project>/.agents/skills/playwright-cli
+      Claude                    <project>/.claude/skills/playwright-cli
+      Codex                     <project>/.codex/skills/playwright-cli
+      Cursor/Cursor Agent       <project>/.cursor/skills/playwright-cli
+      OpenCode                  <project>/.opencode/skills/playwright-cli
 
-Cursor and OpenCode support the shared .agents skill directory. Antigravity uses
-that directory for project skills and its native Gemini directory for global skills.
+Every agent gets its own native skill directory. The shared .agents directory is
+written too, but it is not sufficient on its own: installed Codex, Cursor, and
+OpenCode builds do not all discover skills there, so relying on it alone leaves
+agents without the skill. Antigravity reads <project>/.agents/skills for project
+skills, so it needs no separate local directory.
 
 ENVIRONMENT VARIABLES:
     ACTION                       install, update, or uninstall
@@ -63,6 +68,8 @@ ENVIRONMENT VARIABLES:
     SKILLS_ONLY                  true to skip npm package installation
     DRY_RUN                      true to print actions only
     PLAYWRIGHT_CLI_SKILL_SOURCE  override bundled skill source directory
+    CODEX_HOME                   Codex config home (default: ~/.codex)
+    XDG_CONFIG_HOME              config home for OpenCode (default: ~/.config)
 
 EXAMPLES:
     $SCRIPT_NAME
@@ -193,16 +200,26 @@ resolve_skill_source() {
   error_exit "Could not find bundled skill. Reinstall $PACKAGE_NAME or set PLAYWRIGHT_CLI_SKILL_SOURCE."
 }
 
+# Every agent gets its own native skill directory. The shared .agents directory
+# is written as well, but it is NOT sufficient by itself: installed Codex,
+# Cursor, and OpenCode builds do not all discover skills there, so an
+# .agents-only install leaves those agents without the skill.
 skill_roots() {
   if [[ "$SKILL_SCOPE" == "global" ]]; then
     printf '%s\n' \
-      "$HOME/.claude/skills" \
       "$HOME/.agents/skills" \
+      "$HOME/.claude/skills" \
+      "${CODEX_HOME:-$HOME/.codex}/skills" \
+      "$HOME/.cursor/skills" \
+      "${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills" \
       "$HOME/.gemini/antigravity/skills"
   else
     printf '%s\n' \
+      "$PROJECT_DIR/.agents/skills" \
       "$PROJECT_DIR/.claude/skills" \
-      "$PROJECT_DIR/.agents/skills"
+      "$PROJECT_DIR/.codex/skills" \
+      "$PROJECT_DIR/.cursor/skills" \
+      "$PROJECT_DIR/.opencode/skills"
   fi
 }
 
