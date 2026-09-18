@@ -718,8 +718,7 @@ alias cbp='$DOTFILES_PASTE_CMD'
 # alias claude='claude --permission-mode auto'
 # alias codex='codex -a on-request -s danger-full-access'
 # alias codex='codex --full-auto'
-alias opencode2='opencode2 --auto'
-alias oc='opencode2 --auto'
+alias oc='opencode --auto'
 
 # ================================================================
 # FABRIC ALIASES

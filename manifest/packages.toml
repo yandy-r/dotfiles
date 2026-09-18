@@ -107,7 +107,7 @@ packages = ["mise", "rust", "lua"]
 [intents.ai]
 description = "AI coding assistants and CLIs"
 default = false
-packages = ["claude", "codex", "opencode", "opencode2", "fabric", "coderabbit"]
+packages = ["claude", "codex", "opencode", "fabric", "coderabbit"]
 
 [intents.cloud]
 description = "Cloud, IaC, database, and container CLIs"
@@ -632,26 +632,29 @@ backend = "toolchain"
 tool = "npm"
 names = { npm = "@openai/codex" }
 
+# OpenCode 2 replaces OpenCode 1 under the same `opencode` binary name, so there
+# is no side-by-side entry any more. The installer removes a V1 package install
+# (brew opencode / npm opencode-ai / AUR opencode-bin) while leaving
+# ~/.config/opencode and OpenCode data in place — V2 reads and migrates them —
+# and then installs V2 with the official per-OS method (brew
+# anomalyco/tap/opencode-v2, AUR opencode-beta, https://opencode.ai/v2/install,
+# npm @opencode/cli). A toolchain/npm entry cannot express that V1 removal step,
+# so this stays a custom-script package.
+#
+# The probe is a V2 marker, not `provides = ["opencode"]`: V1 and V2 share the
+# `opencode` binary name, so a PATH probe would report a V1 host as converged and
+# `dotf apply` would skip the migration. The installer writes the marker only
+# after verifying a V2 binary, as a symlink to that binary — so an external
+# package-manager uninstall leaves a dangling link that probes as absent — and
+# clears it on remove.
 [[package]]
 name = "opencode"
 backend = "custom-script"
 script = "bin/install-opencode.sh"
-provides = ["opencode"]
+installed_when = { path = "~/.local/state/dotf/opencode-v2" }
 actions = ["update", "remove"]
 class = "rolling"
 justification = "vendor installer tracks latest (OPENCODE_VERSION defaults to latest)"
-
-# @opencode/cli is the OpenCode 2 CLI: it ships a distinct `opencode2` binary,
-# so it coexists with the opencode-ai CLI above instead of replacing it. `name`
-# (opencode2) doubles as the PATH probe while `names` carries the npm install
-# identifier. The npm `latest` tag is 2.0.5 and only moves forward, so a plain
-# `npm install -g` already satisfies the >= 2.0.5 floor without a spec string
-# that `npm update -g` / `npm uninstall -g` could not consume.
-[[package]]
-name = "opencode2"
-backend = "toolchain"
-tool = "npm"
-names = { npm = "@opencode/cli" }
 
 # fabric installs a binary whose name varies by platform: `fabric` via the
 # official installer / `go install .../cmd/fabric`, or `fabric-ai` via Homebrew

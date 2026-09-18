@@ -249,7 +249,7 @@ install_tool() {
                 bash "$install_script" --install
             else
                 echo "OpenCode installer script not found at $install_script"
-                echo "Try: curl -fsSL https://opencode.ai/install | bash"
+				echo "Try: curl -fsSL https://opencode.ai/v2/install | bash"
                 return 1
             fi
 			;;

@@ -6,6 +6,12 @@ This project adheres to [Conventional Commits](https://www.conventionalcommits.o
 
 ## [Unreleased]
 
+### Features
+
+- Install OpenCode 2 through `bin/install-opencode.sh`: remove an OpenCode 1 package
+  install while preserving configuration and data, then install V2 with the official
+  per-OS method. The side-by-side `opencode2` manifest package is retired.
+
 ## [0.3.0] - 2026-09-16
 
 First stable release of `dotf`. Promotes the cross-platform provisioning pipeline after

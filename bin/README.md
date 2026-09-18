@@ -255,10 +255,19 @@ Install Claude Code CLI.
 
 #### install-opencode.sh
 
-Install OpenCode AI coding agent.
+Install OpenCode 2. Removes an OpenCode 1 package install (`opencode` formula, `opencode-ai` npm
+package, `opencode-bin` AUR package) while preserving `~/.config/opencode` and OpenCode data, then
+installs V2 with the official per-OS method.
 
 ```bash
-./bin/install-opencode.sh
+# Install OpenCode 2 (migrates away from V1 when present)
+./bin/install-opencode.sh --install
+
+# Update OpenCode 2
+./bin/install-opencode.sh --update
+
+# Remove binaries but keep configuration and data
+./bin/install-opencode.sh --uninstall
 ```
 
 #### install-fabric.sh

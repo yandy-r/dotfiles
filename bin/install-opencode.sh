@@ -1,645 +1,631 @@
 #!/usr/bin/env bash
 
-# Install OpenCode AI Coding Agent
-# Supports macOS, Linux (Ubuntu, Fedora, Arch, openSUSE, WSL), and other Unix-like systems
+# Install OpenCode 2 while preserving configuration used by OpenCode 1.
+# Supports macOS, Linux (Ubuntu, Fedora, Arch, openSUSE, WSL), and best-effort
+# installation on other Unix-like systems.
 
 set -euo pipefail
 
-# Constants
-SCRIPT_NAME="$(basename "${0}")"
+SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_NAME
 readonly LOG_PREFIX="[OPENCODE-INSTALL]"
-readonly OPENCODE_INSTALL_PATH="/usr/local/bin/opencode"
+readonly V2_INSTALL_URL="https://opencode.ai/v2/install"
+readonly V2_BREW_FORMULA="anomalyco/tap/opencode-v2"
+readonly V2_NPM_PACKAGE="@opencode/cli"
+readonly V2_AUR_PACKAGE="opencode-beta"
+# dotf's installed-state probe. A bare `opencode` on PATH cannot distinguish V1
+# from V2, so `dotf apply` would report a V1 host as converged and never run this
+# migration. This marker is a symlink to the verified V2 binary: if an external
+# package-manager uninstall removes that binary, os.Stat sees a dangling link and
+# dotf correctly reports OpenCode as absent.
+OPENCODE_V2_MARKER="${OPENCODE_V2_MARKER:-$HOME/.local/state/dotf/opencode-v2}"
 
-# Configuration
 ACTION="${ACTION:-install}"
 OPENCODE_VERSION="${OPENCODE_VERSION:-latest}"
 FORCE_INSTALL="${FORCE_INSTALL:-false}"
 
-# Usage function
 usage() {
 	cat <<EOF
 Usage: $SCRIPT_NAME [OPTIONS]
 
-Install, update, or uninstall OpenCode AI coding agent.
+Install, update, or uninstall OpenCode 2.
 
 OPTIONS:
-    --install           Install OpenCode (default)
-    --uninstall         Uninstall OpenCode
-    --update            Update OpenCode to latest version
-    --version VERSION   Install specific version (default: latest)
-    --force             Force installation even if already installed
+    --install           Install OpenCode 2 (default)
+    --uninstall         Uninstall OpenCode binaries but keep config and data
+    --update            Update OpenCode 2
+    --version VERSION   Install a specific V2 version (default: latest)
+    --force             Reinstall even when OpenCode 2 is already installed
     -h, --help          Show this help message
 
 ENVIRONMENT VARIABLES:
-    ACTION             Action to perform (install, uninstall, update)
-    OPENCODE_VERSION   Version to install (default: latest)
-    FORCE_INSTALL      Force installation (true/false)
+    ACTION              Action to perform (install, uninstall, update)
+    OPENCODE_VERSION    Version to install (default: latest)
+    FORCE_INSTALL       Force installation (true/false)
+    NON_INTERACTIVE     Auto-approve prompts when true
 
-EXAMPLES:
-    $SCRIPT_NAME --install
-    $SCRIPT_NAME --uninstall
-    $SCRIPT_NAME --update
-    $SCRIPT_NAME --force
-
-INSTALLATION METHODS (tried in order by platform):
+OFFICIAL V2 METHODS (tried in order per platform):
     macOS:
-        1. Official script: curl -fsSL https://opencode.ai/install | bash
-        2. Homebrew: brew install sst/tap/opencode
-        3. NPM: npm install -g opencode-ai
+      1. Homebrew: brew install anomalyco/tap/opencode-v2
+      2. V2 installer: curl -fsSL https://opencode.ai/v2/install | bash
+      3. Node package manager (see below)
 
-    Linux (Ubuntu, Fedora, openSUSE, WSL):
-        1. Official script: curl -fsSL https://opencode.ai/install | bash
-        2. NPM: npm install -g opencode-ai
+    Arch Linux:
+      1. AUR: paru -S opencode-beta
+      2. V2 installer: curl -fsSL https://opencode.ai/v2/install | bash
+      3. Node package manager (see below)
 
-    Linux (Arch):
-        1. Official script: curl -fsSL https://opencode.ai/install | bash
-        2. Paru: paru -S opencode-bin
-        3. NPM: npm install -g opencode-ai
+    Other Linux, WSL, and Unix-like systems:
+      1. V2 installer: curl -fsSL https://opencode.ai/v2/install | bash
+      2. npm: npm install -g --allow-scripts=@opencode/cli @opencode/cli@latest
+      3. Bun: bun install -g --trust @opencode/cli@latest
+      4. pnpm: pnpm add -g --allow-build=@opencode/cli @opencode/cli@latest
 
-PREREQUISITES:
-    - For Homebrew method: brew
-    - For official script: curl and bash
-    - For npm method: Node.js and npm
-    - For Paru method: paru (Arch Linux)
+MIGRATION:
+    OpenCode 1 package installations are removed before V2 is installed.
+    Existing configuration and data are preserved for V2 migration.
 EOF
 	exit "${1:-0}"
 }
 
-# Logging function
 log() {
 	echo "${LOG_PREFIX} $*" >&2
 }
 
-# Error handling
 error_exit() {
-	log "ERROR: $1" >&2
+	log "ERROR: $1"
 	exit "${2:-1}"
 }
 
-# Check if running in interactive mode
 is_interactive() {
-	[[ -t 0 ]] && [[ -t 1 ]]
+	[[ -t 0 && -t 1 ]]
 }
 
-# Prompt user for confirmation
 prompt_confirmation() {
 	local prompt_message="$1"
 	local response
 
-    # Auto-approve in non-interactive mode
-    if [[ "${NON_INTERACTIVE:-false}" == "true" ]] || [[ "${FORCE_INSTALL:-false}" == "true" ]] || [[ "${NONINTERACTIVE:-0}" == "1" ]]; then
-        log "Non-interactive mode: auto-approving prompt"
-        return 0
-    fi
+	if [[ "${NON_INTERACTIVE:-false}" == "true" ]] || [[ "$FORCE_INSTALL" == "true" ]] || [[ "${NONINTERACTIVE:-0}" == "1" ]]; then
+		log "Non-interactive mode: auto-approving prompt"
+		return 0
+	fi
 
 	if ! is_interactive; then
-		log "ERROR: Non-interactive shell detected - cannot prompt for confirmation"
+		log "ERROR: Non-interactive shell detected; set NON_INTERACTIVE=true to approve"
 		return 1
 	fi
 
-	echo -n "${LOG_PREFIX} ${prompt_message} [y/N]: " >&2
+	printf '%s %s [y/N]: ' "$LOG_PREFIX" "$prompt_message" >&2
 	read -r response
-
-	# Default to "no" on empty input
-	response="${response:-n}"
-
-	case "$response" in
-	[yY] | [yY][eE][sS])
-		return 0
-		;;
-	*)
-		return 1
-		;;
+	case "${response:-n}" in
+	[yY] | [yY][eE][sS]) return 0 ;;
+	*) return 1 ;;
 	esac
 }
 
-# OS Detection
 detect_os() {
-	if [[ "$(uname)" == "Darwin" ]]; then
-		echo "macos"
-	elif [[ -f /etc/os-release ]]; then
+	case "$(uname -s)" in
+	Darwin) echo "macos" ;;
+	Linux)
+		if [[ ! -f /etc/os-release ]]; then
+			echo "linux"
+			return
+		fi
 		local os_id
-		os_id=$(grep -oP '^ID=\K.*' /etc/os-release | tr -d '"')
+		os_id="$(sed -n 's/^ID=//p' /etc/os-release | head -n1 | tr -d '"')"
 		case "$os_id" in
 		ubuntu) echo "ubuntu" ;;
 		fedora) echo "fedora" ;;
-		arch) echo "arch" ;;
+		arch | manjaro | endeavouros) echo "arch" ;;
 		opensuse* | sles) echo "opensuse" ;;
 		*) echo "linux" ;;
 		esac
-	elif [[ "$(uname)" == "Linux" ]]; then
-		echo "linux"
-	else
-		echo "unknown"
-	fi
+		;;
+	*) echo "unix" ;;
+	esac
 }
 
-# Check if running in WSL
 is_wsl() {
 	[[ -n "${WSL_DISTRO_NAME:-}" ]] || grep -qi microsoft /proc/version 2>/dev/null
 }
 
-# Architecture detection
-detect_arch() {
-	case "$(uname -m)" in
-	x86_64) echo "amd64" ;;
-	arm64 | aarch64) echo "arm64" ;;
-	*) echo "unknown" ;;
-	esac
+opencode_version() {
+	command -v opencode >/dev/null 2>&1 || return 1
+	opencode --version 2>/dev/null || return 1
 }
 
-# Clean up shell config modifications made by installers
-# This removes PATH exports and other modifications that installers might add
-cleanup_shell_config_modifications() {
-	local tool_name="$1"
-	local shell_configs=(
-		"$HOME/.zshrc"
-		"$HOME/.bashrc"
-		"$HOME/.bash_profile"
-		"$HOME/.profile"
-	)
+version_major() {
+	local version="$1"
+	if [[ "$version" =~ ([0-9]+)\. ]]; then
+		printf '%s\n' "${BASH_REMATCH[1]}"
+		return 0
+	fi
+	return 1
+}
 
-	for config in "${shell_configs[@]}"; do
-		if [[ -f "$config" ]]; then
-			# Create backup
-			local backup
-			backup="${config}.backup.$(date +%Y%m%d_%H%M%S)"
+binary_generation() {
+	local binary="$1" version major
+	version="$("$binary" --version 2>/dev/null || true)"
+	major="$(version_major "$version" || true)"
+	if [[ -z "$major" ]]; then
+		echo "unknown"
+	elif ((major >= 2)); then
+		echo "v2"
+	else
+		echo "v1"
+	fi
+}
 
-			# Remove lines containing the tool's PATH export
-			# This handles various formats: export PATH=...tool..., # tool, etc.
-			# Use 'command grep' to bypass any grep aliases (e.g., rg/ripgrep)
-			if command grep -q "$tool_name" "$config" 2>/dev/null; then
-				log "Cleaning up shell config modifications in $config"
-				cp "$config" "$backup"
+# Every `opencode` on PATH, so a V1 binary shadowed by a V2 install is still
+# found and removed.
+opencode_binaries() {
+	type -a -P opencode 2>/dev/null || true
+}
 
-				# Remove lines related to this tool (PATH exports, comments, etc.)
-				sed -i.tmp "/# ${tool_name}/d; /.${tool_name}\/bin/d; /${tool_name}_INSTALL/d" "$config" 2>/dev/null || \
-					command grep -v -e "# ${tool_name}" -e ".${tool_name}/bin" -e "${tool_name}_INSTALL" "$config" > "${config}.tmp" && mv "${config}.tmp" "$config"
-
-				rm -f "${config}.tmp"
-				log "Backup created at: $backup"
-			fi
+first_v1_binary() {
+	local binary
+	while IFS= read -r binary; do
+		[[ -n "$binary" ]] || continue
+		if [[ "$(binary_generation "$binary")" == "v1" ]]; then
+			printf '%s\n' "$binary"
+			return 0
 		fi
+	done < <(opencode_binaries)
+	return 1
+}
+
+opencode_generation() {
+	if ! command -v opencode >/dev/null 2>&1; then
+		echo "absent"
+		return
+	fi
+
+	local version major
+	version="$(opencode_version || true)"
+	major="$(version_major "$version" || true)"
+	if [[ -z "$major" ]]; then
+		echo "unknown"
+	elif ((major >= 2)); then
+		echo "v2"
+	else
+		echo "v1"
+	fi
+}
+
+npm_package_installed() {
+	local package="$1"
+	command -v npm >/dev/null 2>&1 && npm list -g --depth=0 "$package" >/dev/null 2>&1
+}
+
+# pnpm stores global packages under a hashed virtual-store directory, so probe
+# its own listing rather than guessing a node_modules path.
+pnpm_package_installed() {
+	local package="$1"
+	command -v pnpm >/dev/null 2>&1 || return 1
+	pnpm ls -g --depth=0 --json "$package" 2>/dev/null | command grep -Fq "\"$package\""
+}
+
+bun_package_installed() {
+	local package="$1"
+	command -v bun >/dev/null 2>&1 || return 1
+	[[ -f "${BUN_INSTALL:-$HOME/.bun}/install/global/node_modules/$package/package.json" ]]
+}
+
+yarn_package_installed() {
+	local package="$1" root
+	command -v yarn >/dev/null 2>&1 || return 1
+	root="$(yarn global dir 2>/dev/null)" || return 1
+	[[ -f "$root/node_modules/$package/package.json" ]]
+}
+
+brew_formula_installed() {
+	local formula="$1"
+	command -v brew >/dev/null 2>&1 && brew list --formula "$formula" >/dev/null 2>&1
+}
+
+pacman_package_installed() {
+	local package="$1"
+	command -v pacman >/dev/null 2>&1 && pacman -Q "$package" >/dev/null 2>&1
+}
+
+legacy_v1_installed() {
+	first_v1_binary >/dev/null || \
+		brew_formula_installed "opencode" || \
+		npm_package_installed "opencode-ai" || \
+		pnpm_package_installed "opencode-ai" || \
+		bun_package_installed "opencode-ai" || \
+		yarn_package_installed "opencode-ai" || \
+		pacman_package_installed "opencode-bin"
+}
+
+remove_with_privilege() {
+	local path="$1"
+
+	[[ -n "$path" && "$path" != "/" ]] || error_exit "Refusing to remove unsafe path: $path"
+	[[ ! -d "$path" || -L "$path" ]] || error_exit "Refusing to remove directory: $path"
+
+	if [[ -w "$path" || ( ! -e "$path" && -w "$(dirname "$path")" ) ]]; then
+		rm -f -- "$path"
+		return
+	fi
+
+	log "Elevated privileges required to remove legacy binary: $path"
+	if ! prompt_confirmation "Remove $path with sudo?"; then
+		return 1
+	fi
+	sudo rm -f -- "$path"
+}
+
+remove_v1_packages() {
+	if brew_formula_installed "opencode"; then
+		log "Removing OpenCode 1 Homebrew formula; configuration remains untouched..."
+		brew uninstall opencode
+	fi
+
+	if npm_package_installed "opencode-ai"; then
+		log "Removing OpenCode 1 npm package; configuration remains untouched..."
+		npm uninstall -g opencode-ai
+	fi
+	if pnpm_package_installed "opencode-ai"; then
+		log "Removing OpenCode 1 pnpm package; configuration remains untouched..."
+		pnpm remove -g opencode-ai
+	fi
+	if bun_package_installed "opencode-ai"; then
+		log "Removing OpenCode 1 Bun package; configuration remains untouched..."
+		bun remove -g opencode-ai
+	fi
+	if yarn_package_installed "opencode-ai"; then
+		log "Removing OpenCode 1 Yarn package; configuration remains untouched..."
+		yarn global remove opencode-ai
+	fi
+
+	if pacman_package_installed "opencode-bin"; then
+		log "Removing OpenCode 1 AUR package; configuration remains untouched..."
+		if command -v paru >/dev/null 2>&1; then
+			paru -Rns --noconfirm opencode-bin
+		else
+			prompt_confirmation "Remove opencode-bin with sudo pacman?" || return 1
+			sudo pacman -Rns --noconfirm opencode-bin
+		fi
+	fi
+}
+
+remove_remaining_v1_binaries() {
+	local binary
+	local attempts=0
+
+	hash -r
+	while binary="$(first_v1_binary)"; do
+		if ((attempts >= 10)); then
+			error_exit "Too many legacy OpenCode binaries remain on PATH"
+		fi
+		log "Removing legacy OpenCode 1 binary: $binary"
+		remove_with_privilege "$binary"
+		attempts=$((attempts + 1))
+		hash -r
 	done
 }
 
-# Check if OpenCode is already installed
-check_opencode_installed() {
-	if command -v opencode &>/dev/null; then
-		local version
-		version="$(opencode --version 2>/dev/null || echo "unknown")"
-		log "OpenCode is already installed: ${version}"
-		return 0
-	else
-		return 1
+migrate_from_v1_if_needed() {
+	legacy_v1_installed || return 0
+
+	log "OpenCode 1 detected. Removing V1 installation before installing V2..."
+	log "Preserving OpenCode configuration and data for V2 migration."
+	remove_v1_packages
+	remove_remaining_v1_binaries
+
+	if legacy_v1_installed; then
+		error_exit "OpenCode 1 removal did not complete"
 	fi
+	log "OpenCode 1 removed; settings and data preserved."
 }
 
-# Uninstall OpenCode
-uninstall_opencode() {
-	log "Uninstalling OpenCode..."
-
-	# Detect installation method
-	local os_type
-	os_type="$(detect_os)"
-
-	# Try Homebrew uninstall on macOS
-	if [[ "$os_type" == "macos" ]] && command -v brew &>/dev/null; then
-		if brew list opencode &>/dev/null; then
-			log "Uninstalling OpenCode via Homebrew..."
-			brew uninstall opencode
-			log "OpenCode uninstalled successfully via Homebrew"
-			return 0
-		fi
-	fi
-
-	# Try Paru uninstall on Arch
-	if [[ "$os_type" == "arch" ]] && command -v paru &>/dev/null; then
-		if paru -Q opencode-bin &>/dev/null; then
-			log "Uninstalling OpenCode via Paru..."
-			paru -R opencode-bin
-			log "OpenCode uninstalled successfully via Paru"
-			return 0
-		fi
-	fi
-
-	# Try NPM uninstall
-	if command -v npm &>/dev/null; then
-		if npm list -g opencode-ai &>/dev/null; then
-			log "Uninstalling OpenCode via npm..."
-			npm uninstall -g opencode-ai
-			log "OpenCode uninstalled successfully via npm"
-			return 0
-		fi
-	fi
-
-	# Fallback: manual uninstall
-	if [[ ! -f "$OPENCODE_INSTALL_PATH" ]]; then
-		log "OpenCode is not installed at $OPENCODE_INSTALL_PATH"
-		return 0
-	fi
-
-	# Create backup before uninstall
-	local backup_path
-	backup_path="${HOME}/.opencode_backup_$(date +%Y%m%d_%H%M%S)"
-	log "Creating backup at $backup_path"
-	if ! cp "$OPENCODE_INSTALL_PATH" "$backup_path" 2>/dev/null; then
-		log "Warning: Failed to create backup"
-	fi
-
-	# Remove OpenCode binary (requires elevated privileges)
-	log "Elevated privileges required to remove OpenCode binary"
-	log "The following command will be executed:"
-	log "    sudo rm -f $OPENCODE_INSTALL_PATH"
-	echo ""
-
-	if ! prompt_confirmation "Do you want to proceed with sudo?"; then
-		log "Uninstallation cancelled by user"
-		log "To remove manually, run: sudo rm -f $OPENCODE_INSTALL_PATH"
-		return 1
-	fi
-
-	if sudo rm -f "$OPENCODE_INSTALL_PATH" 2>/dev/null; then
-		log "OpenCode uninstalled successfully"
-		[[ -f "$backup_path" ]] && log "Backup available at: $backup_path"
-	else
-		error_exit "Failed to uninstall OpenCode"
-	fi
-}
-
-# Update OpenCode
-update_opencode() {
-	log "Updating OpenCode to latest version..."
-
-	if ! check_opencode_installed; then
-		log "OpenCode is not installed. Use --install instead."
-		return 1
-	fi
-
-	local current_version
-	current_version="$(opencode --version 2>/dev/null || echo "unknown")"
-	log "Current version: $current_version"
-
-	# Detect installation method
-	local os_type
-	os_type="$(detect_os)"
-
-	# Try Homebrew update on macOS
-	if [[ "$os_type" == "macos" ]] && command -v brew &>/dev/null; then
-		if brew list opencode &>/dev/null; then
-			log "Updating OpenCode via Homebrew..."
-			brew upgrade opencode
-			verify_installation
-			return 0
-		fi
-	fi
-
-	# Try Paru update on Arch
-	if [[ "$os_type" == "arch" ]] && command -v paru &>/dev/null; then
-		if paru -Q opencode-bin &>/dev/null; then
-			log "Updating OpenCode via Paru..."
-			paru -S opencode-bin
-			verify_installation
-			return 0
-		fi
-	fi
-
-	# Try NPM update
-	if command -v npm &>/dev/null; then
-		if npm list -g opencode-ai &>/dev/null; then
-			log "Updating OpenCode via npm..."
-			install_opencode_npm
-			verify_installation
-			return 0
-		fi
-	fi
-
-
-
-	# Force reinstall for update
-	log "Could not detect installation method, forcing reinstall..."
-	FORCE_INSTALL="true"
-	install_opencode_main
-}
-
-# Install OpenCode via Homebrew (macOS and Linux)
 install_opencode_homebrew() {
-	log "Installing OpenCode via Homebrew..."
+	command -v brew >/dev/null 2>&1 || return 1
+	[[ "$OPENCODE_VERSION" == "latest" ]] || return 1
 
-	if ! command -v brew &>/dev/null; then
-		log "Homebrew not found"
+	# The documented V2 formula is not published in every tap state; skip to the
+	# next official method instead of failing the run when it is missing.
+	if ! brew info --formula "$V2_BREW_FORMULA" >/dev/null 2>&1; then
+		log "Homebrew formula $V2_BREW_FORMULA unavailable; trying next official method."
 		return 1
 	fi
 
-	# NOTE: Integrity verification is handled by Homebrew's built-in mechanisms:
-	#   - Homebrew verifies SHA256 checksums for downloaded formulae
-	#   - Formulae are fetched from the official tap repository over HTTPS
-	#   - This provides reasonable security for package installation
-
-	# Tap the SST repository if not already tapped
-	if ! brew tap | grep -q "sst/tap"; then
-		log "Tapping sst/tap..."
-		if ! brew tap sst/tap; then
-			log "Failed to tap sst/tap"
-			return 1
-		fi
-	fi
-
-	# Install OpenCode
-	if ! brew install sst/tap/opencode; then
-		log "Failed to install OpenCode via Homebrew"
-		return 1
-	fi
-
-	log "OpenCode installed successfully via Homebrew"
-	return 0
+	log "Installing OpenCode 2 via official Homebrew tap..."
+	brew install "$V2_BREW_FORMULA"
 }
 
-# Install OpenCode via official script
+install_opencode_aur() {
+	command -v paru >/dev/null 2>&1 || return 1
+	[[ "$OPENCODE_VERSION" == "latest" ]] || return 1
+
+	log "Installing OpenCode 2 via official AUR package..."
+	paru -S --needed --noconfirm "$V2_AUR_PACKAGE"
+}
+
 install_opencode_official_script() {
-	log "Installing OpenCode via official script..."
+	command -v curl >/dev/null 2>&1 || return 1
+	command -v bash >/dev/null 2>&1 || return 1
 
-	if ! command -v curl &>/dev/null; then
-		log "curl not found - required for official script installation"
-		return 1
-	fi
-
-	# Security warning for remote script execution (skip if force install)
+	log "Installing OpenCode 2 via official V2 installer..."
 	if [[ "$FORCE_INSTALL" != "true" ]]; then
-		log ""
-		log "WARNING: SECURITY NOTICE"
-		log "========================================"
-		log "This will download and execute a remote script from:"
-		log "    https://opencode.ai/install"
-		log ""
-		log "The script will be piped directly to bash for execution."
-		log ""
-		log "INTEGRITY VERIFICATION:"
-		log "  - This installation method does NOT verify checksums or signatures"
-		log "  - You are trusting the opencode.ai domain and its SSL certificate"
-		log "  - The script content is not inspected before execution"
-		log ""
-		log "For maximum security, consider:"
-		log "  1. Reviewing the script first: curl -fsSL https://opencode.ai/install"
-		log "  2. Using a package manager (brew on macOS, paru on Arch)"
-		log "========================================"
-		log ""
-
-		if ! prompt_confirmation "Do you want to proceed with downloading and executing the remote script?"; then
-			log "Installation cancelled by user"
+		log "Security notice: this downloads and executes $V2_INSTALL_URL"
+		if ! prompt_confirmation "Run the official OpenCode 2 installer?"; then
 			return 1
 		fi
-	else
-		log "Proceeding with official script installation (force mode)..."
 	fi
 
-	# Download and run the official install script with environment variables
-	# to prevent shell config modification and control installation location
-	# NOTE: No integrity verification is performed - relies on HTTPS/SSL trust
-	if ! SKIP_SHELL_INTEGRATION=1 \
-		NO_UPDATE_PROFILE=1 \
-		curl -fsSL https://opencode.ai/install | bash; then
-		log "Failed to install OpenCode via official script"
-		return 1
+	local -a installer_args=(--no-modify-path)
+	if [[ "$OPENCODE_VERSION" != "latest" ]]; then
+		installer_args+=(--version "$OPENCODE_VERSION")
 	fi
 
-	# Clean up any shell config modifications made by the installer
-	cleanup_shell_config_modifications "opencode"
-
-	log "OpenCode installed successfully via official script"
-	return 0
+	curl -fsSL "$V2_INSTALL_URL" | bash -s -- "${installer_args[@]}"
 }
 
-# Install OpenCode via NPM
+# @opencode/cli selects its platform binary in a postinstall script. npm 11.16+
+# gates dependency install scripts behind an allowlist (and npm 12 blocks them by
+# default), so a plain `npm install -g` yields a CLI with no binary.
+npm_supports_allow_scripts() {
+	npm install --help 2>/dev/null | command grep -q -- '--allow-scripts'
+}
+
 install_opencode_npm() {
-	log "Installing OpenCode via npm..."
+	command -v node >/dev/null 2>&1 || return 1
+	command -v npm >/dev/null 2>&1 || return 1
 
-	# Check if Node.js is installed
-	if ! command -v node &>/dev/null; then
-		log "Node.js is required for npm installation"
-		return 1
+	local package="${V2_NPM_PACKAGE}@${OPENCODE_VERSION}"
+
+	log "Installing OpenCode 2 via official npm package..."
+	if npm_supports_allow_scripts; then
+		npm install -g --allow-scripts="$V2_NPM_PACKAGE" "$package"
+	else
+		npm install -g "$package"
 	fi
-
-	# Check if npm is installed
-	if ! command -v npm &>/dev/null; then
-		log "npm is required for npm installation"
-		return 1
-	fi
-
-	# NOTE: Integrity verification is handled by npm's built-in mechanisms:
-	#   - npm verifies package integrity using SHA512 checksums from package-lock.json
-	#   - Packages are downloaded from the official npm registry over HTTPS
-	#   - npm uses Subresource Integrity (SRI) for package verification
-	#   - This provides strong security for package installation
-
-	# Install OpenCode globally via npm
-	# NPM will respect NPM_CONFIG_PREFIX if set, which should point to ~/.local or ~/.npm-global
-	if ! npm install -g opencode-ai; then
-		log "Failed to install OpenCode via npm"
-		return 1
-	fi
-
-	log "OpenCode installed successfully via npm"
-	return 0
 }
 
-# Install OpenCode via Paru (Arch Linux)
-install_opencode_paru() {
-	log "Installing OpenCode via Paru..."
+# pnpm (v10+) and Bun block dependency build scripts by default, so both need an
+# explicit trust flag for the same postinstall binary selection.
+install_opencode_pnpm() {
+	command -v pnpm >/dev/null 2>&1 || return 1
 
-	if ! command -v paru &>/dev/null; then
-		log "Paru not found"
-		return 1
-	fi
+	local package="${V2_NPM_PACKAGE}@${OPENCODE_VERSION}"
 
-	# NOTE: Integrity verification for AUR packages:
-	#   - Paru builds packages from PKGBUILD scripts in the AUR
-	#   - PKGBUILDs include checksums (sha256sums, sha512sums) for source files
-	#   - Paru verifies these checksums before building/installing
-	#   - Security depends on the PKGBUILD maintainer and AUR community review
-	#   - Consider reviewing the PKGBUILD manually for sensitive installations
-
-	# Install OpenCode
-	if ! paru -S --noconfirm opencode-bin; then
-		log "Failed to install OpenCode via Paru"
-		return 1
-	fi
-
-	log "OpenCode installed successfully via Paru"
-	return 0
+	log "Installing OpenCode 2 via official pnpm package..."
+	pnpm add -g --allow-build="$V2_NPM_PACKAGE" "$package"
 }
 
-# Install OpenCode on macOS
-install_opencode_macos() {
-	log "Installing OpenCode on macOS..."
+install_opencode_bun() {
+	command -v bun >/dev/null 2>&1 || return 1
 
-	# Try official script first (preferred method for all platforms)
-	if install_opencode_official_script; then
-		return 0
-	fi
-	log "Official script installation failed, trying Homebrew..."
+	local package="${V2_NPM_PACKAGE}@${OPENCODE_VERSION}"
 
-	# Try Homebrew as fallback
-	if install_opencode_homebrew; then
-		return 0
-	fi
-	log "Homebrew installation failed, trying npm..."
-
-	# Try npm installation
-	if install_opencode_npm; then
-		return 0
-	fi
-
-	error_exit "All installation methods failed for macOS"
+	log "Installing OpenCode 2 via official Bun package..."
+	bun install -g --trust "$package"
 }
 
-# Install OpenCode on Linux
-install_opencode_linux() {
+install_opencode_yarn() {
+	command -v yarn >/dev/null 2>&1 || return 1
+
+	local package="${V2_NPM_PACKAGE}@${OPENCODE_VERSION}"
+
+	log "Installing OpenCode 2 via official Yarn package..."
+	yarn global add "$package"
+}
+
+# Node-toolchain fallback chain, in the order the official docs list them.
+install_opencode_node_toolchain() {
+	install_opencode_npm || install_opencode_bun || install_opencode_pnpm || install_opencode_yarn
+}
+
+install_for_platform() {
 	local os_type="$1"
-	log "Installing OpenCode on Linux (${os_type})..."
 
-	# Try official script first (preferred method for all platforms)
-	if install_opencode_official_script; then
-		return 0
-	fi
-	log "Official script installation failed, trying alternative methods..."
-
-	# Special handling for Arch Linux - try Paru as fallback
-	if [[ "$os_type" == "arch" ]]; then
-		log "Arch Linux detected, trying Paru..."
-		if install_opencode_paru; then
-			return 0
-		fi
-		log "Paru installation failed, trying npm..."
+	# Exact versions use the official installer because rolling package managers
+	# cannot reliably satisfy a requested release.
+	if [[ "$OPENCODE_VERSION" != "latest" ]]; then
+		install_opencode_official_script || install_opencode_node_toolchain || \
+			error_exit "No official OpenCode 2 method could install version $OPENCODE_VERSION"
+		return
 	fi
 
-	# Try npm installation
-	if install_opencode_npm; then
-		return 0
-	fi
-
-	error_exit "All installation methods failed for Linux (${os_type})"
+	case "$os_type" in
+	macos)
+		install_opencode_homebrew || install_opencode_official_script || install_opencode_node_toolchain || \
+			error_exit "All official OpenCode 2 installation methods failed for macOS"
+		;;
+	arch)
+		install_opencode_aur || install_opencode_official_script || install_opencode_node_toolchain || \
+			error_exit "All official OpenCode 2 installation methods failed for Arch Linux"
+		;;
+	ubuntu | fedora | opensuse | linux)
+		install_opencode_official_script || install_opencode_node_toolchain || \
+			error_exit "All official OpenCode 2 installation methods failed for Linux"
+		;;
+	unix)
+		install_opencode_official_script || install_opencode_node_toolchain || \
+			error_exit "OpenCode 2 has no working official method for this Unix platform"
+		;;
+	esac
 }
 
-# Verify OpenCode installation
-verify_installation() {
-	log "Verifying OpenCode installation..."
+refresh_opencode_path() {
+	if [[ -x "$HOME/.opencode/bin/opencode" ]]; then
+		export PATH="$HOME/.opencode/bin:$PATH"
+	fi
+	hash -r
+}
 
-	if ! command -v opencode &>/dev/null; then
+verify_installation() {
+	refresh_opencode_path
+	if ! command -v opencode >/dev/null 2>&1; then
 		log "ERROR: opencode not found in PATH"
-		log "Please restart your shell or run: source ~/.zshrc"
+		log "Expected user-install path: $HOME/.opencode/bin"
 		return 1
 	fi
 
-	local version
-	version="$(opencode --version 2>/dev/null || echo "unknown")"
-	log "Installation verified: ${version}"
-	log ""
-	log "✓ Installation successful!"
+	local version generation
+	version="$(opencode_version || true)"
+	generation="$(opencode_generation)"
+	if [[ "$generation" != "v2" ]]; then
+		log "ERROR: expected OpenCode 2, found '${version:-unknown}' at $(command -v opencode)"
+		return 1
+	fi
+
+	mkdir -p "$(dirname "$OPENCODE_V2_MARKER")"
+	ln -sfn "$(command -v opencode)" "$OPENCODE_V2_MARKER"
+	log "OpenCode 2 verified: $version"
 	log "Location: $(command -v opencode)"
 }
 
-# Main installation function
-install_opencode_main() {
-	log "Starting OpenCode installation..."
-
-	# Check if already installed and not forcing
-	if [[ "$FORCE_INSTALL" != "true" ]] && check_opencode_installed; then
-		log "OpenCode is already installed"
-		log "Updating to latest version..."
-		update_opencode
-		return 0
+v2_installation_method() {
+	# Prefer the active curl-installed binary over hidden package-manager copies.
+	# Otherwise an update could change a shadowed package while leaving the
+	# command the user actually runs untouched.
+	if [[ "$(opencode_generation)" == "v2" && "$(command -v opencode)" == "$HOME/.opencode/bin/opencode" ]]; then
+		echo "standalone"
+	elif brew_formula_installed "opencode-v2"; then
+		echo "homebrew"
+	elif pacman_package_installed "$V2_AUR_PACKAGE"; then
+		echo "aur"
+	elif npm_package_installed "$V2_NPM_PACKAGE"; then
+		echo "npm"
+	elif pnpm_package_installed "$V2_NPM_PACKAGE"; then
+		echo "pnpm"
+	elif bun_package_installed "$V2_NPM_PACKAGE"; then
+		echo "bun"
+	elif yarn_package_installed "$V2_NPM_PACKAGE"; then
+		echo "yarn"
+	elif [[ "$(opencode_generation)" == "v2" ]]; then
+		echo "standalone"
+	else
+		echo "absent"
 	fi
-
-	# Detect OS and architecture
-	local os_type
-	os_type="$(detect_os)"
-	local arch
-	arch="$(detect_arch)"
-
-	log "Detected OS: ${os_type}, Architecture: ${arch}"
-
-	# Check for WSL
-	if is_wsl; then
-		log "WSL detected, using Linux installation method"
-	fi
-
-	# Install based on OS
-	case "${os_type}" in
-	"macos")
-		install_opencode_macos
-		;;
-	"ubuntu" | "fedora" | "opensuse" | "arch" | "linux")
-		install_opencode_linux "${os_type}"
-		;;
-	*)
-		error_exit "Unsupported operating system: ${os_type}"
-		;;
-	esac
-
-	# Verify installation
-	verify_installation
-
-	log "OpenCode installation completed successfully"
 }
 
-# Parse command line arguments
+update_opencode() {
+	migrate_from_v1_if_needed
+
+	local method
+	method="$(v2_installation_method)"
+	if [[ "$method" == "absent" ]]; then
+		log "OpenCode 2 is not installed; installing it now."
+		install_for_platform "$(detect_os)"
+		verify_installation
+		return
+	fi
+
+	log "Updating OpenCode 2 (detected method: $method)..."
+	if [[ "$OPENCODE_VERSION" != "latest" ]]; then
+		install_opencode_official_script || install_opencode_node_toolchain || \
+			error_exit "Could not install OpenCode 2 version $OPENCODE_VERSION"
+	else
+		case "$method" in
+		homebrew) brew upgrade "$V2_BREW_FORMULA" ;;
+		aur) paru -S --needed --noconfirm "$V2_AUR_PACKAGE" ;;
+		npm) install_opencode_npm ;;
+		pnpm) install_opencode_pnpm ;;
+		bun) install_opencode_bun ;;
+		yarn) install_opencode_yarn ;;
+		standalone) install_opencode_official_script ;;
+		esac
+	fi
+	verify_installation
+}
+
+uninstall_opencode() {
+	log "Uninstalling OpenCode binaries while preserving configuration and data..."
+
+	remove_v1_packages
+	if brew_formula_installed "opencode-v2"; then
+		brew uninstall "$V2_BREW_FORMULA"
+	fi
+	if npm_package_installed "$V2_NPM_PACKAGE"; then
+		npm uninstall -g "$V2_NPM_PACKAGE"
+	fi
+	if pnpm_package_installed "$V2_NPM_PACKAGE"; then
+		pnpm remove -g "$V2_NPM_PACKAGE"
+	fi
+	if bun_package_installed "$V2_NPM_PACKAGE"; then
+		bun remove -g "$V2_NPM_PACKAGE"
+	fi
+	if yarn_package_installed "$V2_NPM_PACKAGE"; then
+		yarn global remove "$V2_NPM_PACKAGE"
+	fi
+	if pacman_package_installed "$V2_AUR_PACKAGE"; then
+		if command -v paru >/dev/null 2>&1; then
+			paru -Rns --noconfirm "$V2_AUR_PACKAGE"
+		else
+			prompt_confirmation "Remove $V2_AUR_PACKAGE with sudo pacman?" || return 1
+			sudo pacman -Rns --noconfirm "$V2_AUR_PACKAGE"
+		fi
+	fi
+
+	hash -r
+	local binary attempts=0
+	while command -v opencode >/dev/null 2>&1; do
+		if ((attempts >= 10)); then
+			error_exit "Too many OpenCode binaries remain on PATH"
+		fi
+		binary="$(command -v opencode)"
+		log "Removing remaining OpenCode binary: $binary"
+		remove_with_privilege "$binary"
+		attempts=$((attempts + 1))
+		hash -r
+	done
+
+	# V2's curl installer creates this compatibility shim beside its binary.
+	rm -f -- "$HOME/.opencode/bin/opencode2" "$HOME/.opencode/bin/opencode2.cmd"
+	rm -f -- "$OPENCODE_V2_MARKER"
+	log "OpenCode binaries removed. Configuration and data were not changed."
+}
+
+install_opencode_main() {
+	migrate_from_v1_if_needed
+
+	if [[ "$(opencode_generation)" == "v2" && "$FORCE_INSTALL" != "true" ]]; then
+		update_opencode
+		return
+	fi
+
+	local os_type
+	os_type="$(detect_os)"
+	log "Installing OpenCode 2 on $os_type..."
+	if is_wsl; then
+		log "WSL detected; using Linux installation method."
+	fi
+	install_for_platform "$os_type"
+	verify_installation
+}
+
 parse_args() {
-	while [[ $# -gt 0 ]]; do
+	while (($# > 0)); do
 		case "$1" in
-		--install)
-			ACTION="install"
-			shift
-			;;
-		--uninstall)
-			ACTION="uninstall"
-			shift
-			;;
-		--update)
-			ACTION="update"
-			shift
-			;;
+		--install) ACTION="install"; shift ;;
+		--uninstall) ACTION="uninstall"; shift ;;
+		--update) ACTION="update"; shift ;;
 		--version)
+			(($# >= 2)) || error_exit "--version requires an argument"
 			OPENCODE_VERSION="$2"
 			shift 2
 			;;
-		--force)
-			FORCE_INSTALL="true"
-			shift
-			;;
-		-h | --help)
-			usage 0
-			;;
-		*)
-			error_exit "Unknown option: $1. Use --help for usage information."
-			;;
+		--force) FORCE_INSTALL="true"; shift ;;
+		-h | --help) usage 0 ;;
+		*) error_exit "Unknown option: $1. Use --help for usage information." ;;
 		esac
 	done
 }
 
-# Main function
 main() {
 	parse_args "$@"
-
 	case "$ACTION" in
-	"install")
-		install_opencode_main
-		;;
-	"uninstall")
-		uninstall_opencode
-		;;
-	"update")
-		update_opencode
-		;;
-	*)
-		error_exit "Invalid action: $ACTION. Use --help for usage information."
-		;;
+	install) install_opencode_main ;;
+	uninstall) uninstall_opencode ;;
+	update) update_opencode ;;
+	*) error_exit "Invalid action: $ACTION. Use --help for usage information." ;;
 	esac
 }
 
-# Execute main function if script is run directly
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
 	main "$@"
 fi
-

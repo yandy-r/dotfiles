@@ -855,12 +855,33 @@ func TestEmbeddedManifest_Phase3Migrations(t *testing.T) {
 		}
 	})
 
+	t.Run("opencode V2 uses migration-aware installer", func(t *testing.T) {
+		p, ok := byName["opencode"]
+		if !ok {
+			t.Fatal("opencode package missing from embedded manifest")
+		}
+		if p.Backend != manifest.BackendCustomScript {
+			t.Errorf("opencode backend = %q, want custom-script", p.Backend)
+		}
+		if p.Script != "bin/install-opencode.sh" {
+			t.Errorf("opencode script = %q, want bin/install-opencode.sh", p.Script)
+		}
+		if p.InstalledWhen == nil || p.InstalledWhen.Path != "~/.local/state/dotf/opencode-v2" {
+			t.Errorf("opencode installed_when = %+v, want V2 migration marker", p.InstalledWhen)
+		}
+		if len(p.Provides) != 0 {
+			t.Errorf("opencode provides = %v, want empty (V1 shares the binary name)", p.Provides)
+		}
+		if _, exists := byName["opencode2"]; exists {
+			t.Error("legacy side-by-side opencode2 manifest package still exists")
+		}
+	})
+
 	for _, tc := range []struct {
 		name        string
 		installName string
 	}{
 		{name: "codex", installName: "@openai/codex"},
-		{name: "opencode2", installName: "@opencode/cli"},
 		{name: "vercel", installName: "vercel"},
 		{name: "railway", installName: "@railway/cli"},
 		{name: "stripe", installName: "@stripe/cli"},
@@ -900,7 +921,6 @@ func TestEmbeddedManifest_Phase3Migrations(t *testing.T) {
 		{pkg: "stripe", intent: "cloud"},
 		{pkg: "neon", intent: "cloud"},
 		{pkg: "codex", intent: "ai"},
-		{pkg: "opencode2", intent: "ai"},
 		{pkg: "lefthook", intent: "git-tools"},
 	} {
 		t.Run(tc.pkg+" stays in intent "+tc.intent, func(t *testing.T) {
@@ -962,7 +982,6 @@ func TestEmbeddedManifest_RetainedCustomScriptSentinels(t *testing.T) {
 		"rust":             {"cargo", "rustc"},
 		"lua":              {"luarocks"},
 		"claude":           {"claude"},
-		"opencode":         {"opencode"},
 		"coderabbit":       {"coderabbit"},
 		"aws-tools":        {"aws", "sam", "ecs-cli"},
 		"azure-cli":        {"az"},
@@ -1010,6 +1029,18 @@ func TestEmbeddedManifest_RetainedCustomScriptSentinels(t *testing.T) {
 			}
 		})
 	}
+
+	// OpenCode V1 and V2 share one command name, so its explicit sentinel must be
+	// the V2-only marker written after verification, not a PATH probe.
+	t.Run("opencode V2 marker", func(t *testing.T) {
+		p, ok := byName["opencode"]
+		if !ok {
+			t.Fatal("opencode package missing from embedded manifest")
+		}
+		if p.InstalledWhen == nil || p.InstalledWhen.Path != "~/.local/state/dotf/opencode-v2" {
+			t.Errorf("opencode installed_when = %+v, want V2 marker", p.InstalledWhen)
+		}
+	})
 
 	// gnu-utilities' macOS-only g-prefixed sentinel must be scoped by an os gate
 	// so it is not evaluated (and always missed) on Linux.
