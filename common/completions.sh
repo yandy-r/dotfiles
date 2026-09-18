@@ -363,8 +363,17 @@ setup_git_completions() {
     fi
     
     # GitHub CLI
+    # `gh completion <shell>` ignores the positional argument and always emits
+    # BASH output; only `gh completion --shell <shell>` honors the shell. Running
+    # load_completion here therefore eval'd a bash script under bashcompinit,
+    # registering `complete -F __start_gh`, whose body calls the bash-only
+    # `_init_completion` -> "command not found: _init_completion" on every
+    # `gh <TAB>`. zsh already has a real `_gh` on fpath (vendor-completions and
+    # ~/.zfunc), so nothing needs generating there.
     if command -v gh >/dev/null 2>&1; then
-        load_completion gh
+        if [[ "$CURRENT_SHELL" == "bash" ]]; then
+            eval "$(gh completion --shell bash 2>/dev/null)" 2>/dev/null || true
+        fi
     fi
     
     # GitLab CLI
