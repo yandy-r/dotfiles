@@ -471,5 +471,3 @@ branchlet() {
 }
 # End Branchlet setup
 
-
-. "$HOME/.local/share/../bin/env"
