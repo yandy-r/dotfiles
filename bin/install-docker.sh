@@ -9,6 +9,8 @@ readonly LOG_PREFIX="[DOCKER-INSTALL]"
 DOCKER_VERSION="${DOCKER_VERSION:-latest}"
 DRY_RUN="${DRY_RUN:-false}"
 SKIP_POST_INSTALL="${SKIP_POST_INSTALL:-false}"
+NON_INTERACTIVE="${NON_INTERACTIVE:-false}"
+FORCE_INSTALL="${FORCE_INSTALL:-false}"
 
 DOTFILES_DIR="${DOTFILES_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 readonly PLATFORM_SCRIPT="${DOTFILES_DIR}/common/platform.sh"
@@ -24,6 +26,8 @@ OPTIONS:
                         Use 'latest' for the most recent stable release
     --skip-post         Skip post-installation setup (docker group, service start)
     --dry-run           Show what would be installed without actually installing
+    --force             Reinstall/upgrade without prompting for confirmation
+    --non-interactive   Auto-approve prompts (no TTY required)
     -h, --help          Show this help message
 
 ENVIRONMENT VARIABLES:
@@ -38,14 +42,16 @@ EXAMPLES:
     $SCRIPT_NAME --version latest
     $SCRIPT_NAME --dry-run
     $SCRIPT_NAME --skip-post
+    $SCRIPT_NAME --force
+    $SCRIPT_NAME --non-interactive
     DRY_RUN=true $SCRIPT_NAME
     FORCE_INSTALL=true $SCRIPT_NAME
 
 SUPPORTED PLATFORMS:
     - Ubuntu/Debian (via official Docker apt repository)
     - macOS (via Homebrew - Docker Desktop)
-    - Fedora (placeholder - manual installation required)
-    - Arch Linux (placeholder - manual installation required)
+    - Fedora (via official Docker dnf repository)
+    - Arch Linux (via official repositories)
 
 NOTES:
     - Ubuntu/Debian: Installs Docker Engine from official Docker repository
@@ -250,18 +256,51 @@ install_docker_ubuntu_debian() {
 }
 
 install_docker_fedora() {
-	log "Fedora installation not yet implemented"
-	echo
-	log "To install Docker on Fedora, please follow the official documentation:"
-	log "  https://docs.docker.com/engine/install/fedora/"
-	echo
-	log "Quick installation steps:"
-	log "  1. sudo dnf -y install dnf-plugins-core"
-	log "  2. sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo"
-	log "  3. sudo dnf install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
-	log "  4. sudo systemctl start docker"
-	echo
-	error_exit "Fedora support not yet implemented - please install manually"
+	log "Installing Docker on Fedora..."
+
+	local pkg_mgr
+	if check_command dnf; then
+		pkg_mgr="dnf"
+	elif check_command yum; then
+		pkg_mgr="yum"
+	else
+		error_exit "No RPM package manager found (dnf or yum required)"
+	fi
+
+	if [[ "$DRY_RUN" == "true" ]]; then
+		log "DRY-RUN: Would install Docker via official Docker $pkg_mgr repository"
+		return 0
+	fi
+
+	log "Removing old Docker packages if present..."
+	for pkg in docker docker-client docker-client-latest docker-common \
+		docker-latest docker-latest-logrotate docker-logrotate \
+		docker-selinux docker-engine-selinux docker-engine; do
+		if rpm -q "$pkg" &>/dev/null; then
+			log "Removing old package: $pkg"
+			sudo "$pkg_mgr" remove -y "$pkg" 2>/dev/null || true
+		fi
+	done
+
+	# Install docker's ready-made .repo file directly rather than calling
+	# `config-manager`, whose repo verbs and plugin package differ between dnf4
+	# (`--add-repo`) and dnf5 (`addrepo --from-repofile`). This mirrors how
+	# manifest/packages.toml provisions the same repo.
+	log "Setting up Docker repository..."
+	curl -fsSL https://download.docker.com/linux/fedora/docker-ce.repo |
+		sudo tee /etc/yum.repos.d/docker-ce.repo >/dev/null
+
+	log "Installing Docker Engine, CLI, and plugins..."
+	if ! sudo "$pkg_mgr" install -y \
+		docker-ce \
+		docker-ce-cli \
+		containerd.io \
+		docker-buildx-plugin \
+		docker-compose-plugin; then
+		error_exit "Failed to install Docker packages"
+	fi
+
+	log "Docker installed successfully on Fedora"
 }
 
 install_docker_arch() {
@@ -463,6 +502,14 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--dry-run)
 		DRY_RUN="true"
+		shift
+		;;
+	--force)
+		FORCE_INSTALL="true"
+		shift
+		;;
+	--non-interactive)
+		NON_INTERACTIVE="true"
 		shift
 		;;
 	-h | --help)
