@@ -13,7 +13,7 @@ repository. All scripts are designed to be cross-platform and follow consistent 
 | DevOps           | `install-hashicorp-tools.sh`, `k8s-tools.sh`, `install-docker.sh`                    | Infrastructure tools        |
 | Modern CLI       | `install-modern-cli.sh`, `install-yazi.sh`                                           | Modern command-line tools   |
 | AI/Development   | `install-claude.sh`, `install-opencode.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-neovim.sh` | Development tools           |
-| Utilities        | `dc-manage.sh`, `cleanup-*.sh`, `markdown-tools.sh`                                  | System utilities            |
+| Utilities        | `cursor-export-secrets.sh`, `dc-manage.sh`, `cleanup-*.sh`, `markdown-tools.sh`      | System utilities            |
 | Style / Lint     | `style.sh`, `lint.sh`, `format.sh`                                                   | Multi-language lint/format  |
 
 ## Key Scripts
@@ -420,6 +420,43 @@ Replace git URLs (e.g., HTTPS to SSH).
 ```bash
 ./bin/git-url-replace.sh
 ```
+
+#### cursor-export-secrets.sh
+
+Extract the Cursor IDE access token and machine ID from Cursor's local SQLite state database
+(`state.vscdb`) and write them as JSON to `${XDG_CONFIG_HOME:-~/.config}/secrets/cursor.json`
+(default). Manual utility — not wired into bootstrap. OS (macOS / Linux / WSL) is auto-detected
+via `common/platform.sh`, which maps to the correct Cursor User directory. Native Windows is
+rejected: POSIX modes cannot enforce private file ACLs there. Use case:
+supplying `accessToken` + `machineId` to tools that need Cursor IDE credentials (e.g. the 9router
+Cursor IDE provider). Requires `sqlite3` and `jq`.
+
+```bash
+# Check dependencies, state DB, and keys (exit 0/1)
+./bin/cursor-export-secrets.sh --check
+
+# Preview detected OS, DB path, keys found, and output path (no writes)
+./bin/cursor-export-secrets.sh --dry-run
+
+# Export credentials to the default location
+./bin/cursor-export-secrets.sh
+
+# Write to a custom output file
+./bin/cursor-export-secrets.sh --output ~/.config/secrets/cursor.json
+```
+
+**Options:**
+
+- `--dry-run` - Report OS/DB/keys found/output path without writing
+- `--check` - Verify `sqlite3`/`jq`, state DB, and keys; exit 0/1
+- `--output <path>` - Override output file (default: `${XDG_CONFIG_HOME:-~/.config}/secrets/cursor.json`)
+- `-h`, `--help` - Show usage
+
+**Security:** credential values are never printed and never appear in external process arguments
+(stdin-piped to `jq`; xtrace disabled). The output file is written atomically (temp-then-rename)
+with mode 600; the default parent directory is created/hardened to mode 700. Custom `--output`
+parents must already be user-owned and private; symlink parents and symlink/directory output
+paths are refused.
 
 ### Style / Lint Orchestrator
 
