@@ -18,6 +18,7 @@ SRC_ENVIRONMENT_D="${CONFIG_BASE}/environment.d"
 REMOTE_DEST=".config/"
 
 DRY_RUN=false
+DELETE=false
 LIST_ONLY=false
 SINGLE_HOST=""
 ADD_HOST=""
@@ -37,6 +38,7 @@ Remote destination (per host): ~/${REMOTE_DEST}
 
 Options:
   -n, --dry-run       Show rsync commands without running them
+  -d, --delete        Delete files in destination not present in source (rsync --delete)
   -l, --list          Print configured hosts and exit
   -H, --host HOST     Sync only this host (must be in the hosts file)
   -a, --add HOST      Append HOST to the hosts file (creates file from example if missing)
@@ -46,6 +48,7 @@ Options:
 Examples:
   $SCRIPT_NAME
   $SCRIPT_NAME --dry-run
+  $SCRIPT_NAME --delete
   $SCRIPT_NAME --host yrmbp14
   $SCRIPT_NAME --add myserver
   $SCRIPT_NAME --edit
@@ -130,6 +133,10 @@ run_rsync() {
     local host="$1"
     local -a rsync_args=(-av)
 
+    if [[ "$DELETE" == "true" ]]; then
+        rsync_args+=(--delete)
+    fi
+
     if [[ "$DRY_RUN" == "true" ]]; then
         rsync_args+=(--dry-run)
     fi
@@ -147,6 +154,10 @@ parse_args() {
         case "$1" in
             -n | --dry-run)
                 DRY_RUN=true
+                shift
+                ;;
+            -d | --delete)
+                DELETE=true
                 shift
                 ;;
             -l | --list)
