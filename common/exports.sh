@@ -129,10 +129,10 @@ else
     unset NINE_ROUTER_API_KEY
 fi
 
-if gemini_api_key="$(read_env_file "$XDG_CONFIG_HOME/env/gemini_api_key")"; then
-    export GEMINI_API_KEY="$gemini_api_key"
+if claude_code_oauth_token="$(read_env_file "$XDG_CONFIG_HOME/env/claude_code_oauth_token")"; then
+    export CLAUDE_CODE_OAUTH_TOKEN="$claude_code_oauth_token"
 else
-    unset GEMINI_API_KEY
+    unset CLAUDE_CODE_OAUTH_TOKEN
 fi
 
 # ================================================================
