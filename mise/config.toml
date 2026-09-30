@@ -1,6 +1,7 @@
 [tools]
 deno = "latest"
 go = "1.26"
+golangci-lint = "2.11.4"
 node = "latest"
 npm = "latest"
 pnpm = "latest"

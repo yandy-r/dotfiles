@@ -135,6 +135,12 @@ else
     unset CLAUDE_CODE_OAUTH_TOKEN
 fi
 
+if gemini_api_key="$(read_env_file "$XDG_CONFIG_HOME/env/gemini_api_key")"; then
+    export GEMINI_API_KEY="$gemini_api_key"
+else
+    unset GEMINI_API_KEY
+fi
+
 # ================================================================
 # EDITOR CONFIGURATION
 # ================================================================
