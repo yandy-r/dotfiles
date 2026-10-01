@@ -20,6 +20,10 @@ source "$DOTFILES_ROOT/common/aliases.sh"
 source "$DOTFILES_ROOT/common/functions.sh"
 source "$DOTFILES_ROOT/common/tools.sh"
 
+# Ubuntu's USERGROUPS_ENAB login default is umask 002, which leaves files group-writable;
+# permission-checking tooling (e.g. itcn/website's Neon CLI trust check) refuses those.
+umask 022
+
 # ================================================================
 # ZSH-SPECIFIC CONFIGURATION
 # ================================================================
@@ -471,3 +475,9 @@ branchlet() {
 }
 # End Branchlet setup
 
+
+# >>> grok installer >>>
+export PATH="$HOME/.grok/bin:$PATH"
+fpath=(~/.grok/completions/zsh $fpath)
+autoload -Uz compinit && compinit -C
+# <<< grok installer <<<
