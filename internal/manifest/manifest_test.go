@@ -1027,6 +1027,7 @@ func TestEmbeddedManifest_RetainedCustomScriptSentinels(t *testing.T) {
 		"claude":           {"claude"},
 		"coderabbit":       {"coderabbit"},
 		"playwright-cli":   {"playwright-cli"},
+		"1password-cli":    {"op"},
 		"aws-tools":        {"aws", "sam", "ecs-cli"},
 		"azure-cli":        {"az"},
 		"hashicorp-tools":  {"terraform", "tflint"},

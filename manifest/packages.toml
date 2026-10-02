@@ -122,6 +122,7 @@ packages = [
     "railway",
     "stripe",
     "neon",
+    "1password-cli",
 ]
 
 [intents.git-tools]
@@ -777,6 +778,22 @@ backend = "toolchain"
 tool = "npm"
 names = { npm = "neonctl" }
 provides = ["neon"]
+
+# 1Password CLI (`op`). One entry covers every dotf OS: Homebrew cask on macOS,
+# winget on Windows, and on Linux/WSL the official release zip GPG-verified
+# against the pinned 1Password signing key, installed setgid `onepassword-cli`
+# (the desktop-app integration requires that group). Not `repo`: 1Password
+# ships apt/dnf repos only, leaving Arch/openSUSE uncovered, and the
+# github-release backend cannot express the CDN zip + detached-signature check
+# or the group/setgid step.
+[[package]]
+name = "1password-cli"
+backend = "custom-script"
+script = "bin/install-1password-cli.sh"
+provides = ["op"]
+actions = ["update", "remove"]
+class = "rolling"
+justification = "official 1Password CDN release (GPG-verified) tracks latest; brew cask / winget on macOS / Windows"
 
 # git-tools intent
 [[package]]

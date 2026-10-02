@@ -9,7 +9,7 @@ repository. All scripts are designed to be cross-platform and follow consistent 
 | ---------------- | ------------------------------------------------------------------------------------ | --------------------------- |
 | Setup            | `bootstrap.sh`                                                                       | Shim: downloads `dotf`, runs `dotf apply` |
 | Package Managers | `install-brew.sh`, `up-brew.sh`, `un-brew.sh`                                        | Homebrew management         |
-| Cloud Tools      | `install-aws-tools.sh`, `install-azure-cli.sh`                                       | Cloud CLI tools             |
+| Cloud Tools      | `install-aws-tools.sh`, `install-azure-cli.sh`, `install-1password-cli.sh`           | Cloud CLI tools             |
 | DevOps           | `install-hashicorp-tools.sh`, `k8s-tools.sh`, `install-docker.sh`                    | Infrastructure tools        |
 | Modern CLI       | `install-modern-cli.sh`, `install-yazi.sh`                                           | Modern command-line tools   |
 | AI/Development   | `install-claude.sh`, `install-opencode.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-neovim.sh` | Development tools           |
@@ -328,6 +328,21 @@ Install CodeRabbit CLI.
 
 ```bash
 ./bin/install-coderabbit.sh
+```
+
+#### install-1password-cli.sh
+
+Install, update, or uninstall the [1Password CLI](https://www.1password.dev/cli) (`op`). macOS uses the
+`1password-cli` Homebrew cask, Windows uses winget, and Linux/WSL downloads the official release zip,
+verifies its GPG signature against the pinned 1Password key, and installs `/usr/local/bin/op` setgid
+`onepassword-cli` (needed for the desktop-app integration). Provisioned by `dotf apply --intent cloud`
+or `dotf install --only 1password-cli`.
+
+```bash
+./bin/install-1password-cli.sh               # install (no-op when present)
+./bin/install-1password-cli.sh --update      # update to latest
+./bin/install-1password-cli.sh --version 2.38.1 --force
+./bin/install-1password-cli.sh --uninstall
 ```
 
 > **Migrated to native `dotf` backends (Phase 3, #50):** `lefthook`, `codex`, and `turso` are no

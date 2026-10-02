@@ -507,6 +507,7 @@ installation methods. All scripts support:
 | ---------------------------- | --------------------------------------------------- | ----------------------------- |
 | `install-aws-tools.sh`       | AWS CLI v2, SAM CLI, ECS CLI                        | Official AWS installers       |
 | `install-azure-cli.sh`       | Azure CLI                                           | Microsoft official repository |
+| `install-1password-cli.sh`   | 1Password CLI (`op`)                                | brew cask / GPG-verified zip / winget |
 | `install-hashicorp-tools.sh` | Terraform, TFLint                                   | HashiCorp repository + GitHub |
 | `install-container-tools.sh` | Skaffold, Hadolint                                  | Official installers + GitHub  |
 | `install-modern-cli.sh`      | lazygit, delta, bottom, eza, carapace, xh           | GitHub releases               |
