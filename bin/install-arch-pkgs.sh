@@ -21,6 +21,8 @@ SKIP_AUR="${SKIP_AUR:-false}"
 NON_INTERACTIVE="${NON_INTERACTIVE:-false}"
 FORCE_INSTALL="${FORCE_INSTALL:-false}"
 INSTALL_GAMING="${INSTALL_GAMING:-false}"
+PACMAN_CONF="${PACMAN_CONF:-/etc/pacman.conf}"
+readonly GHOSTTY_REPO="extra"
 
 # Force CMake to use Unix Makefiles by default. Many AUR PKGBUILDs call
 # bare `cmake` + `make`; when ninja is installed CMake silently switches
@@ -243,6 +245,78 @@ install_packages_batch() {
   for package in "${packages[@]}"; do
     install_package "$package" "$use_aur" || true
   done
+}
+
+# Adds packages to IgnorePkg in [options] so `pacman -Syu` leaves them alone.
+# Idempotent: only names not already ignored are added, as an extra IgnorePkg
+# line (pacman accumulates repeated IgnorePkg directives).
+ensure_pacman_ignorepkg() {
+  local -a missing=()
+  local ignored package
+  ignored="$(pacman-conf --config "$PACMAN_CONF" IgnorePkg)"
+
+  for package in "$@"; do
+    grep -qxF "$package" <<<"$ignored" || missing+=("$package")
+  done
+
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    log "IgnorePkg already pins: $*"
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY-RUN: Would add to IgnorePkg in $PACMAN_CONF: ${missing[*]}"
+    return 0
+  fi
+
+  local backup
+  backup="${PACMAN_CONF}.dotfiles-$(date +%Y%m%d%H%M%S).bak"
+  sudo cp "$PACMAN_CONF" "$backup"
+  sudo sed -i "/^\[options\]\$/a\\
+# Pinned by dotfiles bin/install-arch-pkgs.sh; re-run it to upgrade these.\\
+IgnorePkg = ${missing[*]}" "$PACMAN_CONF"
+
+  if ! pacman-conf --config "$PACMAN_CONF" IgnorePkg | grep -qxF "${missing[0]}"; then
+    sudo cp "$backup" "$PACMAN_CONF"
+    log_error "Failed to add IgnorePkg entries to $PACMAN_CONF (restored from $backup)"
+    return 1
+  fi
+  log_success "Added to IgnorePkg in $PACMAN_CONF: ${missing[*]} (backup: $backup)"
+}
+
+# CachyOS's x86-64-v3 Ghostty rebuild segfaults in the terminal IO thread
+# (e.g. `herdr --remote` with several tabs open); Arch's [extra] build does
+# not. Pacman can't pin a package to a repo, and the CachyOS repos come first
+# with a higher pkgrel, so install from [extra] explicitly and hold the
+# packages with IgnorePkg. Re-running this installer upgrades them.
+install_ghostty() {
+  local -a packages=(ghostty ghostty-shell-integration ghostty-terminfo)
+  local resolved_repo
+  resolved_repo="$(pacman -Sp --print-format '%r' ghostty 2>/dev/null || true)"
+
+  if [[ -z "$resolved_repo" || "$resolved_repo" == "$GHOSTTY_REPO" ]]; then
+    install_package "ghostty" "false"
+    return
+  fi
+
+  log "ghostty resolves to [$resolved_repo]; installing Arch's [$GHOSTTY_REPO] build instead"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY-RUN: Would install ${packages[*]/#/$GHOSTTY_REPO/}"
+  elif sudo pacman -S --noconfirm --needed "${packages[@]/#/$GHOSTTY_REPO/}"; then
+    log_success "Installed ${packages[*]} from [$GHOSTTY_REPO]"
+    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+  else
+    log_error "Failed to install ${packages[*]} from [$GHOSTTY_REPO]"
+    FAILED_COUNT=$((FAILED_COUNT + 1))
+    FAILED_PACKAGES+=("ghostty ([$GHOSTTY_REPO])")
+    return 1
+  fi
+
+  if ! ensure_pacman_ignorepkg "${packages[@]}"; then
+    FAILED_COUNT=$((FAILED_COUNT + 1))
+    FAILED_PACKAGES+=("ghostty (IgnorePkg pin)")
+    return 1
+  fi
 }
 
 # ================================================================
@@ -497,7 +571,7 @@ install_desktop_apps() {
     install_package "fuzzel" "false" || true                      # alternative Wayland launcher kept in the desktop baseline
     install_package "rofi" "false" || true                        # dmenu with tab-stops (keybinding cheatsheet popup)
     install_package "rofi-calc" "false" || true                   # calculator mode for rofi
-    install_package "ghostty" "false" || true                     # GPU-accelerated terminal emulator
+    install_ghostty || true                                       # GPU-accelerated terminal emulator (pinned to [extra])
     install_package "grim" "false" || true                        # screenshots
     install_package "satty" "false" || true                       # screenshot annotation/editing tool
     install_package "hyprland" "false" || true                    # compositor for the repo-owned desktop baseline

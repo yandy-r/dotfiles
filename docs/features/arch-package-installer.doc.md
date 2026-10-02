@@ -130,6 +130,27 @@ The installer organizes packages into logical categories:
 - Launcher and bar: fuzzel, waybar
 - Lock and idle: hyprlock, hypridle
 - Capture helpers: grim, slurp, wl-clipboard, wf-recorder
+- Terminal: ghostty (pinned to Arch's `[extra]` build; see below)
+
+#### Ghostty repo pin
+
+CachyOS's x86-64-v3 Ghostty rebuild segfaults in the terminal IO thread (seen
+with `herdr --remote` and several tabs open); Arch's `[extra]` build does not.
+Pacman cannot pin a package to a repo, and the CachyOS repos are listed first
+with a higher pkgrel, so a plain `pacman -S ghostty` or `pacman -Syu` picks the
+CachyOS build.
+
+When `ghostty` resolves to a repo other than `[extra]`, the installer:
+
+1. Installs `extra/ghostty`, `extra/ghostty-shell-integration`, and
+   `extra/ghostty-terminfo`.
+2. Adds those three to `IgnorePkg` in `/etc/pacman.conf` (with a timestamped
+   backup), so `pacman -Syu` no longer swaps them.
+
+Because they are ignored, Ghostty only updates when you re-run
+`./bin/install-arch-pkgs.sh`. To drop the pin, delete the dotfiles
+`IgnorePkg` line from `/etc/pacman.conf`. `PACMAN_CONF` overrides the config
+path (used for testing).
 
 ### Development Libraries
 
