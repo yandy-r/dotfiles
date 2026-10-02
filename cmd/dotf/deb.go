@@ -512,7 +512,7 @@ func printDebResult(w io.Writer, o *debOpts, res debtap.Result) {
 		doc := debJSON{
 			Source: res.Source, Input: res.Input,
 			StagedDir: res.StagedDir, WorkDir: res.WorkDir,
-			SHA256: res.SHA256,
+			SHA256:     res.SHA256,
 			DebPackage: res.DebPackage, DebVersion: res.DebVersion,
 			Precedence: res.Precedence, Artifact: res.Artifact,
 			Package: res.Package, Version: res.Version, Size: res.Size,
