@@ -141,6 +141,12 @@ else
     unset GEMINI_API_KEY
 fi
 
+if op_service_account_token="$(read_env_file "$XDG_CONFIG_HOME/env/op_service_account_token")"; then
+    export OP_SERVICE_ACCOUNT_TOKEN="$op_service_account_token"
+else
+    unset OP_SERVICE_ACCOUNT_TOKEN
+fi
+
 # ================================================================
 # EDITOR CONFIGURATION
 # ================================================================
