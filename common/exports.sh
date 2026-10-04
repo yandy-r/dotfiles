@@ -147,6 +147,12 @@ else
     unset OP_SERVICE_ACCOUNT_TOKEN
 fi
 
+if opencode_password="$(read_env_file "$XDG_CONFIG_HOME/env/opencode_password")"; then
+    export OPENCODE_PASSWORD="$opencode_password"
+else
+    unset OPENCODE_PASSWORD
+fi
+
 # ================================================================
 # EDITOR CONFIGURATION
 # ================================================================
