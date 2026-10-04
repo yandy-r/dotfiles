@@ -198,3 +198,9 @@
 #   git config --global coderabbit.machineId "cli/YOUR_MACHINE_ID"
 [coderabbit]
 	machineId = cli/f6bc8850f58d416482deeaaccfb601de
+[credential "https://github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
