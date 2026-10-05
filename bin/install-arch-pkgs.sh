@@ -948,6 +948,10 @@ install_mise_runtimes() {
     log "No ~/.config/mise/config.toml (symlink from dotfiles?) - skipping mise runtimes"
     return 0
   fi
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY-RUN: Would run mise install and set node@latest as global default"
+    return 0
+  fi
   log "Installing mise runtimes from config and setting global default (node@latest)..."
   if (eval "$(mise activate bash)" 2>/dev/null && mise install && mise use -g node@latest); then
     log_success "mise runtimes installed and node set as global default"
