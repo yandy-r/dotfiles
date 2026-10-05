@@ -21,6 +21,7 @@ SKIP_AUR="${SKIP_AUR:-false}"
 NON_INTERACTIVE="${NON_INTERACTIVE:-false}"
 FORCE_INSTALL="${FORCE_INSTALL:-false}"
 INSTALL_GAMING="${INSTALL_GAMING:-false}"
+INSTALL_HYPRLAND="${INSTALL_HYPRLAND:-false}"
 PACMAN_CONF="${PACMAN_CONF:-/etc/pacman.conf}"
 readonly GHOSTTY_REPO="extra"
 
@@ -48,6 +49,7 @@ OPTIONS:
     --skip-official     Skip official repository packages
     --skip-aur          Skip AUR packages
     --gaming            Install optional gaming packages for CachyOS and Manjaro
+    --hyprland          Install the Hyprland desktop stack (do not use on KDE Plasma)
     --non-interactive   Run without user prompts
     --force             Force reinstallation of already-installed packages
     -h, --help          Show this help message
@@ -57,6 +59,7 @@ ENVIRONMENT VARIABLES:
     SKIP_OFFICIAL      Skip official repository packages (true/false)
     SKIP_AUR           Skip AUR packages (true/false)
     INSTALL_GAMING     Install gaming packages (true/false)
+    INSTALL_HYPRLAND   Install the Hyprland desktop stack (true/false)
     NON_INTERACTIVE    Run non-interactively (true/false)
     FORCE_INSTALL      Force reinstallation (true/false)
 
@@ -64,6 +67,7 @@ EXAMPLES:
     $SCRIPT_NAME --dry-run
     $SCRIPT_NAME --skip-aur
     $SCRIPT_NAME --gaming
+    $SCRIPT_NAME --hyprland
     NON_INTERACTIVE=true $SCRIPT_NAME
 
 NOTES:
@@ -561,44 +565,51 @@ install_fonts() {
   install_package "ttf-cascadia-code-nerd" "false" || true
 }
 
+# Session daemons that claim a D-Bus name Plasma already owns. Whichever starts
+# first wins, so on a Plasma host they hijack secrets (gnome-keyring), file
+# manager (nautilus), notifications (mako), or polkit prompts (hyprpolkitagent).
+readonly -a PLASMA_CONFLICTING_PACKAGES=(
+  gnome-keyring   # org.freedesktop.secrets — shadows kwallet/ksecretd
+  seahorse        # GUI for gnome-keyring; depends on it
+  mako            # org.freedesktop.Notifications — shadows plasmashell
+  hyprpolkitagent # polkit agent — competes with polkit-kde-agent
+  nautilus        # org.freedesktop.FileManager1 — shadows Dolphin
+  sushi           # Nautilus previewer; depends on nautilus
+)
+
+is_plasma_host() {
+  [[ "${XDG_CURRENT_DESKTOP:-}" == *KDE* ]] || is_installed plasma-workspace
+}
+
+# Installs a Hyprland desktop package unless it would conflict with Plasma.
+install_hyprland_package() {
+  local package="$1"
+  if [[ "$PLASMA_HOST" == "true" ]] && [[ " ${PLASMA_CONFLICTING_PACKAGES[*]} " == *" $package "* ]]; then
+    log_warning "Skipping $package: conflicts with KDE Plasma session services"
+    SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+    return 0
+  fi
+  install_package "$package" "false"
+}
+
 install_desktop_apps() {
   print_section "Installing Desktop Applications"
 
   if [[ "$SKIP_OFFICIAL" != "true" ]]; then
-    # Generic Linux desktop baseline for the repo-owned CachyOS/Hyprland path.
-    install_package "acpid" "false" || true # lid events for monitor-auto-switch
+    # Desktop-agnostic apps; safe on Hyprland and KDE Plasma alike.
     install_package "discord" "false" || true
-    install_package "fuzzel" "false" || true                      # alternative Wayland launcher kept in the desktop baseline
-    install_package "rofi" "false" || true                        # dmenu with tab-stops (keybinding cheatsheet popup)
-    install_package "rofi-calc" "false" || true                   # calculator mode for rofi
-    install_ghostty || true                                       # GPU-accelerated terminal emulator (pinned to [extra])
-    install_package "grim" "false" || true                        # screenshots
-    install_package "satty" "false" || true                       # screenshot annotation/editing tool
-    install_package "hyprland" "false" || true                    # compositor for the repo-owned desktop baseline
-    install_package "hypridle" "false" || true                    # idle daemon
-    install_package "hyprlauncher" "false" || true                # launcher used by hypr/bindings.lua
-    install_package "hyprlock" "false" || true                    # lock screen
-    install_package "hyprpaper" "false" || true                   # wallpaper utility
-    install_package "hyprpicker" "false" || true                  # color picker utility
-    install_package "hyprpolkitagent" "false" || true             # polkit authentication agent
-    install_package "hyprsunset" "false" || true                  # display temperature utility
-    install_package "libnotify" "false" || true                   # notify-send for monitor hooks
-    install_package "slurp" "false" || true                       # region selection for screenshots
-    install_package "waybar" "false" || true                      # status bar
-    install_package "whatsapp-linux-desktop-bin" "true" || true   # WhatsApp desktop client
-    install_package "wlogout" "false" || true                     # power / session menu (logout, reboot, shutdown)
-    install_package "wf-recorder" "false" || true                 # screen recording
-    install_package "wl-clipboard" "false" || true                # clipboard integration for screenshots
-    install_package "xdg-desktop-portal" "false" || true          # Wayland portal base
-    install_package "xdg-desktop-portal-gtk" "false" || true      # Settings portal (color-scheme, dark/light preference)
-    install_package "xdg-desktop-portal-hyprland" "false" || true # Hyprland portal backend
-    install_package "xdg-utils" "false" || true                   # xdg-open for generic binds
+    install_ghostty || true                                     # GPU-accelerated terminal emulator (pinned to [extra])
+    install_package "libnotify" "false" || true                 # notify-send for scripts
+    install_package "whatsapp-linux-desktop-bin" "true" || true # WhatsApp desktop client
+    install_package "wl-clipboard" "false" || true              # Wayland clipboard CLI (wl-copy/wl-paste)
+    install_package "xdg-desktop-portal" "false" || true        # Wayland portal base
+    install_package "xdg-utils" "false" || true                 # xdg-open for generic binds
 
     # IDEs
-    install_package "zed-preview-bin" "true" || true        # Zed Preview IDE
-    install_package "cursor-bin" "true" || true             # Cursor IDE
-    install_package "antigravity" "true" || true            # Antigravity IDE
-    install_package "visual-studio-code-bin" "true" || true # Visual Studio Code Insiders IDE
+    install_package "zed-preview-bin" "true" || true           # Zed Preview IDE
+    install_package "cursor-bin" "true" || true                # Cursor IDE
+    install_package "antigravity" "true" || true               # Antigravity IDE
+    install_package "visual-studio-code-bin" "true" || true    # Visual Studio Code Insiders IDE
     install_package "beekeeper-studio-appimage" "true" || true # SQL/database GUI client
 
     # Media and creative tools
@@ -614,18 +625,10 @@ install_desktop_apps() {
     install_package "foxit-pdf-editor" "true" || true # PDF editing software
     install_package "foxitreader" "true" || true      # PDF viewing software
 
-    # Desktop environment utilities
-    install_package "brightnessctl" "false" || true   # laptop brightness keys (hypr/bindings.lua)
+    # Desktop utilities
     install_package "dolphin" "false" || true         # KDE file manager
-    install_package "nautilus" "false" || true        # GNOME file manager (hypr/bindings.lua $fileManager)
     install_package "qalculate-gtk" "false" || true   # GTK desktop calculator
-    install_package "sushi" "false" || true           # GNOME Quick Look (Space to preview in Nautilus)
-    install_package "gnome-keyring" "false" || true   # credential/secret storage for browsers & SSH
-    install_package "playerctl" "false" || true       # media player control (hypr/bindings.lua)
-    install_package "seahorse" "false" || true        # GUI for managing gnome-keyring secrets
     install_package "libappindicator" "false" || true # SNI tray icon support (Dropbox, Discord, etc.)
-    install_package "mako" "false" || true            # Wayland notification daemon with configurable click actions
-    install_package "swayosd" "false" || true         # transient volume and brightness OSD for Hyprland binds
     install_package "wireplumber" "false" || true     # PipeWire session manager (provides wpctl for volume)
   else
     log "Skipping official-repo desktop apps"
@@ -642,6 +645,62 @@ install_desktop_apps() {
   fi
 
   install_package "1password" "true" || true
+}
+
+# Repo-owned Hyprland desktop baseline (hypr/, waybar/, mako/, ...). Opt-in via
+# --hyprland: on a KDE Plasma host these packages fight Plasma for session roles.
+install_hyprland_desktop() {
+  if [[ "$INSTALL_HYPRLAND" != "true" ]]; then
+    log "Skipping Hyprland desktop stack (use --hyprland to enable)"
+    return 0
+  fi
+
+  print_section "Installing Hyprland Desktop Stack"
+
+  if [[ "$SKIP_OFFICIAL" == "true" ]]; then
+    log "Skipping official-repo Hyprland packages"
+    return 0
+  fi
+
+  if [[ "$PLASMA_HOST" == "true" ]]; then
+    log_warning "KDE Plasma detected; skipping packages that conflict with it: ${PLASMA_CONFLICTING_PACKAGES[*]}"
+  fi
+
+  local -a packages=(
+    acpid                       # lid events for monitor-auto-switch
+    brightnessctl               # laptop brightness keys (hypr/bindings.lua)
+    fuzzel                      # alternative Wayland launcher
+    gnome-keyring               # credential/secret storage for browsers & SSH
+    grim                        # screenshots
+    hypridle                    # idle daemon
+    hyprland                    # compositor
+    hyprlauncher                # launcher used by hypr/bindings.lua
+    hyprlock                    # lock screen
+    hyprpaper                   # wallpaper utility
+    hyprpicker                  # color picker utility
+    hyprpolkitagent             # polkit authentication agent
+    hyprsunset                  # display temperature utility
+    mako                        # notification daemon with configurable click actions
+    nautilus                    # file manager (hypr/bindings.lua $fileManager)
+    playerctl                   # media player control (hypr/bindings.lua)
+    rofi                        # dmenu with tab-stops (keybinding cheatsheet popup)
+    rofi-calc                   # calculator mode for rofi
+    satty                       # screenshot annotation/editing tool
+    seahorse                    # GUI for managing gnome-keyring secrets
+    slurp                       # region selection for screenshots
+    sushi                       # Quick Look (Space to preview in Nautilus)
+    swayosd                     # transient volume and brightness OSD
+    waybar                      # status bar
+    wf-recorder                 # screen recording
+    wlogout                     # power / session menu
+    xdg-desktop-portal-gtk      # Settings portal (color-scheme, dark/light preference)
+    xdg-desktop-portal-hyprland # Hyprland portal backend
+  )
+
+  local package
+  for package in "${packages[@]}"; do
+    install_hyprland_package "$package" || true
+  done
 }
 
 install_gaming_packages() {
@@ -1034,6 +1093,10 @@ while [[ $# -gt 0 ]]; do
     INSTALL_GAMING="true"
     shift
     ;;
+  --hyprland)
+    INSTALL_HYPRLAND="true"
+    shift
+    ;;
   --non-interactive)
     NON_INTERACTIVE="true"
     shift
@@ -1058,6 +1121,10 @@ main() {
   # Validate environment
   validate_environment
 
+  PLASMA_HOST="false"
+  is_plasma_host && PLASMA_HOST="true"
+  readonly PLASMA_HOST
+
   # System update
   update_system
 
@@ -1070,6 +1137,7 @@ main() {
   install_cli_tools
   install_fonts
   install_desktop_apps
+  install_hyprland_desktop
   install_gaming_packages
   install_network_tools
   install_cloud_tools

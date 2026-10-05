@@ -368,7 +368,7 @@ checksum-verified `dotf` binary from GitHub Releases (prerelease-aware; auth via
 - **System Packages**: Essential development tools per platform
 - **Language Runtimes**: Node.js (NVM), Rust toolchain, Go environment
 - **Pinned Herdr Runtime**: Install Herdr 0.8.2 from checksum-verified Linux/macOS release assets with `dotf install --intent dev`, then preserve any existing Herdr config while managing the repository config with `dotf link --backup`
-- **Arch Desktop Runtime**: CachyOS/Arch installs can pull the generic Hyprland desktop runtime directly from `bin/install-arch-pkgs.sh`
+- **Arch Desktop Runtime**: CachyOS/Arch installs can opt into the generic Hyprland desktop runtime with `bin/install-arch-pkgs.sh --hyprland`
 
 ### 🐚 Shell Configuration
 
@@ -442,7 +442,7 @@ The new common configuration system provides:
 
 **This set is the Hyprland/wlroots stack and is categorically wrong on a KDE Plasma host — including Fedora KDE and Fedora Asahi Remix — so do not pass this flag there.**
 
-For CachyOS or another Hyprland install, first install the runtime packages through bootstrap or `./bin/install-arch-pkgs.sh`, then preview the managed desktop config rollout:
+For CachyOS or another Hyprland install, first install the runtime packages with `./bin/install-arch-pkgs.sh --hyprland`, then preview the managed desktop config rollout:
 
 ```bash
 dotf link --dry-run --hyprland

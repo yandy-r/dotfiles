@@ -8,7 +8,7 @@ This feature introduces a unified package installation experience for Arch Linux
 
 - Automatically installs the yay AUR helper for AUR package access
 - Maps Homebrew packages to native Arch/AUR equivalents
-- Installs the repo-owned Hyprland desktop runtime used by the generic CachyOS path
+- Optionally installs the repo-owned Hyprland desktop runtime (`--hyprland`)
 - Provides intelligent fallback handling for missing packages
 - Supports dry-run mode for testing without installing
 - Tracks installation statistics and failed packages
@@ -38,7 +38,7 @@ cd ~/.config/dotfiles
 ./bootstrap.sh
 ```
 
-On CachyOS, this bootstrap path now also installs the generic Hyprland desktop runtime used by the repo-owned Linux desktop baseline.
+The Hyprland desktop runtime is opt-in: pass `--hyprland` (or `INSTALL_HYPRLAND=true`) when running the installer directly.
 
 ### Manual Installation
 
@@ -62,6 +62,9 @@ Run the installer script directly:
 
 # Force reinstall already-installed packages
 ./bin/install-arch-pkgs.sh --force
+
+# Also install the Hyprland desktop stack
+./bin/install-arch-pkgs.sh --hyprland
 ```
 
 ### Desktop Runtime Rollout
@@ -124,7 +127,12 @@ The installer organizes packages into logical categories:
 
 - ffmpeg, exiftool
 
-### Hyprland Desktop Runtime
+### Hyprland Desktop Runtime (opt-in: `--hyprland`)
+
+Not installed by default. On a KDE Plasma host (detected via `XDG_CURRENT_DESKTOP` or an installed
+`plasma-workspace`), `--hyprland` still skips the session daemons that claim D-Bus names Plasma already
+owns: gnome-keyring, seahorse, mako, hyprpolkitagent, nautilus, and sushi. Otherwise they hijack
+secrets (KWallet), notifications, polkit prompts, and the default file manager.
 
 - Session/runtime integration: acpid, xdg-desktop-portal, xdg-desktop-portal-hyprland, xdg-utils, libnotify
 - Launcher and bar: fuzzel, waybar

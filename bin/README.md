@@ -508,10 +508,11 @@ Full-repo scans also skip common generated/dependency directories such as `node_
 
 #### install-arch-pkgs.sh
 
-Install packages on Arch Linux.
+Install packages on Arch Linux. The Hyprland desktop stack is opt-in via `--hyprland`.
 
 ```bash
 ./bin/install-arch-pkgs.sh
+./bin/install-arch-pkgs.sh --hyprland
 ```
 
 #### install-native-packages.sh
