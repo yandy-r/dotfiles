@@ -10,6 +10,9 @@
 # Color scheme - Catppuccin Mocha (matches WezTerm default)
 theme = Catppuccin Mocha
 
+# Always show tab bar (matches WezTerm behavior)
+window-show-tab-bar = always
+
 # Font configuration (matches WezTerm JetBrainsMono setup)
 font-family = "JetBrainsMono Nerd Font"
 font-size = 14
