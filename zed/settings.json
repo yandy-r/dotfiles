@@ -30,6 +30,10 @@
     "claude-acp": {
       "type": "registry",
     },
+    "OpenCode": {
+      "command": "opencode",
+      "args": ["acp"],
+    },
   },
   "language_models": {
     "openai_compatible": {
