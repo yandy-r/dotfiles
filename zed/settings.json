@@ -98,7 +98,13 @@
     }
   },
   "agent": {
-    "favorite_models": [],
+    "favorite_models": [
+      {
+        "provider": "Tokenhop",
+        "model": "Frontier-Lite",
+        "enable_thinking": false
+      }
+    ],
     "commit_message_model": {
       "provider": "Tokenhop",
       "model": "Suggest"
