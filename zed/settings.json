@@ -114,7 +114,7 @@
   "edit_predictions": {
     "provider": "open_ai_compatible_api",
     "open_ai_compatible_api": {
-      "model": "Lite",
+      "model": "Fast",
       "api_url": "https://tokenhop.example-tailnet.ts.net/v1",
     },
   },
