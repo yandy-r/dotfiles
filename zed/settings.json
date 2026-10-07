@@ -185,14 +185,17 @@
     ],
     "commit_message_model": {
       "provider": "Tokenhop",
-      "model": "Suggest",
+      "model": "cx/gpt-6-luna(minimal)",
     },
     "model_parameters": [],
   },
   "edit_predictions": {
-    "provider": "copilot",
+    "provider": "zed",
     "open_ai_compatible_api": {
-      "model": "glm/glm-5.3-flash",
+      "prompt_format": "qwen",
+      "prediction_debounce": 150,
+      "max_output_tokens": 128,
+      "model": "gcli/grok-4.7-build-fast(minimal)",
       "api_url": "https://tokenhop.example-tailnet.ts.net/v1/completions",
     },
   },
