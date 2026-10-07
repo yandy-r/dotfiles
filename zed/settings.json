@@ -94,14 +94,13 @@
           {
             "name": "Lite",
             "display_name": "Lite",
-            "max_tokens": 128000,
+            "max_tokens": 252000,
             "capabilities": { "tools": true, "images": true, "parallel_tool_calls": false, "prompt_cache_key": false },
           },
           {
-            "name": "cpp//models/Qwen3-14B-Q4_K_M.gguf",
-            "display_name": "Qwen3-14B-Q4_K_M",
-            "max_tokens": 32768,
-            "max_output_tokens": 4096,
+            "name": "Flash",
+            "display_name": "Flash",
+            "max_tokens": 252000,
             "capabilities": { "tools": true, "images": true, "parallel_tool_calls": false, "prompt_cache_key": false },
           },
         ],
@@ -109,6 +108,11 @@
     },
   },
   "agent": {
+    "inline_assistant_model": {
+      "provider": "Tokenhop",
+      "model": "cc/claude-sonnet-5-5",
+      "enable_thinking": false,
+    },
     "tool_permissions": {
       "tools": {
         "mcp:mcp-server-github:search_code": {
@@ -136,6 +140,46 @@
       {
         "provider": "Tokenhop",
         "model": "Frontier-Lite",
+        "enable_thinking": false,
+      },
+      {
+        "provider": "Tokenhop",
+        "model": "cc/claude-opus-5-5",
+        "enable_thinking": false,
+      },
+      {
+        "provider": "Tokenhop",
+        "model": "Lite",
+        "enable_thinking": false,
+      },
+      {
+        "provider": "Tokenhop",
+        "model": "Suggest",
+        "enable_thinking": false,
+      },
+      {
+        "provider": "Tokenhop",
+        "model": "kimi/k3",
+        "enable_thinking": false,
+      },
+      {
+        "provider": "Tokenhop",
+        "model": "glm/glm-5.3",
+        "enable_thinking": false,
+      },
+      {
+        "provider": "Tokenhop",
+        "model": "Frontier",
+        "enable_thinking": false,
+      },
+      {
+        "provider": "Tokenhop",
+        "model": "glm/glm-5.3-flash",
+        "enable_thinking": false,
+      },
+      {
+        "provider": "Tokenhop",
+        "model": "Frontier-Ultra",
         "enable_thinking": false,
       },
     ],
