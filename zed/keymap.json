@@ -1,9 +1,9 @@
 [
   {
     "bindings": {
-      "ctrl-shift-c": "editor::Copy",
-      "ctrl-shift-x": "editor::Cut",
-      "ctrl-shift-v": "editor::Paste",
+      "ctrl-c": "editor::Copy",
+      "ctrl-x": "editor::Cut",
+      "ctrl-v": "editor::Paste",
     },
   },
   {
