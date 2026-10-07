@@ -31,6 +31,7 @@
       "type": "registry",
     },
     "OpenCode": {
+      "type": "custom",
       "command": "opencode",
       "args": ["acp"],
     },
@@ -469,7 +470,7 @@
           "paths": ["/home/yandy/.config/dotfiles/./"],
         },
         {
-          "paths": ["/home/yandy/Projects/github.com/yandy-r/tokenhop/./"],
+          "paths": ["/home/yandy/Projects/github.com/tokenhop/tokenhop/./"],
         },
         {
           "paths": ["/home/yandy/Projects/github.com/yandy-r/praxrr/./"],
