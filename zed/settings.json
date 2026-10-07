@@ -1,4 +1,15 @@
 {
+  "agent_servers": {
+    "cursor": {
+      "type": "registry",
+    },
+    "codex-acp": {
+      "type": "registry",
+    },
+    "claude-acp": {
+      "type": "registry",
+    },
+  },
   "language_models": {
     "openai_compatible": {
       "Tokenhop": {
@@ -114,7 +125,7 @@
   "edit_predictions": {
     "provider": "open_ai_compatible_api",
     "open_ai_compatible_api": {
-      "model": "Fast",
+      "model": "glm/glm-5.3-flash",
       "api_url": "https://tokenhop.example-tailnet.ts.net/v1",
     },
   },
