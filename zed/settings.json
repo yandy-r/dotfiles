@@ -109,6 +109,29 @@
     },
   },
   "agent": {
+    "tool_permissions": {
+      "tools": {
+        "mcp:mcp-server-github:search_code": {
+          "default": "allow",
+        },
+        "fetch": {
+          "default": "allow",
+        },
+        "terminal": {
+          "default": "allow",
+        },
+      },
+    },
+    "profiles": {},
+    "sandbox_permissions": {
+      "allow_fs_write_all": true,
+      "allow_all_hosts": true,
+    },
+    "default_model": {
+      "provider": "Tokenhop",
+      "model": "Frontier-Lite",
+      "enable_thinking": false,
+    },
     "favorite_models": [
       {
         "provider": "Tokenhop",
@@ -123,10 +146,10 @@
     "model_parameters": [],
   },
   "edit_predictions": {
-    "provider": "open_ai_compatible_api",
+    "provider": "copilot",
     "open_ai_compatible_api": {
       "model": "glm/glm-5.3-flash",
-      "api_url": "https://tokenhop.example-tailnet.ts.net/v1",
+      "api_url": "https://tokenhop.example-tailnet.ts.net/v1/completions",
     },
   },
   "ssh_connections": [
@@ -150,7 +173,7 @@
           "paths": ["/home/yandy/.config/dotfiles/./"],
         },
         {
-          "paths": ["/home/yandy/Projects/github.com/yandy-r/9router/./"],
+          "paths": ["/home/yandy/Projects/github.com/yandy-r/tokenhop/./"],
         },
         {
           "paths": ["/home/yandy/Projects/github.com/yandy-r/praxrr/./"],
