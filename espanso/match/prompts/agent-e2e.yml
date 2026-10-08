@@ -23,6 +23,7 @@ matches:
               values:
                 - tokenhop
                 - praxrr
+                - crosshook
                 - claude-plugins
                 - itcn-crm
                 - itcn-website
