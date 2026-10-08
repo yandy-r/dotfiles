@@ -331,12 +331,11 @@ end
 -- ================================================================
 
 -- Create a key binding table
-function M.create_key_binding(key, mods, action, description)
+function M.create_key_binding(key, mods, action)
     return {
         key = key,
         mods = mods,
         action = action,
-        description = description or ''
     }
 end
 
