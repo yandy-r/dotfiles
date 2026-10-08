@@ -24,6 +24,7 @@ matches:
                 - tokenhop
                 - praxrr
                 - crosshook
+                - opencode-goal-plugin
                 - claude-plugins
                 - itcn-crm
                 - itcn-website
