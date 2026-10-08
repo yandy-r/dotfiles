@@ -10,6 +10,7 @@ match/dev.yml                  developer snippets (:bash, :cc)
 match/prompts/agent-e2e.yml    :e2e form -> scripts/agent-prompt
 match/prompts/release.yml      :release
 match/prompts/op-secrets.yml   :opsecrets
+match/prompts/project-init.yml :projinit
 scripts/agent-prompt           renders the end-to-end workflow prompt
 scripts/profiles/<name>.conf   per-project values for agent-prompt
 match/local/                   machine-private snippets (git-ignored)
@@ -68,5 +69,6 @@ espanso reloads on save. Check a change with `espanso log` or `espanso match lis
 | `:cc`        | Conventional Commits title (type, scope, summary)         |
 | `:e2e`       | End-to-end agent workflow (profile, task, skills, target) |
 | `:release`   | `/goal` to cut the next patch/minor/major release         |
+| `:projinit`  | `/goal` to initialize a project or update an existing one |
 | `:opsecrets` | `/goal` to back up secrets to a 1Password secure note     |
 | `:search`    | fuzzy search over all snippets (also `ALT+SPACE`)         |

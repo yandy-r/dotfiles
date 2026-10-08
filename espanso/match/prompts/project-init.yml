@@ -1,0 +1,84 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/espanso/espanso/dev/schemas/match.schema.json
+#
+# :projinit - initialize a project, or bring an existing one up to standard
+# (agent docs, git conventions, GitHub templates/labels, lint/format, CI,
+# release model, release CI). Every step is idempotent: audit, then update.
+
+matches:
+  - trigger: ':projinit'
+    vars:
+      - name: form
+        type: form
+        params:
+          layout: |
+            Release model [[model]]  Issue tracker [[tracker]]
+          fields:
+            model:
+              type: choice
+              values:
+                - auto (let release-model decide)
+                - trunk-only
+                - release-branches
+              default: auto (let release-model decide)
+            tracker:
+              type: choice
+              values:
+                - Linear
+                - GitHub Issues
+                - none
+              default: Linear
+    replace: |
+      /goal Initialize this project end-to-end with my standard tooling: agent docs, git conventions, GitHub templates and labels, lint/format, CI, a release model, and release CI.
+
+      ## New or Existing
+
+      This project may already exist and be partly or fully set up. Detect that first and only add or update what is missing or out of date:
+
+      - Survey before changing anything: language/toolchain, package manager, existing CLAUDE.md / AGENTS.md / .cursor/rules, .github/ (workflows, issue forms, PR template, labels), lint/format configs and scripts, git hooks, RELEASING.md, release workflows, tags, and branches
+      - Prefer each skill's update/sync/audit mode on an existing project; never clobber customized files (issue forms, PR template, .gitignore, workflows, commitlint rules). Merge in what's missing and show me the diff for anything you'd overwrite
+      - Keep the existing language, framework, package manager, and conventions; don't migrate tools unless the current one is broken or unsupported
+      - If a step is already done and current, say so and skip it
+
+      ## Steps
+
+      1. Survey and profile the project, then post a short plan: what exists, what's missing, and what each step will create or update
+      2. Agent docs, git conventions, and GitHub templates
+         - New: `/ycc:init --templates --git`
+         - Existing: `/ycc:init --update --templates --git`
+         - Result: CLAUDE.md, AGENTS.md, .cursor/rules, .gitignore, .gitmessage, Conventional Commits (commitlint where applicable), lefthook, issue forms, PR template, PR-title workflow, and `.github/labels.md`
+      3. GitHub labels: create every label listed in `.github/labels.md` that doesn't exist yet (`gh label create`); never delete or rename existing labels
+      4. Lint and format, with CI and pre-commit hooks
+         - New: `/ycc:formatters --ci --hooks --yes`
+         - Existing: `/ycc:formatters --sync --ci --hooks --yes`
+         - Then run the lint and format scripts once and fix what they find, in a separate commit from the tooling
+      5. Release model
+         - No RELEASING.md: `/ycc:release-model` with model {{form.model}} (for "auto", accept its recommendation)
+         - RELEASING.md exists: `/ycc:release-model --audit`, then `/ycc:release-model --upgrade` only if the audit finds gaps
+         - Tracker: {{form.tracker}}. With Linear, use the release-label tracker so issues carry a target release
+         - Under release-branches, create one `backport:X.Y` label per maintenance branch
+      6. Release CI
+         - No release workflow: `/ycc:releaser --ci-config=generate --dry-run` (generate the workflow only; do not cut a release)
+         - Existing release workflow: `/ycc:releaser --ci-config=audit` and fix what it reports
+      7. Agent hooks, if the project's language has rule-based hooks: `/ycc:hooks-workflow <language> --target=claude --dry-run`, then apply what fits
+      8. Repository hygiene, where missing: a README with setup, test, lint, and release commands; a LICENSE (ask me which if none exists); dependency update config (Dependabot or Renovate) for the project's ecosystems
+      9. Verify: run lint, format check, type-check, build, and tests; confirm the generated workflows are valid YAML and reference jobs and scripts that exist
+      10. Commit with Conventional Commits, grouped by concern (docs, git conventions, formatters, release model, CI), and open a PR with `/ycc:git-workflow --pr --ci --ci-yes`. On a brand-new repo with no commits or remote, commit straight to the default branch instead
+      11. Monitor CI until green and squash merge, then clean up the branch
+
+      ## Must Not Do
+
+      - Never cut, tag, or publish a release; release CI is generated or audited only
+      - Never edit RELEASING.md by hand, only through `/ycc:release-model`
+      - Never delete or rename existing labels, workflows, branches, or tags
+      - Never overwrite customized files without showing me the diff first
+      - Never commit secrets; keep `.env*` files out of git (except encrypted dotenvx files)
+
+      ## Manual Follow-Ups
+
+      List anything that needs repository admin access instead of doing it: branch protection or rulesets (required checks: lint, tests, PR-title check), secret scanning and push protection, the CodeRabbit app, and repository secrets the release workflow needs.
+
+      ## Done When
+
+      - Each step is created, updated, or confirmed current
+      - Lint, tests, and CI are green, and the setup PR is merged
+      - You finish with a short report: per step, created / updated / already current / skipped (and why), plus the manual follow-ups
