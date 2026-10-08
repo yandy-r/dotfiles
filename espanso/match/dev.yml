@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/espanso/espanso/dev/schemas/match.schema.json
+#
+# Developer snippets: shebangs, git, and Conventional Commits.
+
+matches:
+  - trigger: ':bash'
+    replace: |
+      #!/usr/bin/env bash
+
+      set -euo pipefail
+
+  # Conventional Commits title: "fix(cli): summary", or "fix: summary" with no
+  # scope. Form values arrive as ESPANSO_FORM_* environment variables.
+  - trigger: ':cc'
+    replace: '{{title}}'
+    vars:
+      - name: form
+        type: form
+        params:
+          layout: |
+            Type [[type]]  Scope [[scope]]
+            Summary [[summary]]
+          fields:
+            type:
+              type: choice
+              values: [feat, fix, docs, refactor, perf, test, build, ci, chore, style]
+              default: fix
+            scope:
+              default: ''
+            summary:
+              default: ''
+      - name: title
+        type: shell
+        depends_on: [form]
+        params:
+          cmd: 'if [ -n "$ESPANSO_FORM_SCOPE" ]; then printf "%s(%s): %s" "$ESPANSO_FORM_TYPE" "$ESPANSO_FORM_SCOPE" "$ESPANSO_FORM_SUMMARY"; else printf "%s: %s" "$ESPANSO_FORM_TYPE" "$ESPANSO_FORM_SUMMARY"; fi'

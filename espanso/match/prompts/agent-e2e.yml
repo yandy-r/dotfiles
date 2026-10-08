@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/espanso/espanso/dev/schemas/match.schema.json
+#
+# :e2e - end-to-end agent workflow (Linear issue -> RELEASING.md -> PR -> merge
+# -> backport -> close). The form picks the project profile and task; the text
+# is rendered by scripts/agent-prompt from scripts/profiles/<profile>.conf.
+#
+# Target: the Linear project for "project", issue IDs for "issues" (e.g.
+# "YAN-723 and YAN-724"); leave blank for bugs/features/any to use the profile.
+
+matches:
+  - trigger: ':e2e'
+    replace: '{{prompt}}'
+    vars:
+      - name: form
+        type: form
+        params:
+          layout: |
+            Profile [[profile]]  Task [[task]]  Skill hints [[skills]]
+            Target (project or issue IDs) [[target]]
+          fields:
+            profile:
+              type: choice
+              values:
+                - tokenhop
+                - praxrr
+                - claude-plugins
+                - itcn-crm
+                - itcn-website
+              default: tokenhop
+            task:
+              type: choice
+              values:
+                - bugs
+                - features
+                - any
+                - project
+                - issues
+              default: bugs
+            skills:
+              type: choice
+              values:
+                - 'yes'
+                - 'no'
+              default: 'yes'
+            target:
+              default: ''
+      # Form values reach the script as ESPANSO_FORM_* environment variables,
+      # never interpolated into the command line.
+      - name: prompt
+        type: shell
+        depends_on: [form]
+        params:
+          cmd: '"$CONFIG/scripts/agent-prompt"'

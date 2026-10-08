@@ -108,8 +108,8 @@ type LinkSpec struct {
 //     launcher_configs group, because splitting it out on a retired,
 //     rollback-only playbook would need a new launcher group plus a new
 //     tasks/*.yml for zero rollback value.
-//  3. The native FacetUnix Herdr config is represented in the rollback YAML
-//     under both macOS and Linux groups.
+//  3. The native FacetUnix Herdr and espanso configs are represented in the
+//     rollback YAML under both macOS and Linux groups.
 func DefaultTable() []LinkSpec {
 	return []LinkSpec{
 		// bash_files (backup-eligible)
@@ -144,8 +144,10 @@ func DefaultTable() []LinkSpec {
 		// macos_configs (Darwin only; directory, so backup-eligible)
 		{Src: "aerospace", Dest: ".config/aerospace", IsDir: true, Facet: FacetMacOS, BackupEligible: true},
 
-		// unix_configs (macOS and all Linux families; single file so runtime logs stay local)
+		// unix_configs (macOS and all Linux families; herdr is a single file so runtime
+		// logs stay local; espanso reads ~/.config/espanso on both)
 		{Src: "herdr/config.toml", Dest: ".config/herdr/config.toml", Facet: FacetUnix, BackupEligible: true},
+		{Src: "espanso", Dest: ".config/espanso", IsDir: true, Facet: FacetUnix, BackupEligible: true},
 
 		// generic_linux_desktop_configs (Linux family, opt-in; directories, so
 		// backup-eligible — --backup is what LinuxDesktopGuardError demands

@@ -54,6 +54,7 @@ app_configs:
 macos_configs:
   - { src: 'aerospace', dest: '.config/aerospace', type: 'directory' }
   - { src: 'herdr/config.toml', dest: '.config/herdr/config.toml' }
+  - { src: 'espanso', dest: '.config/espanso', type: 'directory' }
 
 # Linux-specific configurations (systemd user services; ADR-12 — the tmux unit
 # orders on graphical-session-pre.target and runs a repo script, so it is not
@@ -61,6 +62,7 @@ macos_configs:
 linux_configs:
   - { src: 'common/systemd/user/tmux.service', dest: '.config/systemd/user/tmux.service' }
   - { src: 'herdr/config.toml', dest: '.config/herdr/config.toml' }
+  - { src: 'espanso', dest: '.config/espanso', type: 'directory' }
 
 # Generic Linux desktop configuration
 generic_linux_desktop_configs:

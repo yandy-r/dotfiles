@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/espanso/espanso/dev/schemas/config.schema.json
+#
+# Global espanso options, applied to every application.
+# Reference: https://espanso.org/docs/configuration/options/
+#
+# App-specific overrides go in sibling files (e.g. config/terminal.yml) with a
+# filter_class / filter_exec / filter_title. Window filters only work on X11,
+# macOS, and Windows - Wayland does not expose the focused app.
+
+# Double-tap to pause/resume expansion. Options: CTRL, SHIFT, ALT, CMD, OFF.
+toggle_key: OFF
+
+# Fuzzy search over every match (ALT+SPACE is the upstream default).
+search_shortcut: ALT+SPACE
+search_trigger: ':search'
+
+# Long replacements (prompts) are pasted through the clipboard; restore the
+# previous clipboard contents afterwards.
+clipboard_threshold: 100
+preserve_clipboard: true
+
+# Backspace right after an expansion reverts it.
+undo_backspace: true
+
+show_notifications: false
+
+# Wayland cannot report the active layout, so espanso needs it spelled out.
+# Ignored on X11 and macOS, which detect it.
+keyboard_layout:
+  layout: 'us'

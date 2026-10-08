@@ -92,3 +92,7 @@ docs/prps/plans/.prp-research/
 # graphify knowledge-graph output (large, machine-local, regenerated via `graphify update .`)
 graphify-out/
 .config/opencode/
+
+# espanso: machine-private snippets and `espanso install` packages
+espanso/match/local/
+espanso/match/packages/

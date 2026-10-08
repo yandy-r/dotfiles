@@ -11,7 +11,7 @@ repository. All scripts are designed to be cross-platform and follow consistent 
 | Package Managers | `install-brew.sh`, `up-brew.sh`, `un-brew.sh`                                        | Homebrew management         |
 | Cloud Tools      | `install-aws-tools.sh`, `install-azure-cli.sh`, `install-1password-cli.sh`           | Cloud CLI tools             |
 | DevOps           | `install-hashicorp-tools.sh`, `k8s-tools.sh`, `install-docker.sh`                    | Infrastructure tools        |
-| Modern CLI       | `install-modern-cli.sh`, `install-yazi.sh`                                           | Modern command-line tools   |
+| Modern CLI       | `install-modern-cli.sh`, `install-yazi.sh`, `install-espanso.sh`                     | Modern command-line tools   |
 | AI/Development   | `install-claude.sh`, `install-opencode.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-neovim.sh` | Development tools           |
 | Utilities        | `cursor-export-secrets.sh`, `dc-manage.sh`, `cleanup-*.sh`, `markdown-tools.sh`      | System utilities            |
 | Style / Lint     | `style.sh`, `lint.sh`, `format.sh`                                                   | Multi-language lint/format  |
@@ -343,6 +343,23 @@ or `dotf install --only 1password-cli`.
 ./bin/install-1password-cli.sh --update      # update to latest
 ./bin/install-1password-cli.sh --version 2.38.1 --force
 ./bin/install-1password-cli.sh --uninstall
+```
+
+#### install-espanso.sh
+
+Install, update, or remove [espanso](https://espanso.org) (text expander). On Linux it detects the
+X11 or Wayland session (`XDG_SESSION_TYPE`, `WAYLAND_DISPLAY`/`DISPLAY`, then `loginctl`) and picks
+the upstream-recommended method: the official `.deb` on Debian/Ubuntu (amd64), the Terra repo on
+Fedora, the AUR (`espanso-x11`/`espanso-wayland` via paru/yay) on Arch, the X11 AppImage elsewhere,
+and a cargo source build as the last resort. Wayland installs get `cap_dac_override`, and the systemd
+user service is registered and started. macOS uses the `espanso` Homebrew cask; WSL installs the
+Windows build via `winget.exe`. Configuration is never touched by `--remove`.
+
+```bash
+./bin/install-espanso.sh                     # install (no-op when present)
+./bin/install-espanso.sh --update            # update and restart if it was running
+./bin/install-espanso.sh --remove            # stop, unregister, uninstall
+./bin/install-espanso.sh --x11 --method appimage --dry-run
 ```
 
 > **Migrated to native `dotf` backends (Phase 3, #50):** `lefthook`, `codex`, and `turso` are no

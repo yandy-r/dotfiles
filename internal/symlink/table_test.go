@@ -7,7 +7,7 @@ import (
 )
 
 func TestTable_Count(t *testing.T) {
-	if got, want := len(DefaultTable()), 42; got != want {
+	if got, want := len(DefaultTable()), 43; got != want {
 		t.Errorf("len(DefaultTable()) = %d, want %d", got, want)
 	}
 }
@@ -24,7 +24,7 @@ func TestTable_FacetCounts(t *testing.T) {
 		FacetArch:        0,
 		FacetWindows:     0,
 		FacetLinux:       1,
-		FacetUnix:        1,
+		FacetUnix:        2,
 		FacetHyprland:    10,
 		FacetArchDesktop: 1,
 	}
@@ -62,6 +62,7 @@ func TestTable_BackupEligibleSet(t *testing.T) {
 		// must not widen the set of dests removed without a copy.
 		".config/systemd/user/tmux.service",
 		".config/herdr/config.toml",
+		".config/espanso",
 	}
 
 	if len(got) != len(want) {
@@ -75,7 +76,7 @@ func TestTable_BackupEligibleSet(t *testing.T) {
 }
 
 // TestTable_MatchesPlaybook is the parity guard: it encodes the expected
-// 42-entry set inline (transcribed from playbooks/vars/symlinks.yml) and diffs
+// 43-entry set inline (transcribed from playbooks/vars/symlinks.yml) and diffs
 // it against DefaultTable, so any drift fails CI. Zero new dependencies.
 func TestTable_MatchesPlaybook(t *testing.T) {
 	want := []LinkSpec{
@@ -100,6 +101,7 @@ func TestTable_MatchesPlaybook(t *testing.T) {
 		{Src: "alacritty", Dest: ".config/alacritty", IsDir: true, Facet: FacetAll, BackupEligible: true},
 		{Src: "aerospace", Dest: ".config/aerospace", IsDir: true, Facet: FacetMacOS, BackupEligible: true},
 		{Src: "herdr/config.toml", Dest: ".config/herdr/config.toml", Facet: FacetUnix, BackupEligible: true},
+		{Src: "espanso", Dest: ".config/espanso", IsDir: true, Facet: FacetUnix, BackupEligible: true},
 		{Src: "hypr", Dest: ".config/hypr", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
 		{Src: "waybar", Dest: ".config/waybar", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
 		{Src: "swayosd", Dest: ".config/swayosd", IsDir: true, Facet: FacetHyprland, BackupEligible: true},

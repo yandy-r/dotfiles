@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/espanso/espanso/dev/schemas/match.schema.json
+#
+# :release - cut the next release end-to-end, with publish approval.
+
+matches:
+  - trigger: ':release'
+    vars:
+      - name: form
+        type: form
+        params:
+          layout: 'Release level [[level]]'
+          fields:
+            level:
+              type: choice
+              values:
+                - patch
+                - minor
+                - major
+              default: patch
+    replace: |
+      /goal Cut the next {{form.level}} release, end-to-end. You have approval to confirm and publish.
+
+      ## Before Releasing
+
+      - Read RELEASING.md first: it decides which branch a {{form.level}} release comes from, the version, and any follow-up branches it creates
+      - On the release-branches model, run `/ycc:backport --audit` for the line so every labelled fix has a merged backport
+      - Make sure CI is green on the branch being released
+      - Note any open PRs or Linear issues still targeting this release for the final report; don't hold the release for them unless RELEASING.md requires it
+
+      ## Release
+
+      - Use `/ycc:releaser <version> --publish --confirm --ci --ci-yes`
+      - Release notes come from the merged changes; call out breaking changes with migration steps (required for a major release)
+      - Never move, delete, or recreate an existing tag, never force-push, and never edit RELEASING.md by hand (only through the release tooling or `/ycc:release-model`)
+
+      ## Done When
+
+      - The release is published, its CI is green, and every expected artifact and checksum is attached
+      - You finish with a short report: version, tag, release URL, follow-up branches created, and anything left open for this release

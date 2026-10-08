@@ -872,6 +872,11 @@ dest = ".config/wezterm"
 type = "directory"
 
 [[symlink]]
+src = "espanso"
+dest = ".config/espanso"
+type = "directory"
+
+[[symlink]]
 src = "aerospace"
 dest = ".config/aerospace"
 type = "directory"

@@ -1,0 +1,330 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2016 # backticks in single quotes are literal Markdown
+
+# Render the end-to-end agent workflow prompt for a project profile.
+#
+# Called by the espanso :e2e match, which passes its form fields as
+# ESPANSO_FORM_* environment variables. Also usable directly:
+#
+#   agent-prompt --profile tokenhop --task bugs | wl-copy
+#   agent-prompt --profile itcn-crm --task issues --target "ITC-600"
+#
+# Per-project values (workspace, Linear projects, release label, secrets) live
+# in profiles/<name>.conf next to this script; see profiles/README.md.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROFILE_DIR="${AGENT_PROMPT_PROFILES:-$SCRIPT_DIR/profiles}"
+
+PROFILE="${ESPANSO_FORM_PROFILE:-}"
+TASK="${ESPANSO_FORM_TASK:-bugs}"
+TARGET="${ESPANSO_FORM_TARGET:-}"
+SKILLS="${ESPANSO_FORM_SKILLS:-yes}"
+GOAL_PREFIX="yes"
+
+# Profile keys (overridden by the profile file).
+NAME=""
+WORKSPACE=""
+ISSUE_PREFIX=""
+RELEASE_LABEL=""
+PROJECT=""
+BUGS_PROJECT=""
+FEATURES_PROJECT=""
+CODERABBIT="yes"
+SECRETS="none"
+SECRETS_FILES=""
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") --profile NAME [OPTIONS]
+
+Render the end-to-end agent workflow prompt to stdout.
+
+OPTIONS:
+    --profile NAME     Project profile from $PROFILE_DIR (required)
+    --task TASK        bugs, features, any, project, or issues (default: bugs)
+    --target TEXT      Linear project (task=project), issue IDs (task=issues),
+                       or an override for the profile's default project
+    --skills yes|no    Include skill hints (default: yes)
+    --no-goal          Omit the leading /goal
+    --list-profiles    Print the available profile names
+    -h, --help         Show this help message
+EOF
+}
+
+die() {
+  printf 'agent-prompt: %s\n' "$*" >&2
+  exit 1
+}
+
+list_profiles() {
+  local f
+  for f in "$PROFILE_DIR"/*.conf; do
+    [[ -e "$f" ]] || continue
+    f="${f##*/}"
+    echo "${f%.conf}"
+  done
+}
+
+# Parse KEY=value lines without executing the file. Only known keys are set.
+load_profile() {
+  local file="$PROFILE_DIR/$1.conf" key value
+  [[ "$1" =~ ^[a-z0-9-]+$ ]] || die "invalid profile name: $1"
+  [[ -f "$file" ]] || die "unknown profile '$1' (available: $(list_profiles | tr '\n' ' '))"
+  while IFS='=' read -r key value || [[ -n "$key" ]]; do
+    [[ -z "$key" || "$key" == \#* ]] && continue
+    value="${value#\"}"
+    value="${value%\"}"
+    case "$key" in
+    NAME | WORKSPACE | ISSUE_PREFIX | RELEASE_LABEL | PROJECT | BUGS_PROJECT | FEATURES_PROJECT | CODERABBIT | SECRETS | SECRETS_FILES)
+      printf -v "$key" '%s' "$value"
+      ;;
+    *) die "$file: unknown key '$key'" ;;
+    esac
+  done <"$file"
+  [[ -n "$WORKSPACE" ]] || die "$file: WORKSPACE is required"
+  [[ -n "$ISSUE_PREFIX" ]] || die "$file: ISSUE_PREFIX is required"
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --profile | --task | --target | --skills)
+      [[ $# -ge 2 ]] || die "$1 requires a value"
+      case "$1" in
+      --profile) PROFILE="$2" ;;
+      --task) TASK="$2" ;;
+      --target) TARGET="$2" ;;
+      --skills) SKILLS="$2" ;;
+      esac
+      shift
+      ;;
+    --no-goal) GOAL_PREFIX="no" ;;
+    --list-profiles)
+      list_profiles
+      exit 0
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *) die "unknown option: $1 (see --help)" ;;
+    esac
+    shift
+  done
+}
+
+# Print "$1" as a skill-hint sub-bullet of a numbered step when skills are on.
+hint() {
+  [[ "$SKILLS" == "yes" ]] && printf '   - `%s`\n' "$1"
+  return 0
+}
+
+# True when --target lists more than one issue ("YAN-1 and YAN-2", "YAN-1, YAN-2").
+multiple_issues() {
+  [[ "$TARGET" =~ [[:space:],] ]]
+}
+
+render_header() {
+  local kind=""
+  case "$TASK" in
+  bugs) kind=" (bug/security fixes)" ;;
+  features) kind=" (feature)" ;;
+  esac
+  [[ "$GOAL_PREFIX" == "yes" ]] && printf '/goal '
+  printf 'Perform a complete%s end-to-end research, design, plan, implement, and test workflow for the following:\n' "$kind"
+}
+
+# Explicit issues: name them and resume any work already in flight.
+render_issue_scope() {
+  local label="Linear issue" which="it"
+  if multiple_issues; then
+    label="Linear issues"
+    which="any of them"
+  fi
+  printf -- '- %s: %s (%s workspace)\n' "$label" "$TARGET" "$WORKSPACE"
+  printf -- '- If %s is already done or has an open PR or branch, pick up that work instead of starting over\n' "$which"
+}
+
+# The Linear source of the work. A dedicated bugs/features project is named
+# directly; falling back to the profile's PROJECT pool ("any of the open X
+# projects") adds a focus line instead. Task "any" without a pool spans the
+# profile's bugs and features projects.
+render_pick_scope() {
+  local project="" focus="" rank="Rank by priority, then by value and readiness"
+  case "$TASK" in
+  bugs)
+    project="${TARGET:-$BUGS_PROJECT}"
+    focus="Focus on bug and security issues"
+    rank="Rank by priority, with security and data-loss bugs first"
+    ;;
+  features)
+    project="${TARGET:-$FEATURES_PROJECT}"
+    focus="Focus on new features and enhancements"
+    ;;
+  any | project) project="$TARGET" ;;
+  esac
+  [[ "$TASK" == "project" ]] && [[ -z "$TARGET" ]] && die "task 'project' needs --target <Linear project>"
+
+  if [[ -n "$project" ]]; then
+    printf -- '- Pick the next best Linear issue from the open **%s** project in the %s workspace\n' "$project" "$WORKSPACE"
+  elif [[ "$TASK" == "any" ]] && [[ -z "$PROJECT" ]] && [[ -n "$BUGS_PROJECT" ]] && [[ -n "$FEATURES_PROJECT" ]]; then
+    printf -- '- Pick the next best Linear issue from the open **%s** or **%s** projects in the %s workspace\n' "$BUGS_PROJECT" "$FEATURES_PROJECT" "$WORKSPACE"
+  else
+    [[ -n "$PROJECT" ]] || die "profile '$PROFILE' has no default project for task '$TASK' - pass --target"
+    printf -- '- Pick the next best Linear issue from any of the open **%s** projects in the %s workspace\n' "$PROJECT" "$WORKSPACE"
+    [[ -n "$focus" ]] && printf '  - %s\n' "$focus"
+  fi
+  printf '  - %s; prefer unblocked issues with enough detail to act on\n' "$rank"
+  printf '  - Skip issues that are already In Progress, assigned to someone else, or have an open PR or branch; another agent may own them\n'
+  printf -- '- If multiple Linear issues are related or small enough, do them together in one PR, as long as they share the same target release\n'
+}
+
+render_scope() {
+  printf '\n## Scope\n\n'
+  case "$TASK" in
+  issues)
+    [[ -n "$TARGET" ]] || die "task 'issues' needs --target <issue IDs>"
+    render_issue_scope
+    ;;
+  bugs | features | any | project) render_pick_scope ;;
+  *) die "invalid task: $TASK (expected bugs, features, any, project, or issues)" ;;
+  esac
+}
+
+render_before() {
+  local every="Every issue"
+  if [[ "$TASK" == "issues" ]]; then
+    every="The issue"
+    multiple_issues && every="Each issue"
+  fi
+  cat <<'EOF'
+
+## Before Starting
+
+- Read RELEASING.md first (the "Current state" block and "Where does my change go?"). It decides the base branch, PR target, and backport for every change
+  - If RELEASING.md doesn't exist yet, run `/ycc:release-model --yes` to create it, then commit it (plus the CLAUDE.md / AGENTS.md pointers it adds) straight to the default branch as a docs-only change before starting the issue
+- Read the repo's CLAUDE.md / AGENTS.md and follow its conventions (commits, PR template, labels, verification commands)
+EOF
+  if [[ -n "$RELEASE_LABEL" ]]; then
+    printf -- "- %s must carry a \`%s\` label. If it's missing, apply RELEASING.md rule 1 and set the label\n" "$every" "$RELEASE_LABEL"
+  else
+    printf -- "- %s must carry a target release. If RELEASING.md names a Linear release label (tracker \`linear-labels\`), the issue must carry it; if it's missing, apply RELEASING.md rule 1 and set the label. With no tracker, state the target release in the PR description\n" "$every"
+  fi
+  cat <<'EOF'
+- If no GitHub issue exists, create one and link it to the Linear issue (check the Linear attachments first to avoid duplicates)
+- Move each Linear issue you take on to In Progress, and its Linear project too if it isn't already
+- Other agents or people may be working in this repo: never modify, stash, or discard changes you didn't make, and leave other worktrees and branches alone
+EOF
+}
+
+render_must_not() {
+  cat <<'EOF'
+
+## Must Not Do
+
+- No worktrees or branches for documentation-only tasks; commit those directly to the default branch
+- Don't run full test suites when the changes don't touch the application itself (e.g. verification scripts, CI files)
+- Never open "sync" PRs between long-lived branches, never tag, never cut a release, never edit CHANGELOG.md
+- Never write or change RELEASING.md by hand, only through `/ycc:release-model`
+- Never push code directly to the trunk or a release branch, and never force-push them
+- Never bypass checks: no `--no-verify`, no skipping or deleting failing tests, no admin merges past red CI
+- For security fixes, keep exploit details (payloads, reproduction steps) out of GitHub issues, PR descriptions, and commit messages; describe the impact and keep the specifics in Linear
+EOF
+}
+
+render_workflow() {
+  printf '\n## Workflow When Coding Is Required\n\n'
+  if [[ "$SKILLS" == "yes" ]]; then
+    printf 'Orchestrate as much as possible with sub-agents. The skills under each step are references, not an exhaustive list; use any other skill that benefits the goal.\n\n'
+  else
+    printf 'Orchestrate as much as possible with sub-agents, and use the appropriate skills for each step.\n\n'
+  fi
+
+  printf '1. Create a worktree on a branch named `<area-or-type>/<issue-id>-<slug>`, based on the branch RELEASING.md assigns to the issue'"'"'s target (normally the trunk), and do all the work there\n'
+  printf '2. Run a complete research workflow\n'
+  hint "/ycc:feature-research <feature-name>"
+  printf '3. Run a complete design and planning workflow\n'
+  hint "/ycc:prp-plan --parallel --enhanced --no-worktree <feature-spec.md>"
+  cat <<'EOF'
+   - Accept the recommended option for any pending or unresolved decision, as long as it aligns with best practices for security, UI, UX, data integrity, performance, and stability; record each decision and its reason in the PR description
+   - Stop and ask only when a decision is irreversible or gives one of those up (destructive migration, data loss, security regression, breaking a public API)
+EOF
+  printf '4. Run a complete implementation workflow\n'
+  hint "/ycc:prp-implement --parallel --no-worktree <plan.md>"
+  cat <<'EOF'
+   - Hide work users could reach before it's finished behind a switch listed in RELEASING.md "Unfinished work" (default off), or leave it unwired. The trunk must stay releasable
+   - Only create critical or required tests; a regression test that fails without a bug fix counts as required
+5. Verify with the project's lint, type-check, build, and the tests covering the change
+6. Run an adversarial code review before opening the PR, and fix what it finds
+EOF
+  hint "/ycc:code-review --parallel"
+  printf '7. Open the PR into the branch RELEASING.md assigns (normally the trunk) with `Closes %s-N` and `Closes #N`, following the repo'"'"'s PR template and labels\n' "$ISSUE_PREFIX"
+  hint "/ycc:git-workflow --pr --ci --ci-yes"
+  printf '8. Run a complete review of the PR and fix every issue it finds\n'
+  hint "/ycc:code-review --parallel <pr#>"
+  hint "/ycc:pr-autofix <pr#> --parallel --severity low --yes --ci --ci-yes"
+  if [[ "$CODERABBIT" == "yes" ]]; then
+    printf '   - CodeRabbit also reviews: use only its first turn, ignore later turns if CI is green before they finish, and skip it if it'"'"'s rate limited\n'
+  fi
+  cat <<'EOF'
+9. Monitor CI until green, then squash merge the PR
+   - If CI fails for a reason unrelated to the change, rerun it once; if it still fails, fix it when it's small, otherwise stop and report. Never mask it
+10. If the target is a patch line (e.g. `v0.5.x`): add the matching `backport:X.Y` label, then run `/ycc:backport <PR#> --ci` to cherry-pick the squash commit into its own backport PR to `release/X.Y` per RELEASING.md "Backporting", and get it green and merged too
+11. Remove the worktree and delete the merged branches, local and remote
+12. Close every Linear issue the PR resolves, and confirm the GitHub issue closed with the merge
+13. Create Linear issues for anything worth following up, in the appropriate projects; if no appropriate project exists, create it
+EOF
+}
+
+render_secrets() {
+  case "$SECRETS" in
+  none | "") return 0 ;;
+  op)
+    printf '\n## Secrets (When Needed)\n\n'
+    printf -- '- Use the **op** CLI (`op read`, `op run`)\n'
+    ;;
+  dotenvx)
+    printf '\n## Secrets (When Needed)\n\n'
+    printf -- '- Always use dotenvx (`dotenvx run`, `dotenvx get`)\n'
+    [[ -n "$SECRETS_FILES" ]] &&
+      printf -- '- Look for git-tracked files that start with %s\n' "$SECRETS_FILES"
+    ;;
+  *) die "profile '$PROFILE': invalid SECRETS '$SECRETS' (expected op, dotenvx, or none)" ;;
+  esac
+  printf -- '- Never print, log, or commit secret values\n'
+}
+
+render_done() {
+  cat <<'EOF'
+
+## Done When
+
+- The PR, and any backport, is squash-merged with CI green
+- The worktree and merged branches are cleaned up, and the Linear issues are closed
+- You finish with a short report: Linear and GitHub issues, PR and backport links, target release, decisions made on my behalf, and follow-up issues created
+EOF
+}
+
+main() {
+  parse_args "$@"
+  [[ -n "$PROFILE" ]] || die "--profile is required (available: $(list_profiles | tr '\n' ' '))"
+  case "$SKILLS" in yes | no) ;; *) die "--skills must be yes or no" ;; esac
+  load_profile "$PROFILE"
+
+  # Render fully before printing so a late error never emits a partial prompt.
+  local prompt
+  prompt="$(
+    render_header
+    render_scope
+    render_before
+    render_must_not
+    render_workflow
+    render_secrets
+    render_done
+  )"
+  printf '%s\n' "$prompt"
+}
+
+main "$@"
