@@ -12,6 +12,11 @@ import (
 // never carries.
 var coprSlugPattern = regexp.MustCompile(`^[A-Za-z0-9._@+-]+/[A-Za-z0-9._+-]+$`)
 
+// keyFingerprintPattern matches a 40-hex OpenPGP v4 fingerprint, the expected
+// shape of AptRepo.KeyFingerprint (case-insensitive; the backend compares with
+// strings.EqualFold).
+var keyFingerprintPattern = regexp.MustCompile(`^[0-9A-Fa-f]{40}$`)
+
 // validateRepo checks a "repo" package (and its deprecated "apt-repo" alias):
 // at least one family sub-table must be present, and each present sub-table is
 // checked on its own terms. The alias keeps the legacy apt-only vocabulary in
@@ -52,6 +57,9 @@ func validateAptRepo(p Package) []error {
 	}
 	if p.AptRepo.SourcesPath == "" {
 		errs = append(errs, &ValidationError{Package: p.Name, Msg: "apt-repo backend requires apt_repo.sources_path"})
+	}
+	if fp := p.AptRepo.KeyFingerprint; fp != "" && !keyFingerprintPattern.MatchString(fp) {
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("apt_repo.key_fingerprint %q is not a 40-char hex OpenPGP fingerprint", fp)})
 	}
 
 	return errs

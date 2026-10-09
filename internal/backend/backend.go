@@ -54,7 +54,7 @@ func (e *Engine) Install(pkg manifest.Package, info platform.Info) error {
 	if !ok {
 		return &UnknownBackendError{Backend: pkg.Backend}
 	}
-	if !osGateAllows(pkg.OS, info.OS) {
+	if !gateAllows(pkg, info) {
 		return nil
 	}
 	return b.Install(pkg, info)
@@ -72,10 +72,16 @@ func (e *Engine) Installed(pkg manifest.Package, info platform.Info) (bool, erro
 	if !ok {
 		return false, &UnknownBackendError{Backend: pkg.Backend}
 	}
-	if !osGateAllows(pkg.OS, info.OS) {
+	if !gateAllows(pkg, info) {
 		return false, nil
 	}
 	return b.Installed(pkg, info)
+}
+
+// gateAllows combines the package's OS gate with its requires_desktop gate;
+// every Engine entry point (Applicable/Installed/Install/Update/Remove) uses it.
+func gateAllows(pkg manifest.Package, info platform.Info) bool {
+	return osGateAllows(pkg.OS, info.OS) && (!pkg.RequiresDesktop || info.Desktop)
 }
 
 // osGateAllows reports whether a package restricted to the manifest os token
@@ -157,7 +163,7 @@ func (e *Engine) Applicable(pkg manifest.Package, info platform.Info) (bool, err
 	if !ok {
 		return false, &UnknownBackendError{Backend: pkg.Backend}
 	}
-	if !osGateAllows(pkg.OS, info.OS) {
+	if !gateAllows(pkg, info) {
 		return false, nil
 	}
 	if pg, ok := b.(packageGated); ok && !pg.applicableFor(pkg, info) {

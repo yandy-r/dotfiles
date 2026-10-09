@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	dotfiles "github.com/yandy-r/dotfiles"
 	"github.com/yandy-r/dotfiles/internal/backend"
 	"github.com/yandy-r/dotfiles/internal/exec"
 	"github.com/yandy-r/dotfiles/internal/manifest"
@@ -838,5 +839,57 @@ func TestResolveRepoRootEnv(t *testing.T) {
 	t.Setenv("DOTFILES_ROOT", "/custom/root")
 	if got := resolveRepoRoot(); got != "/custom/root" {
 		t.Errorf("resolveRepoRoot() = %q, want /custom/root", got)
+	}
+}
+
+// TestFilterPackages_DesktopApps: the embedded manifest makes espanso and
+// claude-desktop selectable via --only; claude-desktop pulls in its macOS cask
+// sibling (and --skip drops both), while the claude CLI stays distinct.
+func TestFilterPackages_DesktopApps(t *testing.T) {
+	m, err := manifest.Resolve("", "", dotfiles.ManifestFS, manifest.ResolveOptions{})
+	if err != nil {
+		t.Fatalf("resolve embedded manifest: %v", err)
+	}
+	names := func(pkgs []manifest.Package) string {
+		out := make([]string, 0, len(pkgs))
+		for _, p := range pkgs {
+			out = append(out, p.Name)
+		}
+		return strings.Join(out, ",")
+	}
+
+	got, err := filterPackages(m, nil, []string{"claude-desktop", "espanso"}, nil)
+	if err != nil {
+		t.Fatalf("filterPackages(--only claude-desktop espanso) error = %v", err)
+	}
+	if s := names(got); s != "espanso,claude-desktop,claude-desktop-macos,claude-desktop-fedora" && s != "claude-desktop,claude-desktop-macos,claude-desktop-fedora,espanso" {
+		t.Errorf("--only claude-desktop espanso = %q, want both claude-desktop siblings and espanso", s)
+	}
+	for _, p := range got {
+		if !p.RequiresDesktop {
+			t.Errorf("%s: RequiresDesktop = false, want true", p.Name)
+		}
+	}
+
+	got, _ = filterPackages(m, nil, []string{"herdr"}, nil)
+	if s := names(got); s != "herdr,herdr-macos" {
+		t.Errorf("--only herdr = %q, want the existing herdr/herdr-macos pair", s)
+	}
+
+	got, _ = filterPackages(m, nil, []string{"claude"}, nil)
+	if s := names(got); s != "claude" {
+		t.Errorf("--only claude = %q, want just the CLI", s)
+	}
+
+	got, _ = filterPackages(m, m.Packages, nil, []string{"claude-desktop"})
+	for _, p := range got {
+		if strings.HasPrefix(p.Name, "claude-desktop") {
+			t.Errorf("--skip claude-desktop kept %s", p.Name)
+		}
+	}
+
+	desktop := m.Intents["desktop"]
+	if !optInIntents["desktop"] || desktop.Default || len(desktop.Packages) != 4 {
+		t.Errorf("desktop intent = %+v, opt-in %t; want opt-in, non-default, 4 packages", desktop, optInIntents["desktop"])
 	}
 }

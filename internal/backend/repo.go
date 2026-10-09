@@ -122,6 +122,24 @@ func (b *repoBackend) installAPT(pkg manifest.Package, info platform.Info) error
 	}
 	defer func() { _ = os.Remove(keyFile) }()
 
+	if repo.KeyFingerprint != "" {
+		out, err := b.r.Output("gpg", "--show-keys", "--with-colons", keyFile)
+		if err != nil {
+			return fmt.Errorf("read apt repo key fingerprint: %w", err)
+		}
+		fingerprint := ""
+		for _, line := range strings.Split(string(out), "\n") {
+			fields := strings.Split(line, ":")
+			if len(fields) > 9 && fields[0] == "fpr" {
+				fingerprint = fields[9]
+				break
+			}
+		}
+		if !strings.EqualFold(fingerprint, repo.KeyFingerprint) {
+			return fmt.Errorf("apt repo key fingerprint mismatch: expected %s, got %q", repo.KeyFingerprint, fingerprint)
+		}
+	}
+
 	keyringDir := filepath.Dir(repo.Keyring)
 	if err := b.r.Run("sudo", "install", "-d", "-m", "0755", keyringDir); err != nil {
 		return fmt.Errorf("create apt keyring directory %q: %w", keyringDir, err)

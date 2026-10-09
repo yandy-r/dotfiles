@@ -91,6 +91,7 @@ var optInIntents = map[string]bool{
 	"git-tools":     true,
 	"system":        true,
 	"desktop-fonts": true,
+	"desktop":       true, // GUI apps; also gated per package by requires_desktop
 }
 
 // resolveApplyOptions merges parsed flags with their env equivalents. For each

@@ -180,4 +180,8 @@ type Info struct {
 	// templating consumes, and the fallback signal for the dnf4/dnf5 probe.
 	// Empty on rolling distros that set no VERSION_ID, and on macOS/Windows.
 	VersionID string
+
+	// Desktop reports a detected graphical session (see detectDesktop). It gates
+	// manifest packages marked requires_desktop.
+	Desktop bool
 }

@@ -353,6 +353,7 @@ func filterPackages(m *manifest.Manifest, pkgs []manifest.Package, only, skip []
 		return nil, err
 	}
 
+	only, skip = withPlatformSiblings(m, only), withPlatformSiblings(m, skip)
 	base := pkgs
 	if len(only) > 0 {
 		base = packagesByName(m, only)
@@ -399,6 +400,26 @@ func validatePackageNames(m *manifest.Manifest, names []string) error {
 		}
 	}
 	return nil
+}
+
+// withPlatformSiblings adds the "<name>-macos" / "<name>-fedora" siblings of
+// each name the manifest declares them for. A logical tool split by backend
+// shape into OS-gated entries (claude-desktop + -macos + -fedora, herdr +
+// herdr-macos) is then selected — or skipped — by its one user-facing name; the
+// OS gate keeps only the host's entry applicable.
+func withPlatformSiblings(m *manifest.Manifest, names []string) []string {
+	out := append([]string(nil), names...)
+	for _, name := range names {
+		for _, suffix := range []string{"-macos", "-fedora"} {
+			for _, pkg := range m.Packages {
+				if pkg.Name == name+suffix {
+					out = append(out, pkg.Name)
+					break
+				}
+			}
+		}
+	}
+	return out
 }
 
 // packagesByName returns the manifest packages whose names appear in names, in

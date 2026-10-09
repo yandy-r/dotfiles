@@ -21,7 +21,9 @@ Try these in order; the first that fits is the right one:
    add the sub-table(s) for the families you support and the backend dispatches on
    the host's package manager:
    - `apt_repo` — Debian/Ubuntu: GPG key + `sources.list` line, then a normal install.
-     `repo_line` templates `{{.Codename}}` and `{{.Arch}}` from the host.
+     `repo_line` templates `{{.Codename}}` and `{{.Arch}}` from the host. Optional
+     `key_fingerprint` (40 hex) is checked with `gpg --show-keys` before any key is
+     trusted; a mismatch aborts before any `sudo` step.
    - `dnf_repo` — Fedora/RHEL, in exactly one of three modes:
      - `repofile = "<https url>"` (+ `id`) — the vendor publishes a ready-made `.repo`;
        **prefer this.** It is installed verbatim at `/etc/yum.repos.d/<id>.repo`.
@@ -52,6 +54,10 @@ Try these in order; the first that fits is the right one:
    typed `post_install` activation steps.
 9. **`custom-script`** — **last resort**: a hardened `bin/install-*.sh` for install logic
    none of the above expresses. Governed (see below).
+
+Any backend accepts `requires_desktop = true` for GUI apps: the package is
+`applicable=false` unless dotf sees a graphical session (macOS, or Linux with
+`XDG_SESSION_TYPE=x11|wayland` or `WAYLAND_DISPLAY`). It applies to `--only` too.
 
 ## How to add a native entry
 

@@ -2,6 +2,7 @@ package backend
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/yandy-r/dotfiles/internal/exec"
@@ -207,6 +208,65 @@ func TestRepoBackend_Install_NotApplicable(t *testing.T) {
 			var unsupported *UnsupportedPlatformError
 			if !errors.As(err, &unsupported) {
 				t.Fatalf("Install() error = %T, want *UnsupportedPlatformError", err)
+			}
+		})
+	}
+}
+
+// gpgFake answers `gpg --show-keys` with gpgOut whatever the temp key path is.
+type gpgFake struct {
+	*exec.Fake
+	gpgOut string
+}
+
+func (g gpgFake) Output(name string, args ...string) ([]byte, error) {
+	if name == "gpg" {
+		_, _ = g.Fake.Output("true") // record the probe; result ignored
+		return []byte(g.gpgOut), nil
+	}
+	return g.Fake.Output(name, args...)
+}
+
+// TestRepoBackend_Install_KeyFingerprint: a pinned key whose fingerprint
+// mismatches aborts before any sudo command; a match proceeds.
+func TestRepoBackend_Install_KeyFingerprint(t *testing.T) {
+	t.Parallel()
+	const fp = "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE"
+	pkg := manifest.Package{
+		Name: "claude-desktop", Backend: manifest.BackendRepo,
+		Names: map[string]string{"apt": "claude-desktop"},
+		AptRepo: &manifest.AptRepo{
+			KeyURL: "https://k", Keyring: "/usr/share/keyrings/c.gpg",
+			RepoLine: "deb https://r stable main", SourcesPath: "/etc/apt/sources.list.d/c.list",
+			KeyFingerprint: fp,
+		},
+	}
+	info := platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrAPT, Arch: platform.ArchX86_64}
+
+	for _, tc := range []struct {
+		name, out string
+		ok        bool
+	}{
+		{"match lowercase", "pub:-:4096:1:BAA929FF1A7ECACE:::::\nfpr:::::::::" + strings.ToLower(fp) + ":\n", true},
+		{"mismatch", "fpr:::::::::" + strings.Repeat("A", 40) + ":\n", false},
+		{"no fpr record", "pub:-:4096\n", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := exec.NewFake()
+			f.AddCommand("curl", []string{"-fsSL", "https://k"}, []byte("key"), nil)
+			err := newRepoBackend(gpgFake{f, tc.out}).Install(pkg, info)
+			sudo := 0
+			for _, c := range f.CallsSnapshot() {
+				if c.Name == "sudo" {
+					sudo++
+				}
+			}
+			if tc.ok && (err != nil || sudo == 0) {
+				t.Fatalf("Install() = %v, sudo calls %d; want success", err, sudo)
+			}
+			if !tc.ok && (err == nil || sudo != 0) {
+				t.Fatalf("Install() = %v, sudo calls %d; want error before any sudo", err, sudo)
 			}
 		})
 	}

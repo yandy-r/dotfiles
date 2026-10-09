@@ -252,6 +252,13 @@ type Package struct {
 	// token, which is intentionally not accepted) for Linux-only tools.
 	OS string `toml:"os"`
 
+	// RequiresDesktop marks a GUI package that only makes sense inside a
+	// graphical session. When no desktop session is detected
+	// (platform.Info.Desktop false — SSH/TTY/container) the package is skipped
+	// as not-applicable, gating Engine.Applicable/Installed/Install exactly like
+	// OS (same defense-in-depth model).
+	RequiresDesktop bool `toml:"requires_desktop"`
+
 	// Class is the package's update-policy bucket (pinned, rolling, managed).
 	// It is optional: EffectiveClass infers it from the backend when empty. It
 	// is REQUIRED on the custom-script escape hatch, where no safe default
@@ -312,6 +319,12 @@ type Probe struct {
 type AptRepo struct {
 	// KeyURL is the HTTPS URL of the repository's GPG key.
 	KeyURL string `toml:"key_url"`
+
+	// KeyFingerprint is the OPTIONAL 40-hex OpenPGP fingerprint of the
+	// repository's signing key. When set, the fetched key's fingerprint is
+	// verified against it (case-insensitive) before the key is trusted; a
+	// mismatch aborts the install before any privileged command runs.
+	KeyFingerprint string `toml:"key_fingerprint"`
 
 	// Keyring is the destination path for the dearmored GPG keyring file.
 	Keyring string `toml:"keyring"`

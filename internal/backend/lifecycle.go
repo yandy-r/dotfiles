@@ -78,7 +78,7 @@ func (e *Engine) Update(pkg manifest.Package, info platform.Info) error {
 	if !ok {
 		return &UnknownBackendError{Backend: pkg.Backend}
 	}
-	if !osGateAllows(pkg.OS, info.OS) {
+	if !gateAllows(pkg, info) {
 		return nil
 	}
 	if u, ok := b.(Updater); ok {
@@ -95,7 +95,7 @@ func (e *Engine) Remove(pkg manifest.Package, info platform.Info) error {
 	if !ok {
 		return &UnknownBackendError{Backend: pkg.Backend}
 	}
-	if !osGateAllows(pkg.OS, info.OS) {
+	if !gateAllows(pkg, info) {
 		return nil
 	}
 	if rm, ok := b.(Remover); ok {

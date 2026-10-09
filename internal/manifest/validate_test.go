@@ -374,6 +374,55 @@ os = "wsl"`, wantErr: `os "wsl" must be one of`},
 	}
 }
 
+// TestValidate_KeyFingerprint covers the optional apt_repo.key_fingerprint:
+// a 40-hex value (either case) or empty is accepted; anything else fails.
+func TestValidate_KeyFingerprint(t *testing.T) {
+	tests := []struct {
+		name    string
+		fp      string
+		wantErr string
+	}{
+		{name: "40 hex upper", fp: "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE"},
+		{name: "40 hex lower", fp: "31ddde24ddfab679f42d7bd2baa929ff1a7ecace"},
+		{name: "empty", fp: ""},
+		{name: "garbage", fp: "not-a-fingerprint", wantErr: "key_fingerprint"},
+		{name: "too short", fp: "31DDDE24", wantErr: "key_fingerprint"},
+		{name: "non-hex 40", fp: strings.Repeat("Z", 40), wantErr: "key_fingerprint"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := `[[package]]
+name = "tool"
+backend = "repo"
+[package.apt_repo]
+key_url = "https://example.com/key.asc"
+keyring = "/usr/share/keyrings/t.gpg"
+repo_line = "deb https://example.com stable main"
+sources_path = "/etc/apt/sources.list.d/t.list"
+key_fingerprint = "` + tt.fp + `"
+`
+			_, err := manifest.Parse(strings.NewReader(data))
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Parse() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("Parse() error = nil, want %q", tt.wantErr)
+			}
+			var valErr *manifest.ValidationError
+			if !errors.As(err, &valErr) {
+				t.Fatalf("Parse() error = %v, want *manifest.ValidationError", err)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("Parse() error = %q, want substring %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
 // TestValidate_SSHServer covers the optional [sysconfig] ssh_server enum:
 // on/off/empty are accepted, unknown values fail with *ValidationError, and
 // ssh_server decodes under DisallowUnknownFields (schema field, not strict

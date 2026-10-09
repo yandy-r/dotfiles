@@ -89,7 +89,12 @@ var helpRegistry = []commandHelp{
 			"installed; each --intent narrows the set to that intent's packages, and\n" +
 			"positional names install just those packages (folded into the --only set).\n" +
 			"Packages whose backend cannot run on this host are skipped as\n" +
-			"\"not-applicable\", not failed. Failures are collected non-fatally and the run\n" +
+			"\"not-applicable\", not failed. GUI packages (claude-desktop, espanso) are also\n" +
+			"not-applicable without a graphical session (SSH, TTY, container), even with\n" +
+			"--only. A name selects its <name>-macos/<name>-fedora siblings too, so\n" +
+			"claude-desktop picks the apt package on Debian/Ubuntu, the Homebrew cask on\n" +
+			"macOS, and a local RPM repacked from the verified official .deb on Fedora.\n" +
+			"Failures are collected non-fatally and the run\n" +
 			"exits 1 if any package failed.\n" +
 			"\n" +
 			"--update updates named package(s) in place and --remove removes them; both\n" +
@@ -103,8 +108,9 @@ var helpRegistry = []commandHelp{
 		examples: []string{
 			"dotf install",
 			"dotf install --dry-run",
-			"dotf install --intent core --intent editors",
+			"dotf install --intent ai --intent desktop",
 			"dotf install claude",
+			"dotf install --only claude-desktop --only espanso",
 			"dotf install claude --update",
 			"dotf install claude --remove",
 		},

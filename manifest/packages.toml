@@ -107,7 +107,12 @@ packages = ["mise", "rust", "lua"]
 [intents.ai]
 description = "AI coding assistants and CLIs"
 default = false
-packages = ["claude", "codex", "opencode", "fabric", "coderabbit", "playwright-cli"]
+packages = ["claude", "codex", "opencode", "fabric", "coderabbit", "playwright-cli", "claude-desktop", "claude-desktop-macos", "claude-desktop-fedora"]
+
+[intents.desktop]
+description = "Desktop GUI apps (Claude Desktop, espanso); skipped without a graphical session"
+default = false
+packages = ["claude-desktop", "claude-desktop-macos", "claude-desktop-fedora", "espanso"]
 
 [intents.cloud]
 description = "Cloud, IaC, database, and container CLIs"
@@ -612,6 +617,50 @@ provides_any = ["lua", "lua5.1", "luajit"]
 actions = ["remove"]
 class = "managed"
 justification = "installed via the host package manager (brew/apt/dnf), which owns versioning"
+
+# Claude Desktop: official Linux beta uses Anthropic's apt repo on Debian/Ubuntu
+# (amd64/arm64); no official Arch/Fedora package is wired. The backend dearmors
+# the key, hence a .gpg keyring. https://support.claude.com/en/articles/10065433
+[[package]]
+name = "claude-desktop"
+backend = "repo"
+os = "debian"
+requires_desktop = true
+names = { apt = "claude-desktop" }
+apt_repo = { key_url = "https://downloads.claude.ai/claude-desktop/key.asc", keyring = "/usr/share/keyrings/claude-desktop-archive-keyring.gpg", repo_line = "deb [arch={{.Arch}} signed-by=/usr/share/keyrings/claude-desktop-archive-keyring.gpg] https://downloads.claude.ai/claude-desktop/apt/stable stable main", sources_path = "/etc/apt/sources.list.d/claude-desktop.list", key_fingerprint = "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE" }
+
+# Homebrew resolves the claude cask (not the claude-code CLI formula).
+[[package]]
+name = "claude-desktop-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "claude" }
+
+# Fedora has no official package: the script repacks the official .deb after
+# verifying key fingerprint -> signed InRelease -> Packages -> .deb SHA256, and
+# never runs its Debian maintainer scripts. Unsupported by Anthropic; the script
+# self-skips on non-Fedora redhat hosts and non-x86_64.
+[[package]]
+name = "claude-desktop-fedora"
+backend = "custom-script"
+script = "bin/install-claude-desktop-rpm.sh"
+os = "redhat"
+requires_desktop = true
+provides = ["claude-desktop"]
+actions = ["update", "remove"]
+class = "rolling"
+justification = "no official RPM exists; repacks the signature-verified official .deb into a local RPM"
+
+[[package]]
+name = "espanso"
+backend = "custom-script"
+script = "bin/install-espanso.sh"
+requires_desktop = true
+provides = ["espanso"]
+actions = ["update", "remove"]
+class = "managed"
+justification = "X11/Wayland-typed builds, per-distro install dispatch and systemd user service registration cannot be composed by a native backend"
 
 # ai intent
 [[package]]

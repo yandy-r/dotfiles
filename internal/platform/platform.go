@@ -18,6 +18,7 @@ const defaultProcVersionPath = "/proc/version"
 // vocabulary on any failure — it never panics.
 func Detect(r exec.Runner) Info {
 	rel := readOSRelease(defaultOSReleasePath)
+	getenv := os.Getenv
 	os := detectOSFrom(r, rel, defaultProcVersionPath)
 	arch := detectArch(r)
 	return Info{
@@ -28,7 +29,28 @@ func Detect(r exec.Runner) Info {
 		Distro:    rel.distro(),
 		Codename:  rel.Codename,
 		VersionID: rel.VersionID,
+		Desktop:   detectDesktop(os, getenv),
 	}
+}
+
+// detectDesktop reports whether a graphical session is available to GUI
+// packages (manifest requires_desktop). macOS always has one. On the Linux
+// family it requires XDG_SESSION_TYPE x11/wayland or a WAYLAND_DISPLAY socket
+// (WSLg sets the latter); DISPLAY alone is deliberately ignored because SSH X11
+// forwarding sets it on otherwise headless hosts. SSH/TTY/container shells and
+// root shells with a stripped environment therefore report false.
+func detectDesktop(o OS, getenv func(string) string) bool {
+	if o == OSMacOS {
+		return true
+	}
+	if !IsLinuxFamily(o) {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(getenv("XDG_SESSION_TYPE"))) {
+	case "x11", "wayland":
+		return true
+	}
+	return strings.TrimSpace(getenv("WAYLAND_DISPLAY")) != ""
 }
 
 // detectOS determines the canonical OS/distro family from the os-release file

@@ -168,3 +168,40 @@ func TestEngine_Applicable_UnknownBackend(t *testing.T) {
 		t.Error("Applicable() = true, want false when backend is unknown")
 	}
 }
+
+// TestEngine_DesktopGate: requires_desktop packages are not-applicable, never
+// probed and never installed without a graphical session.
+func TestEngine_DesktopGate(t *testing.T) {
+	t.Parallel()
+	fake := exec.NewFake()
+	fake.AddPath("espanso", "/usr/bin/espanso")
+	engine := backend.Default(fake, privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+	pkg := manifest.Package{Name: "espanso", Backend: manifest.BackendCustomScript, Script: "bin/missing.sh", Provides: []string{"espanso"}, RequiresDesktop: true}
+	headless := platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrAPT}
+	desktop := headless
+	desktop.Desktop = true
+
+	if ok, err := engine.Applicable(pkg, headless); err != nil || ok {
+		t.Errorf("Applicable(headless) = (%t, %v), want (false, nil)", ok, err)
+	}
+	if ok, err := engine.Installed(pkg, headless); err != nil || ok {
+		t.Errorf("Installed(headless) = (%t, %v), want (false, nil)", ok, err)
+	}
+	if err := engine.Install(pkg, headless); err != nil || len(fake.CallsSnapshot()) != 0 {
+		t.Errorf("Install(headless) = %v, calls %v; want nil and no commands", err, fake.CallsSnapshot())
+	}
+	for _, act := range []backend.Action{backend.ActionUpdate, backend.ActionRemove} {
+		if err := engine.Perform(act, pkg, headless); err != nil {
+			t.Errorf("Perform(%v, headless) = %v, want nil no-op", act, err)
+		}
+	}
+	if calls := fake.CallsSnapshot(); len(calls) != 0 {
+		t.Errorf("headless lifecycle ran commands %v, want none", calls)
+	}
+	if ok, err := engine.Applicable(pkg, desktop); err != nil || !ok {
+		t.Errorf("Applicable(desktop) = (%t, %v), want (true, nil)", ok, err)
+	}
+	if ok, err := engine.Installed(pkg, desktop); err != nil || !ok {
+		t.Errorf("Installed(desktop) = (%t, %v), want (true, nil)", ok, err)
+	}
+}
