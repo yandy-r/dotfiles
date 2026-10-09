@@ -8,7 +8,7 @@ Toggle Screen Reader On and Off=Meta+Alt+S,Meta+Alt+S,Toggle Screen Reader On an
 _k_friendly_name=Accessibility
 
 [kmix]
-_k_friendly_name=Audio Volume
+_k_friendly_name=KMix
 decrease_microphone_volume=Microphone Volume Down,Microphone Volume Down,Decrease Microphone Volume
 decrease_volume=Volume Down,Volume Down,Decrease Volume
 decrease_volume_small=Shift+Volume Down,Shift+Volume Down,Decrease Volume by 1%
@@ -273,7 +273,7 @@ _launch=Meta+Shift+T
 _launch=Meta+Ctrl+Space
 
 [services][com.mitchellh.ghostty.desktop]
-_launch=Meta+Return
+_launch=none
 
 [services][google-chrome.desktop]
 _launch=Meta+Shift+B
@@ -296,3 +296,6 @@ CurrentMonitorScreenShot=none
 OpenWithoutScreenshot=none
 RecordRegion=Ctrl+^\tMeta+R\tMeta+Shift+R
 RectangularRegionScreenShot=Ctrl+$\tMeta+Shift+Print
+
+[services][org.wezfurlong.wezterm.desktop]
+_launch=Meta+Return
