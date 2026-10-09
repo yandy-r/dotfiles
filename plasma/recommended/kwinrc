@@ -20,7 +20,6 @@ HighlightWindows=false
 [Windows]
 ActivationDesktopPolicy=BringToCurrentDesktop
 BorderSnapZone=0
-BorderlessMaximizedWindows=true
 ElectricBorderMaximize=false
 FocusStealingPreventionLevel=0
 RollOverDesktops=true

@@ -26,7 +26,7 @@ HighlightWindows=false
 [Windows]
 ActivationDesktopPolicy=SwitchToOtherDesktop
 BorderSnapZone=0
-BorderlessMaximizedWindows=true
+BorderlessMaximizedWindows=false
 ElectricBorderMaximize=false
 FocusStealingPreventionLevel=0
 PerOutputVirtualDesktops=true
