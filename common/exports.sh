@@ -129,6 +129,12 @@ else
     unset NINE_ROUTER_API_KEY
 fi
 
+if tokenhop_opencode_api_key="$(read_env_file "$XDG_CONFIG_HOME/env/tokenhop_opencode_api_key")"; then
+    export TOKENHOP_OPENCODE_API_KEY="$tokenhop_opencode_api_key"
+else
+    unset TOKENHOP_OPENCODE_API_KEY
+fi
+
 if claude_code_oauth_token="$(read_env_file "$XDG_CONFIG_HOME/env/claude_code_oauth_token")"; then
     export CLAUDE_CODE_OAUTH_TOKEN="$claude_code_oauth_token"
 else
