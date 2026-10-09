@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -30,7 +29,12 @@ type installResult struct {
 // runInstall resolves the manifest, detects the host platform, and installs
 // the selected packages via the backend engine. Failures are collected
 // non-fatally; the process exits non-zero when one or more installs fail.
-func runInstall(args []string, stdout, stderr io.Writer, r exec.Runner) int {
+// From the sudo prime onward the execution phase runs under a signal context
+// (INT/TERM/HUP): a user signal cancels in-flight children and the in-flight
+// HTTP download, waits for the current package call to unwind (deferred temp
+// cleanup runs), then exits 130 (Unix SIGINT convention) instead of dying
+// mid-cleanup. Loops stop before dispatching the next package once canceled.
+func runInstall(args []string, stdout, stderr io.Writer, r exec.Runner) (code int) {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
@@ -98,7 +102,7 @@ func runInstall(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	// --only. Package-level narrowing is applied to both the dry-run and the real
 	// install, so the two never disagree.
 	only := append(append([]string{}, o.only...), names...)
-	pkgs, err = filterPackages(m, pkgs, only, o.skip)
+	pkgs, err = filterPackagesForAction(m, pkgs, only, o.skip, action)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "%s: %v\n", progName, err)
 		return 2
@@ -125,7 +129,19 @@ func runInstall(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 		return reportErr(stderr, fmt.Errorf("sudo prime: %w", err))
 	}
 
-	ctx := context.Background()
+	// Execution phase: signal context wraps r (cancel kills in-flight children)
+	// and binds backend HTTP downloads. Scope ends at return so no os.Exit can
+	// leapfrog the deferred restore/cancel; an early exit code is an ordinary
+	// value returned to main.
+	ctx, r, stop := withExecutionSignals(r)
+	defer stop()
+	defer func() {
+		if ctxAbortExitCode(ctx) && code != 2 {
+			_, _ = fmt.Fprintf(stderr, "%s: aborted\n", progName)
+			code = abortExitCode
+		}
+	}()
+
 	cancel := sudo.KeepAlive(ctx, r)
 	defer cancel()
 
@@ -133,8 +149,22 @@ func runInstall(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	engine := backend.Default(r, sudo, drop, resolveRepoRoot(), lock)
 
 	results := make([]installResult, 0, len(pkgs))
+	statuses := make(map[string]string, len(pkgs))
 	for _, pkg := range pkgs {
-		results = append(results, performPackage(engine, action, pkg, info, o.force))
+		if ctx.Err() != nil {
+			// Canceled: stop dispatching further packages. The in-flight call
+			// (if any) has already unwound and cleaned its temp files.
+			break
+		}
+		if dep := failedPrerequisite(pkg, statuses); dep != "" {
+			res := installResult{name: pkg.Name, backend: pkg.Backend, status: "failed", err: fmt.Errorf("prerequisite %q failed", dep)}
+			results = append(results, res)
+			statuses[pkg.Name] = res.status
+			continue
+		}
+		res := performPackage(engine, action, pkg, info, o.force)
+		results = append(results, res)
+		statuses[pkg.Name] = res.status
 	}
 
 	if err := printInstallResults(stdout, results); err != nil {
@@ -143,6 +173,16 @@ func runInstall(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	printInstallSummary(stderr, results)
 
 	return installExitCode(results)
+}
+
+// failedPrerequisite returns the first selected prerequisite that failed.
+func failedPrerequisite(pkg manifest.Package, statuses map[string]string) string {
+	for _, dep := range pkg.Requires {
+		if statuses[dep] == "failed" {
+			return dep
+		}
+	}
+	return ""
 }
 
 // resolveAction maps the --update/--remove booleans to a backend.Action. At most
@@ -346,6 +386,10 @@ func packagesForInstall(m *manifest.Manifest, intents []string) []manifest.Packa
 // The result may be empty; an empty set is a valid "nothing to do" outcome, not
 // an error.
 func filterPackages(m *manifest.Manifest, pkgs []manifest.Package, only, skip []string) ([]manifest.Package, error) {
+	return filterPackagesForAction(m, pkgs, only, skip, backend.ActionInstall)
+}
+
+func filterPackagesForAction(m *manifest.Manifest, pkgs []manifest.Package, only, skip []string, action backend.Action) ([]manifest.Package, error) {
 	if err := validatePackageNames(m, only); err != nil {
 		return nil, err
 	}
@@ -359,22 +403,78 @@ func filterPackages(m *manifest.Manifest, pkgs []manifest.Package, only, skip []
 		base = packagesByName(m, only)
 	}
 
-	if len(skip) == 0 {
-		return base, nil
-	}
-
-	excluded := make(map[string]struct{}, len(skip))
-	for _, name := range skip {
-		excluded[name] = struct{}{}
-	}
-	out := make([]manifest.Package, 0, len(base))
+	// Expand explicit manifest prerequisites, not backend-specific guesses.
+	selected := make(map[string]bool)
 	for _, pkg := range base {
-		if _, drop := excluded[pkg.Name]; drop {
-			continue
-		}
-		out = append(out, pkg)
+		selected[pkg.Name] = true
 	}
-	return out, nil
+	for changed := action == backend.ActionInstall; changed; {
+		changed = false
+		for _, pkg := range m.Packages {
+			if selected[pkg.Name] {
+				for _, dep := range pkg.Requires {
+					if !selected[dep] {
+						selected[dep] = true
+						changed = true
+					}
+				}
+			}
+		}
+	}
+	if len(selected) > len(base) {
+		base = nil
+		for _, pkg := range m.Packages {
+			if selected[pkg.Name] {
+				base = append(base, pkg)
+			}
+		}
+	}
+	excluded := make(map[string]bool)
+	for _, name := range skip {
+		excluded[name] = true
+	}
+	var out []manifest.Package
+	byName := make(map[string]manifest.Package)
+	for _, pkg := range base {
+		if !excluded[pkg.Name] {
+			out = append(out, pkg)
+			byName[pkg.Name] = pkg
+		}
+	}
+	if action != backend.ActionInstall {
+		return out, nil
+	}
+	// Stable dependency-first order; cycles and omitted prerequisites fail closed.
+	var ordered []manifest.Package
+	state := make(map[string]int)
+	var visit func(string) error
+	visit = func(name string) error {
+		if state[name] == 2 {
+			return nil
+		}
+		if state[name] == 1 {
+			return fmt.Errorf("package prerequisite cycle at %q", name)
+		}
+		pkg, ok := byName[name]
+		if !ok {
+			return fmt.Errorf("required package %q excluded or missing", name)
+		}
+		state[name] = 1
+		for _, dep := range pkg.Requires {
+			if err := visit(dep); err != nil {
+				return err
+			}
+		}
+		state[name] = 2
+		ordered = append(ordered, pkg)
+		return nil
+	}
+	for _, pkg := range out {
+		if err := visit(pkg.Name); err != nil {
+			return nil, err
+		}
+	}
+	return ordered, nil
 }
 
 // validatePackageNames rejects any name the manifest does not declare as a
@@ -402,15 +502,17 @@ func validatePackageNames(m *manifest.Manifest, names []string) error {
 	return nil
 }
 
-// withPlatformSiblings adds the "<name>-macos" / "<name>-fedora" siblings of
-// each name the manifest declares them for. A logical tool split by backend
-// shape into OS-gated entries (claude-desktop + -macos + -fedora, herdr +
-// herdr-macos) is then selected — or skipped — by its one user-facing name; the
-// OS gate keeps only the host's entry applicable.
+// withPlatformSiblings adds the "<name>-arch" / "-debian" / "-linux" / "-macos" /
+// "-fedora" siblings of each name the manifest declares them for (exact suffix
+// match only, so "claude" never pulls in "claude-desktop"). A logical tool split
+// by backend shape into OS-gated entries (claude-desktop + -macos + -fedora,
+// herdr + herdr-macos) is then selected — or skipped — by its one user-facing
+// name; the OS gate keeps only the host's entry applicable. An explicit sibling
+// name expands to nothing further.
 func withPlatformSiblings(m *manifest.Manifest, names []string) []string {
 	out := append([]string(nil), names...)
 	for _, name := range names {
-		for _, suffix := range []string{"-macos", "-fedora"} {
+		for _, suffix := range []string{"-arch", "-debian", "-linux", "-macos", "-fedora"} {
 			for _, pkg := range m.Packages {
 				if pkg.Name == name+suffix {
 					out = append(out, pkg.Name)

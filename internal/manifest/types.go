@@ -141,9 +141,11 @@ type Package struct {
 	// "github-release" and "script-url" backends.
 	SHA256 string `toml:"sha256"`
 
-	// URL is the source URL, for the "script-url" and "git-clone" backends:
-	// the install-script location for script-url, the https git remote for
-	// git-clone. Validation is per-backend, so the two never collide.
+	// URL is the source URL, for the "script-url", "git-clone",
+	// "app-artifact", and "pkg-url" backends: the install-script location
+	// for script-url, the https git remote for git-clone, the direct
+	// download URL for app-artifact/pkg-url. Validation is per-backend, so
+	// the uses never collide.
 	URL string `toml:"url"`
 
 	// Ref is the branch or tag to check out, for the "git-clone" backend.
@@ -192,6 +194,38 @@ type Package struct {
 	// the installed-state probe, and the upstream release archive base name
 	// used when no host package manager ships a patched build.
 	Font *Font `toml:"font"`
+
+	// App configures the "app-artifact" backend: the user-level Linux app
+	// install (AppImage or tarball) laid out under
+	// ~/.local/share/dotf/apps/<name> with a .desktop entry. Rejected on every
+	// other backend.
+	App *AppInstall `toml:"app"`
+
+	// PkgName is the installed package name, for the "pkg-url" backend. It is
+	// both the installed-state probe name and the name passed to the package
+	// manager on remove.
+	PkgName string `toml:"pkg_name"`
+
+	// Format is the vendor package format, "rpm" or "deb", for the "pkg-url"
+	// backend. Optional: inferred from the URL (or release asset) suffix; required
+	// when the URL carries no .rpm/.deb suffix.
+	Format string `toml:"format"`
+
+	// GPGKeyURL is the HTTPS URL of the vendor's signing key, for the "pkg-url"
+	// backend. Requires GPGKeyFingerprint so the fetched key is verified before
+	// it is trusted.
+	GPGKeyURL string `toml:"gpg_key_url"`
+
+	// GPGKeyFingerprint is the 40-hex OpenPGP fingerprint of GPGKeyURL's key,
+	// for the "pkg-url" backend.
+	GPGKeyFingerprint string `toml:"gpg_fingerprint"`
+
+	// AllowUnsigned opts a "pkg-url" package out of signature verification. It
+	// requires a non-empty Justification documenting why.
+	AllowUnsigned         bool   `toml:"allow_unsigned"`
+	RPMRepackStripBuildID bool   `toml:"rpm_repack_strip_buildid"`
+	Preview               bool   `toml:"preview"`
+	URLJSONField          string `toml:"url_json_field"`
 
 	// Provides lists the executable names this package installs onto PATH.
 	// When set it is the authoritative installed-state probe: the package
@@ -252,6 +286,13 @@ type Package struct {
 	// token, which is intentionally not accepted) for Linux-only tools.
 	OS string `toml:"os"`
 
+	// Arch restricts applicability to these canonical host arches
+	// (x86_64, arm64). Empty means every architecture.
+	Arch []string `toml:"arch"`
+
+	// Requires names prerequisite packages selected alongside this package.
+	Requires []string `toml:"requires"`
+
 	// RequiresDesktop marks a GUI package that only makes sense inside a
 	// graphical session. When no desktop session is detected
 	// (platform.Info.Desktop false — SSH/TTY/container) the package is skipped
@@ -292,6 +333,29 @@ type AssetMatch struct {
 	// whose filename contains one is dropped (e.g. "completions" to reject a
 	// shell-completions look-alike tarball).
 	Exclude []string `toml:"exclude"`
+}
+
+// AppInstall configures the "app-artifact" backend's desktop integration. Every
+// field is optional at the type level; validateAppArtifact enforces which are
+// required for a given artifact kind (an AppImage requires Icon).
+type AppInstall struct {
+	// Icon is an https URL of the app icon, or a path relative to the extracted
+	// app directory (no ".." segment, not absolute). Required for AppImages.
+	Icon string `toml:"icon"`
+
+	// Desktop is a .desktop file path relative to the extracted app directory
+	// (no ".." segment). Empty means dotf generates the entry.
+	Desktop string `toml:"desktop"`
+
+	// DesktopName is the generated .desktop entry's display Name. Empty means
+	// the package name.
+	DesktopName string `toml:"desktop_name"`
+
+	// Categories is the generated .desktop Categories value (e.g. "Network;").
+	Categories string `toml:"categories"`
+
+	// ExecArgs is extra arguments appended to the generated .desktop Exec line.
+	ExecArgs string `toml:"exec_args"`
 }
 
 // PostInstallStep is a single git-clone activation step: a literal argv vector
@@ -459,12 +523,21 @@ const (
 	// verified upstream release archive named by Font.Archive into the XDG
 	// fonts directory.
 	BackendFont Backend = "font"
+
+	// BackendAppArtifact installs a user-level Linux app (AppImage or tarball)
+	// from a GitHub release (Repo) or direct URL into
+	// ~/.local/share/dotf/apps/<name>, with a .desktop entry (Package.App).
+	BackendAppArtifact Backend = "app-artifact"
+
+	// BackendPkgURL downloads a vendor .rpm/.deb over HTTPS (Repo or URL) and
+	// installs it via dnf/apt; Package.PkgName names the installed package.
+	BackendPkgURL Backend = "pkg-url"
 )
 
 // Valid reports whether b is one of the canonical Backend values.
 func (b Backend) Valid() bool {
 	switch b {
-	case BackendPkg, BackendGitHubRelease, BackendAUR, BackendToolchain, BackendAPTRepo, BackendRepo, BackendScriptURL, BackendCustomScript, BackendGitClone, BackendFont:
+	case BackendPkg, BackendGitHubRelease, BackendAUR, BackendToolchain, BackendAPTRepo, BackendRepo, BackendScriptURL, BackendCustomScript, BackendGitClone, BackendFont, BackendAppArtifact, BackendPkgURL:
 		return true
 	default:
 		return false

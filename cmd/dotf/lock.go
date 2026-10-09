@@ -158,6 +158,13 @@ func resolveLock(engine *backend.Engine, pkgs []manifest.Package, targets []plat
 			URL:     pkg.URL,
 		}
 		for _, target := range targets {
+			// Lock resolution is not a running desktop session. Honor explicit
+			// OS/architecture restrictions without the graphical-session gate.
+			candidate := pkg
+			candidate.RequiresDesktop = false
+			if ok, err := engine.Applicable(candidate, target); err == nil && !ok {
+				continue
+			}
 			art, err := engine.Resolve(pkg, target)
 			if err != nil {
 				failures = append(failures, lockFailure{name: pkg.Name, target: platformToken(target), err: err})
@@ -208,7 +215,17 @@ func parsePlatform(s string) (platform.Info, error) {
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return platform.Info{}, fmt.Errorf("invalid --platform %q, want os/arch", s)
 	}
-	return platform.Info{OS: platform.OS(parts[0]), Arch: platform.Arch(parts[1])}, nil
+	arch := platform.Arch(parts[1])
+	switch parts[1] {
+	case "amd64":
+		arch = platform.ArchX86_64
+	case "aarch64":
+		arch = platform.ArchARM64
+	}
+	if arch != platform.ArchX86_64 && arch != platform.ArchARM64 {
+		return platform.Info{}, fmt.Errorf("invalid --platform arch %q, want x86_64/amd64 or arm64/aarch64", parts[1])
+	}
+	return platform.Info{OS: platform.OS(parts[0]), Arch: arch}, nil
 }
 
 // platformToken renders a target as the "os/arch" token used in failure

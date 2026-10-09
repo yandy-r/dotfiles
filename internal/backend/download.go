@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
@@ -14,43 +15,107 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // httpGet is the HTTP fetch entry point; tests may replace it to aim at an
-// httptest.Server.
-var httpGet = http.Get
+// httptest.Server. The production fetch copies http.DefaultClient AT CALL TIME
+// (so a test-installed client/transport — e.g. one trusting an httptest TLS
+// cert — is honored) and layers a fail-closed CheckRedirect on top: a redirect
+// to a non-https target (https → http downgrade, or an http hop after the
+// first) is rejected, and the chain is capped at 5 redirects, so a misbehaving
+// mirror cannot loop or strip TLS.
+var httpGet = func(url string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(downloadCtx(), http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	// The client is copied from http.DefaultClient AT CALL TIME (test-installed
+	// transports honored); only the request is context-bound, so redirect
+	// handling and the default transport are unchanged.
+	c := *http.DefaultClient
+	c.CheckRedirect = checkRedirect
+	return c.Do(req)
+}
 
-// fetchVerifyExtract downloads url, verifies its SHA-256 digest when
-// wantSHA256 is non-empty, and extracts (or places) the artifact into destDir.
-//
-// The download is streamed into a mode-0600 temp file through io.TeeReader so
-// the hasher sees every byte, and verification runs before any byte is written
-// to destDir (verify-before-execute). The artifact FORMAT is decided by magic
-// bytes (detectFormat), not the URL suffix: gzip → tar.gz or single-file .gz,
-// zip → .zip, otherwise a bare binary. assetName names the output for the .gz
-// and bare-binary cases (a trailing ".gz" is stripped for .gz); it is unused for
-// tar.gz/zip, whose entry names come from the archive.
-func fetchVerifyExtract(url, wantSHA256, destDir, assetName string) error {
+// downloadCtxMu guards downloadCtxVar: WithDownloadContext is a package-level
+// restore-function seam, so concurrent mutation must not race. The CLI sets it
+// once per run; tests are non-parallel but stay race-detector-clean anyway.
+var downloadCtxMu sync.Mutex
+
+// downloadCtxVar is the context every backend HTTP fetch is bound to. nil
+// behaves exactly like context.Background(): no cancellation, identical wire
+// behavior to the previous plain c.Get(url).
+var downloadCtxVar context.Context
+
+// downloadCtx returns the active download context (Background when unset).
+func downloadCtx() context.Context {
+	downloadCtxMu.Lock()
+	defer downloadCtxMu.Unlock()
+	if downloadCtxVar == nil {
+		return context.Background()
+	}
+	return downloadCtxVar
+}
+
+// WithDownloadContext binds all subsequent backend HTTP fetches to ctx:
+// canceling ctx aborts the in-flight request (NewRequestWithContext). The
+// returned func restores the previous binding (Background when none). The
+// transport and redirect policy are untouched — only request lifetime changes.
+func WithDownloadContext(ctx context.Context) func() {
+	downloadCtxMu.Lock()
+	prev := downloadCtxVar
+	downloadCtxVar = ctx
+	downloadCtxMu.Unlock()
+	return func() {
+		downloadCtxMu.Lock()
+		downloadCtxVar = prev
+		downloadCtxMu.Unlock()
+	}
+}
+
+// checkRedirect is the shared fail-closed redirect policy: max 5 hops, and any
+// hop after the first must stay on https.
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 5 {
+		return fmt.Errorf("stopped after 5 redirects")
+	}
+	if req.URL.Scheme != "https" && len(via) > 0 {
+		return fmt.Errorf("reject redirect to non-https URL %q", req.URL)
+	}
+	return nil
+}
+
+// fetchVerifyFile downloads url to a mode-0600 temp file, streaming through
+// io.TeeReader so the hasher sees every byte, and verifies the SHA-256 digest
+// when wantSHA256 is non-empty (empty skips the check). It performs NO
+// extraction; the caller removes the returned path.
+func fetchVerifyFile(url, wantSHA256, dir, name string) (string, error) {
 	resp, err := httpGet(url)
 	if err != nil {
-		return fmt.Errorf("download %q: %w", url, err)
+		return "", fmt.Errorf("download %q: %w", url, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("download %q: unexpected status %s", url, resp.Status)
+		return "", fmt.Errorf("download %q: unexpected status %s", url, resp.Status)
 	}
 
-	tmp, err := os.CreateTemp("", "dotf-dl-*")
+	tmp, err := os.CreateTemp(dir, name)
 	if err != nil {
-		return fmt.Errorf("create temp download file: %w", err)
+		return "", fmt.Errorf("create temp download file: %w", err)
 	}
 	tmpPath := tmp.Name()
-	defer func() { _ = os.Remove(tmpPath) }()
+	removeTmp := true
+	defer func() {
+		if removeTmp {
+			_ = os.Remove(tmpPath)
+		}
+	}()
 
 	if err := os.Chmod(tmpPath, 0o600); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("chmod temp download file: %w", err)
+		return "", fmt.Errorf("chmod temp download file: %w", err)
 	}
 
 	hasher := sha256.New()
@@ -58,15 +123,35 @@ func fetchVerifyExtract(url, wantSHA256, destDir, assetName string) error {
 
 	if _, err := io.Copy(tmp, tee); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("write temp download file: %w", err)
+		return "", fmt.Errorf("write temp download file: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("close temp download file: %w", err)
+		return "", fmt.Errorf("close temp download file: %w", err)
 	}
 
 	if err := VerifySHA256(hasher, wantSHA256); err != nil {
+		return "", err
+	}
+
+	removeTmp = false
+	return tmpPath, nil
+}
+
+// fetchVerifyExtract downloads url, verifies its SHA-256 digest when
+// wantSHA256 is non-empty, and extracts (or places) the artifact into destDir.
+//
+// Verification runs before any byte is written to destDir
+// (verify-before-execute). The artifact FORMAT is decided by magic bytes
+// (detectFormat), not the URL suffix: gzip → tar.gz or single-file .gz, zip →
+// .zip, otherwise a bare binary. assetName names the output for the .gz and
+// bare-binary cases (a trailing ".gz" is stripped for .gz); it is unused for
+// tar.gz/zip, whose entry names come from the archive.
+func fetchVerifyExtract(url, wantSHA256, destDir, assetName string) error {
+	tmpPath, err := fetchVerifyFile(url, wantSHA256, "", "dotf-dl-*")
+	if err != nil {
 		return err
 	}
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	format, err := detectFormat(tmpPath)
 	if err != nil {

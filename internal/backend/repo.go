@@ -100,6 +100,33 @@ func (b *repoBackend) Install(pkg manifest.Package, info platform.Info) error {
 	}
 }
 
+// Update upgrades an already-configured repo package via the host package
+// manager. The repo itself is not (re)configured.
+func (b *repoBackend) Update(pkg manifest.Package, info platform.Info) error {
+	return b.lifecycle(pkg, info, upgradeArgv)
+}
+
+// Remove uninstalls the package via the host package manager; the configured
+// third-party repository is left in place.
+func (b *repoBackend) Remove(pkg manifest.Package, info platform.Info) error {
+	return b.lifecycle(pkg, info, removeArgv)
+}
+
+func (b *repoBackend) lifecycle(pkg manifest.Package, info platform.Info, argvFn func(platform.PkgMgr, string) ([]string, error)) error {
+	if !b.applicableFor(pkg, info) {
+		return &UnsupportedPlatformError{Backend: backendLabel(pkg), OS: info.OS, PkgMgr: info.PkgMgr}
+	}
+	name := pkg.Names[string(info.PkgMgr)]
+	if name == "" {
+		return &MissingPackageNameError{Package: pkg.Name, PkgMgr: info.PkgMgr}
+	}
+	argv, err := argvFn(info.PkgMgr, name)
+	if err != nil {
+		return err
+	}
+	return b.r.Run(argv[0], argv[1:]...)
+}
+
 func (b *repoBackend) installAPT(pkg manifest.Package, info platform.Info) error {
 	aptName, ok := pkg.Names[string(platform.PkgMgrAPT)]
 	if !ok || aptName == "" {
@@ -253,5 +280,7 @@ func writeTempFile(pattern string, content []byte) (string, error) {
 
 var (
 	_ Backend      = (*repoBackend)(nil)
+	_ Updater      = (*repoBackend)(nil)
+	_ Remover      = (*repoBackend)(nil)
 	_ packageGated = (*repoBackend)(nil)
 )

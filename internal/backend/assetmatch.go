@@ -2,6 +2,7 @@ package backend
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -16,6 +17,9 @@ type matchPrefs struct {
 	libc    string
 	exclude []string
 	name    string
+	// allowExts exempts these suffixes (e.g. ".rpm") from nonInstallableExts,
+	// for backends that install package files; nil keeps the default.
+	allowExts []string
 }
 
 // AssetMatchError is returned when the auto-detector cannot pick exactly one
@@ -70,7 +74,7 @@ func matchAsset(assets []string, info platform.Info, prefs matchPrefs) (string, 
 
 	var survivors []string
 	for _, asset := range assets {
-		if notInstallable(asset) || excluded(asset, prefs.exclude) {
+		if notInstallable(asset, prefs.allowExts) || excluded(asset, prefs.exclude) {
 			continue
 		}
 		if !hasAnyToken(asset, osAliases) || !hasAnyToken(asset, archAliases) {
@@ -264,10 +268,10 @@ var noiseTokens = map[string]bool{
 
 // notInstallable reports whether name is a package format, disk image, or
 // signature/checksum sidecar rather than an installable binary/archive.
-func notInstallable(name string) bool {
+func notInstallable(name string, allowExts []string) bool {
 	lower := strings.ToLower(name)
 	for _, ext := range nonInstallableExts {
-		if strings.HasSuffix(lower, ext) {
+		if strings.HasSuffix(lower, ext) && !slices.Contains(allowExts, ext) {
 			return true
 		}
 	}

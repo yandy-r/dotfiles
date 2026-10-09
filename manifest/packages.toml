@@ -110,9 +110,94 @@ default = false
 packages = ["claude", "codex", "opencode", "fabric", "coderabbit", "playwright-cli", "claude-desktop", "claude-desktop-macos", "claude-desktop-fedora"]
 
 [intents.desktop]
-description = "Desktop GUI apps (Claude Desktop, espanso); skipped without a graphical session"
+description = "Desktop GUI apps (terminals, editors, media, virt); skipped without a graphical session"
 default = false
-packages = ["claude-desktop", "claude-desktop-macos", "claude-desktop-fedora", "espanso"]
+packages = [
+    "claude-desktop",
+    "claude-desktop-macos",
+    "claude-desktop-fedora",
+    "espanso",
+    # Terminals.
+    "wezterm",
+    "wezterm-linux",
+    "wezterm-macos",
+    "ghostty",
+    "ghostty-fedora",
+    "ghostty-macos",
+    # Vendor-repo apps.
+    "1password",
+    "1password-linux",
+    "1password-macos",
+    "code-insiders",
+    "code-insiders-macos",
+    "cursor",
+    "cursor-macos",
+    "chatgpt",
+    "chatgpt-macos",
+    # Distro-packaged apps (Linux base + macOS sibling).
+    "obs-studio",
+    "obs-studio-macos",
+    "gimp",
+    "gimp-macos",
+    "darktable",
+    "darktable-macos",
+    "kdenlive",
+    "kdenlive-macos",
+    "meld",
+    "meld-macos",
+    "pinta",
+    "pinta-macos",
+    "vlc",
+    "vlc-macos",
+    "qalculate",
+    "qalculate-macos",
+    "mediawriter",
+    "mediawriter-macos",
+    "libreoffice",
+    "libreoffice-macos",
+    "virt-manager",
+    "virt-runtime",
+    "libvirt-runtime",
+    "libvirt-network",
+    "whatsapp-macos",
+    "lm-studio",
+    "lm-studio-macos",
+    "obsidian",
+    "obsidian-macos",
+    "localsend",
+    "appimage-runtime",
+    "localsend-macos",
+    "discord",
+    "discord-macos",
+    "zed-preview",
+    "zed-preview-macos",
+    "grok-bot",
+    "grok-bot-macos",
+    "grok-bot-arch",
+    "cursor-arch",
+    "code-insiders-arch",
+    "chatgpt-arch",
+    "google-chrome",
+    "google-chrome-macos",
+    "google-chrome-arch",
+    "dropbox",
+    "dropbox-macos",
+    "dropbox-arch",
+    "zoom",
+    "zoom-macos",
+    "zoom-arch",
+    "teams-for-linux",
+    "teams-for-linux-macos",
+    "teams-for-linux-arch",
+    "beekeeper-studio",
+    "beekeeper-studio-macos",
+    "beekeeper-studio-arch",
+    "winboat",
+    "winboat-arch",
+    "slack",
+    "slack-arch",
+    "slack-macos",
+]
 
 [intents.cloud]
 description = "Cloud, IaC, database, and container CLIs"
@@ -662,6 +747,366 @@ actions = ["update", "remove"]
 class = "managed"
 justification = "X11/Wayland-typed builds, per-distro install dispatch and systemd user service registration cannot be composed by a native backend"
 
+[[package]]
+# WezTerm on Arch/macOS. Debian and Fedora need third-party repositories, so
+# those hosts take the wezterm-linux repo sibling instead (dnf official repos
+# do not carry wezterm; Arch ships it in extra). One logical tool selected by
+# `--only wezterm`; the os gates keep exactly one route applicable per host.
+name = "wezterm"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { pacman = "wezterm" }
+
+[[package]]
+# WezTerm from the vendor's apt repository (fury.io — wezterm is NOT in Debian
+# or Ubuntu official repos) and the Fedora COPR nightly build. The apt suite
+# and component are both "*" because the fury repo ignores distro suites.
+name = "wezterm-linux"
+backend = "repo"
+os = "linux"
+requires_desktop = true
+names = { apt = "wezterm", dnf = "wezterm" }
+
+[package.apt_repo]
+key_url = "https://apt.fury.io/wez/gpg.key"
+keyring = "/usr/share/keyrings/wezterm-fury.gpg"
+repo_line = "deb [signed-by=/usr/share/keyrings/wezterm-fury.gpg] https://apt.fury.io/wez/ * *"
+sources_path = "/etc/apt/sources.list.d/wezterm.list"
+
+[package.dnf_repo]
+copr = "wezfurlong/wezterm-nightly"
+
+[[package]]
+name = "wezterm-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "wezterm" }
+
+[[package]]
+# Ghostty on Arch (extra). No verified Debian route exists; Fedora takes the
+# ghostty-fedora COPR sibling, macOS the cask sibling.
+name = "ghostty"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { pacman = "ghostty" }
+
+[[package]]
+name = "ghostty-fedora"
+backend = "repo"
+os = "redhat"
+requires_desktop = true
+names = { dnf = "ghostty" }
+
+[package.dnf_repo]
+copr = "scottames/ghostty"
+
+[[package]]
+name = "ghostty-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "ghostty" }
+
+[[package]]
+# 1Password from the official vendor repositories. The apt repo is amd64-only,
+# so the arch is pinned in the URL rather than templated. Arch takes the AUR
+# sibling (the aur backend installs pkg.Name, and the AUR package is exactly
+# "1password").
+name = "1password-linux"
+arch = ["x86_64"]
+backend = "repo"
+os = "linux"
+requires_desktop = true
+names = { apt = "1password", dnf = "1password" }
+
+[package.apt_repo]
+key_url = "https://downloads.1password.com/linux/keys/1password.asc"
+key_fingerprint = "3FEF9748469ADBE15DA7CA80AC2D62742012EA22"
+keyring = "/usr/share/keyrings/1password-archive-keyring.gpg"
+repo_line = "deb [arch=amd64 signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/amd64 stable main"
+sources_path = "/etc/apt/sources.list.d/1password.list"
+
+[package.dnf_repo]
+id = "1password"
+baseurl = "https://downloads.1password.com/linux/rpm/stable/x86_64"
+gpgkey = "https://downloads.1password.com/linux/keys/1password.asc"
+
+[[package]]
+name = "1password"
+backend = "aur"
+requires_desktop = true
+
+[[package]]
+name = "1password-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "1password" }
+
+[[package]]
+# VS Code Insiders from Microsoft's official apt/dnf repositories. Arch has no
+# verified route: the AUR package is visual-studio-code-insiders-bin, which the
+# aur backend cannot express (it installs pkg.Name), so Arch is intentionally
+# left without an entry until a name-selection route exists.
+name = "code-insiders"
+backend = "repo"
+os = "linux"
+requires_desktop = true
+names = { apt = "code-insiders", dnf = "code-insiders" }
+
+[package.apt_repo]
+key_url = "https://packages.microsoft.com/keys/microsoft.asc"
+keyring = "/usr/share/keyrings/microsoft.gpg"
+repo_line = "deb [arch={{.Arch}} signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main"
+sources_path = "/etc/apt/sources.list.d/vscode.list"
+
+[package.dnf_repo]
+id = "vscode"
+baseurl = "https://packages.microsoft.com/yumrepos/vscode"
+gpgkey = "https://packages.microsoft.com/keys/microsoft.asc"
+
+[[package]]
+name = "code-insiders-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "visual-studio-code@insiders" }
+
+[[package]]
+# Cursor (Anysphere) from the official vendor repositories. Key fingerprint
+# verified against https://downloads.cursor.com/keys/anysphere.asc.
+name = "cursor"
+backend = "repo"
+os = "linux"
+requires_desktop = true
+names = { apt = "cursor", dnf = "cursor" }
+
+[package.apt_repo]
+key_url = "https://downloads.cursor.com/keys/anysphere.asc"
+key_fingerprint = "380FF4BCDC34A4BD92A3565342A1772E62E492D6"
+keyring = "/usr/share/keyrings/cursor-archive-keyring.gpg"
+repo_line = "deb [arch={{.Arch}} signed-by=/usr/share/keyrings/cursor-archive-keyring.gpg] https://downloads.cursor.com/aptrepo stable main"
+sources_path = "/etc/apt/sources.list.d/cursor.list"
+
+[package.dnf_repo]
+id = "cursor"
+baseurl = "https://downloads.cursor.com/yumrepo/"
+gpgkey = "https://downloads.cursor.com/keys/anysphere.asc"
+
+[[package]]
+name = "cursor-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "cursor" }
+
+[[package]]
+# ChatGPT desktop app from OpenAI's vendor repositories. The RPM repo is
+# x86_64-only (no aarch64 tree exists), so the arch is hardcoded rather than
+# templated. Key fingerprint verified against the published signing key.
+name = "chatgpt"
+arch = ["x86_64"]
+backend = "repo"
+os = "linux"
+requires_desktop = true
+names = { apt = "chatgpt", dnf = "chatgpt" }
+
+[package.apt_repo]
+key_url = "https://persistent.oaistatic.com/codex-app-prod/linux/repository-signing-key.gpg"
+key_fingerprint = "3BFA0E4AE8B8CC16A2D9BA684A3B4A566C4660E4"
+keyring = "/usr/share/keyrings/chatgpt-archive-keyring.gpg"
+repo_line = "deb [arch={{.Arch}} signed-by=/usr/share/keyrings/chatgpt-archive-keyring.gpg] https://persistent.oaistatic.com/codex-app-prod/linux/deb stable main"
+sources_path = "/etc/apt/sources.list.d/chatgpt.list"
+
+[package.dnf_repo]
+id = "chatgpt"
+baseurl = "https://persistent.oaistatic.com/codex-app-prod/linux/rpm/x86_64"
+gpgkey = "https://persistent.oaistatic.com/codex-app-prod/linux/repository-signing-key.gpg"
+
+[[package]]
+name = "chatgpt-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "chatgpt" }
+
+# ---------------------------------------------------------------------------
+# Distro-packaged desktop apps. Each logical app is a Linux base entry plus a
+# -macos cask sibling (the base is os-gated so the cross-manager reachability
+# test does not demand a zypper name that the entry never claimed). Per-manager
+# names vary: qalculate installs the GTK frontend (qalculate-gtk), Fedora's
+# LibreOffice splits per-component (libreoffice-core is the meta the GUI needs),
+# and Arch ships the fresh branch (libreoffice-fresh).
+# ---------------------------------------------------------------------------
+
+[[package]]
+name = "obs-studio"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { pacman = "obs-studio", apt = "obs-studio", dnf = "obs-studio" }
+
+[[package]]
+name = "obs-studio-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "obs" }
+
+[[package]]
+name = "gimp"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { pacman = "gimp", apt = "gimp", dnf = "gimp" }
+
+[[package]]
+name = "gimp-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "gimp" }
+
+[[package]]
+name = "darktable"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { pacman = "darktable", apt = "darktable", dnf = "darktable" }
+
+[[package]]
+name = "darktable-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "darktable" }
+
+[[package]]
+name = "kdenlive"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { pacman = "kdenlive", apt = "kdenlive", dnf = "kdenlive" }
+
+[[package]]
+name = "kdenlive-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "kdenlive" }
+
+[[package]]
+name = "meld"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { pacman = "meld", apt = "meld", dnf = "meld" }
+
+[[package]]
+name = "meld-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "meld" }
+
+[[package]]
+name = "pinta"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { pacman = "pinta", apt = "pinta", dnf = "pinta" }
+
+[[package]]
+name = "pinta-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "pinta" }
+
+[[package]]
+name = "vlc"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { pacman = "vlc", apt = "vlc", dnf = "vlc" }
+
+[[package]]
+name = "vlc-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "vlc" }
+
+[[package]]
+# The GUI frontend; the qalculate daemon ships as a dependency.
+name = "qalculate"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { pacman = "qalculate-gtk", apt = "qalculate-gtk", dnf = "qalculate-gtk" }
+
+[[package]]
+name = "qalculate-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "qalculate-gtk" }
+
+[[package]]
+# Fedora Media Writer; absent from Debian/Ubuntu official repos.
+name = "mediawriter"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { pacman = "mediawriter", dnf = "mediawriter" }
+
+[[package]]
+name = "mediawriter-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "fedora-media-writer" }
+
+[[package]]
+# Arch ships the fresh branch; Fedora splits per-component (libreoffice-core is
+# the shared meta the desktop apps build on); Debian/Ubuntu use the
+# libreoffice-core metapackage rather than the full libreoffice superset.
+name = "libreoffice"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { pacman = "libreoffice-fresh", apt = "libreoffice", dnf = "libreoffice" }
+
+[[package]]
+name = "libreoffice-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "libreoffice" }
+
+[[package]]
+# QEMU/KVM frontend with explicit runtime packages; enabling libvirt is a
+# documented post-install step (docs/reference/desktop-apps.md), not a
+# provisioned service.
+name = "virt-manager"
+requires = ["virt-runtime", "libvirt-runtime", "libvirt-network"]
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { pacman = "virt-manager", apt = "virt-manager", dnf = "virt-manager" }
+
+[[package]]
+# WhatsApp ships no Linux desktop app; the official macOS app is the only
+# first-party route. Linux WhatsApp wrappers were evaluated and rejected.
+name = "whatsapp-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "whatsapp" }
+
 # ai intent
 [[package]]
 name = "claude"
@@ -972,3 +1417,348 @@ steps = [{ custom-script = "bin/onedrive-main-setup.sh" }]
 # locale   = "en_US.UTF-8"        # LANG value (Linux only; macOS = no-op)
 # shell    = "zsh"                # login shell name or absolute path
 # firewall = "auto"              # ufw | firewalld | auto | off
+
+# Native vendor desktop artifacts; checksums pin release payloads.
+
+[[package]]
+name = "lm-studio"
+requires = ["appimage-runtime"]
+arch = ["x86_64"]
+backend = "app-artifact"
+os = "linux"
+requires_desktop = true
+url = "https://lmstudio.ai/download/latest/linux/x64"
+app = { icon = "https://lmstudio.ai/assets/marketing/logo-192x192.png", desktop_name = "LM Studio" }
+
+[[package]]
+name = "lm-studio-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "lm-studio" }
+
+[[package]]
+name = "obsidian"
+requires = ["appimage-runtime"]
+arch = ["x86_64"]
+backend = "app-artifact"
+os = "linux"
+requires_desktop = true
+app = { icon = "https://obsidian.md/favicon.svg", desktop_name = "Obsidian" }
+repo = "obsidianmd/obsidian-releases"
+asset = "Obsidian-*.AppImage"
+class = "rolling"
+
+[[package]]
+name = "obsidian-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "obsidian" }
+
+[[package]]
+name = "localsend"
+requires = ["appimage-runtime"]
+arch = ["x86_64"]
+backend = "app-artifact"
+os = "linux"
+requires_desktop = true
+app = { icon = "https://raw.githubusercontent.com/localsend/localsend/main/app/assets/img/logo-512.png", desktop_name = "LocalSend" }
+repo = "localsend/localsend"
+asset = "LocalSend-*-linux-x86-64.AppImage"
+class = "rolling"
+
+[[package]]
+name = "localsend-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "localsend" }
+
+[[package]]
+name = "discord"
+arch = ["x86_64"]
+backend = "app-artifact"
+os = "linux"
+requires_desktop = true
+url = "https://discord.com/api/download?platform=linux&format=tar.gz"
+binary = "Discord/discord"
+app = { icon = "Discord/discord.png", desktop_name = "Discord", desktop = "Discord/discord.desktop" }
+
+[[package]]
+name = "discord-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "discord" }
+
+[[package]]
+name = "zed-preview"
+arch = ["x86_64"]
+backend = "app-artifact"
+os = "linux"
+requires_desktop = true
+binary = "zed-preview.app/bin/zed"
+app = { icon = "zed-preview.app/share/icons/hicolor/512x512/apps/zed.png", desktop_name = "Zed Preview", desktop = "zed-preview.app/share/applications/dev.zed.Zed-Preview.desktop" }
+repo = "zed-industries/zed"
+asset = "zed-linux-x86_64.tar.gz"
+class = "rolling"
+preview = true
+
+[[package]]
+name = "zed-preview-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "zed@preview" }
+
+[[package]]
+name = "grok-bot"
+backend = "repo"
+os = "redhat"
+requires_desktop = true
+names = { dnf = "grok-bot" }
+dnf_repo = { id = "grok-bot", baseurl = "https://downloads.cursor.com/yumrepo/grok-bot/", gpgkey = "https://downloads.cursor.com/keys/anysphere.asc" }
+
+[[package]]
+name = "grok-bot-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "grok-bot" }
+
+[[package]]
+name = "grok-bot-arch"
+backend = "aur"
+os = "arch"
+requires_desktop = true
+names = { pacman = "grok-bot-bin" }
+
+[[package]]
+name = "cursor-arch"
+backend = "aur"
+os = "arch"
+requires_desktop = true
+names = { pacman = "cursor-bin" }
+
+[[package]]
+name = "code-insiders-arch"
+backend = "aur"
+os = "arch"
+requires_desktop = true
+names = { pacman = "visual-studio-code-insiders-bin" }
+
+[[package]]
+name = "chatgpt-arch"
+backend = "aur"
+os = "arch"
+requires_desktop = true
+names = { pacman = "chatgpt-desktop-bin" }
+
+[[package]]
+name = "google-chrome"
+arch = ["x86_64"]
+backend = "repo"
+os = "linux"
+requires_desktop = true
+names = { apt = "google-chrome-stable", dnf = "google-chrome-stable" }
+apt_repo = { key_url = "https://dl.google.com/linux/linux_signing_key.pub", key_fingerprint = "EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796", keyring = "/usr/share/keyrings/google-chrome.gpg", repo_line = "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb stable main", sources_path = "/etc/apt/sources.list.d/google-chrome.list" }
+dnf_repo = { id = "google-chrome", baseurl = "https://dl.google.com/linux/chrome/rpm/stable/x86_64", gpgkey = "https://dl.google.com/linux/linux_signing_key.pub" }
+
+[[package]]
+name = "google-chrome-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "google-chrome" }
+
+[[package]]
+name = "google-chrome-arch"
+backend = "aur"
+os = "arch"
+requires_desktop = true
+names = { pacman = "google-chrome" }
+
+[[package]]
+name = "dropbox"
+backend = "repo"
+os = "linux"
+requires_desktop = true
+names = { apt = "dropbox", dnf = "nautilus-dropbox" }
+apt_repo = { key_url = "https://linux.dropbox.com/fedora/rpm-public-key.asc", key_fingerprint = "1C61A2656FB57B7E4DE0F4C1FC918B335044912E", keyring = "/usr/share/keyrings/dropbox.gpg", repo_line = "deb [signed-by=/usr/share/keyrings/dropbox.gpg] https://linux.dropbox.com/ubuntu {{.Codename}} main", sources_path = "/etc/apt/sources.list.d/dropbox.list" }
+dnf_repo = { id = "dropbox", baseurl = "https://linux.dropbox.com/fedora/{{.ReleaseVer}}/", gpgkey = "https://linux.dropbox.com/fedora/rpm-public-key.asc" }
+
+[[package]]
+name = "dropbox-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "dropbox" }
+
+[[package]]
+name = "dropbox-arch"
+backend = "aur"
+os = "arch"
+requires_desktop = true
+names = { pacman = "dropbox" }
+
+[[package]]
+name = "zoom"
+arch = ["x86_64"]
+backend = "pkg-url"
+os = "redhat"
+requires_desktop = true
+url = "https://zoom.us/client/latest/zoom_x86_64.rpm"
+format = "rpm"
+pkg_name = "zoom"
+gpg_key_url = "https://zoom.us/linux/download/pubkey"
+gpg_fingerprint = "84C365D6CC9A4886CA926BCC4F2197399706AC24"
+
+[[package]]
+name = "zoom-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "zoom" }
+
+[[package]]
+name = "zoom-arch"
+backend = "aur"
+os = "arch"
+requires_desktop = true
+names = { pacman = "zoom" }
+
+[[package]]
+name = "teams-for-linux"
+arch = ["x86_64"]
+backend = "pkg-url"
+os = "redhat"
+requires_desktop = true
+format = "rpm"
+pkg_name = "teams-for-linux"
+allow_unsigned = true
+justification = "upstream publishes unsigned RPM; SHA256 pinned to GitHub release asset digest"
+repo = "IsmaelMartinez/teams-for-linux"
+asset = "teams-for-linux-*.x86_64.rpm"
+class = "rolling"
+
+[[package]]
+name = "teams-for-linux-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "microsoft-teams" }
+
+[[package]]
+name = "teams-for-linux-arch"
+backend = "aur"
+os = "arch"
+requires_desktop = true
+names = { pacman = "teams-for-linux" }
+
+[[package]]
+name = "beekeeper-studio"
+arch = ["x86_64"]
+backend = "pkg-url"
+os = "redhat"
+requires_desktop = true
+format = "rpm"
+pkg_name = "beekeeper-studio"
+allow_unsigned = true
+justification = "upstream publishes unsigned RPM; SHA256 pinned to GitHub release asset digest"
+repo = "beekeeper-studio/beekeeper-studio"
+asset = "beekeeper-studio-*.x86_64.rpm"
+class = "rolling"
+
+[[package]]
+name = "beekeeper-studio-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "beekeeper-studio" }
+
+[[package]]
+name = "beekeeper-studio-arch"
+backend = "aur"
+os = "arch"
+requires_desktop = true
+names = { pacman = "beekeeper-studio-bin" }
+
+[[package]]
+name = "winboat"
+arch = ["x86_64"]
+backend = "pkg-url"
+os = "redhat"
+requires_desktop = true
+format = "rpm"
+pkg_name = "winboat"
+allow_unsigned = true
+justification = "upstream publishes unsigned RPM; SHA256 pinned to GitHub release asset digest"
+repo = "winboat-org/winboat"
+asset = "winboat-*-x86_64.rpm"
+class = "rolling"
+rpm_repack_strip_buildid = true
+
+[[package]]
+name = "winboat-arch"
+backend = "aur"
+os = "arch"
+requires_desktop = true
+names = { pacman = "winboat-bin" }
+
+[[package]]
+name = "slack"
+arch = ["x86_64"]
+backend = "pkg-url"
+os = "redhat"
+requires_desktop = true
+format = "rpm"
+pkg_name = "slack"
+gpg_key_url = "https://slack.com/gpg/slack_pubkey_20251016.gpg"
+gpg_fingerprint = "85C47808639FCA4657E15AB3F3DDF3571F28FFDE"
+url = "https://slack.com/api/desktop.latestRelease?platform=linux&arch=x64&variant=rpm"
+url_json_field = "download_url"
+class = "rolling"
+
+[[package]]
+name = "slack-arch"
+backend = "aur"
+os = "arch"
+requires_desktop = true
+names = { pacman = "slack-desktop" }
+
+[[package]]
+name = "slack-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "slack" }
+
+# AppImages require libfuse.so.2 on current distros.
+[[package]]
+name = "appimage-runtime"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { dnf = "fuse-libs", apt = "libfuse2", pacman = "fuse2" }
+
+[[package]]
+name = "virt-runtime"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { dnf = "qemu-kvm", apt = "qemu-system-x86", pacman = "qemu-desktop" }
+
+[[package]]
+name = "libvirt-runtime"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { dnf = "libvirt-daemon-kvm", apt = "libvirt-daemon-system", pacman = "libvirt" }
+
+[[package]]
+name = "libvirt-network"
+backend = "pkg"
+os = "redhat"
+requires_desktop = true
+names = { dnf = "libvirt-daemon-config-network" }

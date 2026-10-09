@@ -5,6 +5,7 @@ package backend
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/yandy-r/dotfiles/internal/lockfile"
 	"github.com/yandy-r/dotfiles/internal/manifest"
@@ -81,7 +82,7 @@ func (e *Engine) Installed(pkg manifest.Package, info platform.Info) (bool, erro
 // gateAllows combines the package's OS gate with its requires_desktop gate;
 // every Engine entry point (Applicable/Installed/Install/Update/Remove) uses it.
 func gateAllows(pkg manifest.Package, info platform.Info) bool {
-	return osGateAllows(pkg.OS, info.OS) && (!pkg.RequiresDesktop || info.Desktop)
+	return osGateAllows(pkg.OS, info.OS) && (len(pkg.Arch) == 0 || slices.Contains(pkg.Arch, string(info.Arch))) && (!pkg.RequiresDesktop || info.Desktop)
 }
 
 // osGateAllows reports whether a package restricted to the manifest os token

@@ -25,5 +25,7 @@ func Default(r exec.Runner, sudo *privilege.Sudo, drop privilege.Dropper, repoRo
 		manifest.BackendCustomScript:  newCustomScriptBackend(r, repoRoot),
 		manifest.BackendGitClone:      newGitCloneBackend(r),
 		manifest.BackendFont:          newFontBackend(r),
+		manifest.BackendAppArtifact:   newAppArtifactBackend(r).withLock(lock),
+		manifest.BackendPkgURL:        newPkgURLBackend(r).withLock(lock),
 	})
 }

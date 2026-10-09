@@ -53,6 +53,8 @@ var classByBackend = map[Backend]map[Class]bool{
 	BackendGitHubRelease: {ClassPinned: true},
 	BackendScriptURL:     {ClassPinned: true, ClassRolling: true},
 	BackendCustomScript:  {ClassPinned: true, ClassRolling: true, ClassManaged: true},
+	BackendAppArtifact:   {ClassPinned: true, ClassRolling: true},
+	BackendPkgURL:        {ClassPinned: true, ClassRolling: true},
 }
 
 // LegalClasses returns the classes b may declare, sorted so validation
@@ -84,7 +86,8 @@ func joinClasses(classes []Class) string {
 // "pinned"; script-url infers "pinned" when a sha256 is present and "rolling"
 // when it is absent (mirroring validate.go's "sha256 optional distinguishes
 // rotating installers" rule, so an unpinned installer auto-classifies as
-// rolling with zero manifest churn).
+// rolling with zero manifest churn); app-artifact and pkg-url add the repo
+// route as pinned (the checksum table is always lockable there).
 // custom-script (and any future backend with no safe default) returns "" — a
 // value validation forces the manifest to declare explicitly.
 func (p Package) EffectiveClass() Class {
@@ -98,6 +101,16 @@ func (p Package) EffectiveClass() Class {
 		return ClassPinned
 	case BackendScriptURL:
 		if p.SHA256 != "" {
+			return ClassPinned
+		}
+		return ClassRolling
+	case BackendAppArtifact, BackendPkgURL:
+		// Mirror script-url's sha256 rule, plus the repo route: a repo-route
+		// package always carries a checksum source (fail-closed validation),
+		// so it is lockable and pinned even when the checksum is a sidecar
+		// (checksums/checksums_asset) rather than inline sha256. A url route
+		// is pinned only when checksummed.
+		if p.Repo != "" || p.SHA256 != "" {
 			return ClassPinned
 		}
 		return ClassRolling

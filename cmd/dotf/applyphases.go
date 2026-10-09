@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -183,10 +184,20 @@ func applyIdentity(eng *sysconfig.Engine, m *manifest.Manifest, info platform.In
 // force is set) — both recorded as ok, matching status/diff — so a converged
 // host exits 0. A failed install never aborts the loop — later packages still
 // run.
-func applyPackages(engine *backend.Engine, pkgs []manifest.Package, info platform.Info, force bool, coll *failure.Collector) []installResult {
+func applyPackages(ctx context.Context, engine *backend.Engine, pkgs []manifest.Package, info platform.Info, force bool, coll *failure.Collector) []installResult {
 	results := make([]installResult, 0, len(pkgs))
+	statuses := make(map[string]string, len(pkgs))
 	for _, pkg := range pkgs {
-		res := performPackage(engine, backend.ActionInstall, pkg, info, force)
+		if ctx.Err() != nil {
+			break
+		}
+		var res installResult
+		if dep := failedPrerequisite(pkg, statuses); dep != "" {
+			res = installResult{name: pkg.Name, backend: pkg.Backend, status: "failed", err: fmt.Errorf("prerequisite %q failed", dep)}
+		} else {
+			res = performPackage(engine, backend.ActionInstall, pkg, info, force)
+		}
+		statuses[pkg.Name] = res.status
 		coll.Record("packages:"+pkg.Name, res.err)
 		results = append(results, res)
 	}

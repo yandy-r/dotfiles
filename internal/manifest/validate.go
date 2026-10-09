@@ -119,6 +119,14 @@ func Validate(m *Manifest) error {
 		names[p.Name] = true
 	}
 
+	for _, p := range m.Packages {
+		for _, dep := range p.Requires {
+			if dep == p.Name || !names[dep] {
+				errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("requires unknown or self package %q", dep)})
+			}
+		}
+	}
+
 	for intentName, intent := range m.Intents {
 		for _, ref := range intent.Packages {
 			if !names[ref] {
@@ -233,9 +241,15 @@ func validatePackage(p Package) []error {
 		errs = append(errs, validateGitClone(p)...)
 	case BackendFont:
 		errs = append(errs, validateFont(p)...)
+	case BackendAppArtifact:
+		errs = append(errs, validateAppArtifact(p)...)
+	case BackendPkgURL:
+		errs = append(errs, validatePkgURL(p)...)
 	case BackendPkg, BackendAUR:
 		// No backend-specific required fields beyond what's checked below.
 	}
+
+	errs = append(errs, validateArtifactOnlyFields(p)...)
 
 	// Names keys are backend-dependent: toolchain packages key the install
 	// identifier by tool (names = { cargo = "ripgrep" }); every other
@@ -277,6 +291,7 @@ func validatePackage(p Package) []error {
 	errs = append(errs, validateProbe(p)...)
 
 	errs = append(errs, validatePackageOS(p)...)
+	errs = append(errs, validatePackageArch(p)...)
 
 	errs = append(errs, validatePostInstall(p)...)
 
@@ -459,6 +474,216 @@ func validateGitHubRelease(p Package) []error {
 	return errs
 }
 
+// gpgFingerprintPattern matches a 40-hex OpenPGP fingerprint (case-insensitive),
+// the shape of Package.GPGKeyFingerprint.
+var gpgFingerprintPattern = regexp.MustCompile(`^[0-9A-Fa-f]{40}$`)
+
+// isHTTPSURL reports whether s parses as an https URL with a host.
+func isHTTPSURL(s string) bool {
+	u, err := url.Parse(s)
+	return err == nil && u.Scheme == "https" && u.Host != ""
+}
+
+// hasSuffixFold reports whether s ends in suffix, ignoring case.
+func hasSuffixFold(s, suffix string) bool {
+	return strings.HasSuffix(strings.ToLower(s), strings.ToLower(suffix))
+}
+
+// urlPathHasSuffix reports whether rawURL's path (query/fragment stripped) ends
+// in suffix, ignoring case. An unparseable URL never matches.
+func urlPathHasSuffix(rawURL, suffix string) bool {
+	u, err := url.Parse(rawURL)
+	return err == nil && hasSuffixFold(u.Path, suffix)
+}
+
+// relPathProblem returns "" when p is a relative path with no ".." segment, or
+// a short reason otherwise.
+func relPathProblem(p string) string {
+	if path.IsAbs(p) {
+		return "must be relative"
+	}
+	for _, elem := range strings.Split(path.Clean(p), "/") {
+		if elem == ".." {
+			return "must not contain .."
+		}
+	}
+	return ""
+}
+
+// validateArtifactSource checks the download source shared by the app-artifact
+// and pkg-url backends: exactly one of repo (GitHub owner/repo) or url (https).
+// It returns the errors and whether the repo route is in use. Checksum policy
+// is left to the callers.
+func validateArtifactSource(p Package, backend Backend) (errs []error, repoRoute bool) {
+	switch {
+	case p.Repo != "" && p.URL != "":
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("%s backend requires exactly one of repo or url, got both", backend)})
+	case p.Repo == "" && p.URL == "":
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("%s backend requires exactly one of repo or url", backend)})
+	case p.Repo != "":
+		repoRoute = true
+		if !repoSlugPattern.MatchString(p.Repo) {
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("%s backend repo %q must be owner/repo", backend, p.Repo)})
+		}
+	default:
+		if !isHTTPSURL(p.URL) {
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("%s backend requires https url", backend)})
+		}
+	}
+
+	for key, sum := range p.Checksums {
+		if strings.TrimSpace(key) == "" {
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("%s checksums key must be non-empty (e.g. \"linux/x86_64\")", backend)})
+		}
+		if !sha256Pattern.MatchString(sum) {
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("%s checksums[%q] = %q is not 64-char lowercase hex", backend, key, sum)})
+		}
+	}
+	return errs, repoRoute
+}
+
+// validateAppArtifact checks an app-artifact package. The source is exactly one
+// of repo or https url. The repo route follows the github-release fail-closed
+// rule (a checksum source plus a tag); the url route's sha256 is optional (an
+// absent one makes the package rolling). app.icon, when set, is an https URL or
+// a safe relative path; app.desktop a safe relative path; an AppImage artifact
+// (asset or url ending .AppImage) requires app.icon because the image carries
+// no installable icon of its own.
+func validateAppArtifact(p Package) []error {
+	errs, repoRoute := validateArtifactSource(p, BackendAppArtifact)
+
+	if repoRoute && p.Class != ClassRolling {
+		hasChecksum := p.SHA256 != "" || len(p.Checksums) > 0 || p.ChecksumsAsset != ""
+		if !hasChecksum {
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: "app-artifact backend requires a checksum source (sha256, checksums, or checksums_asset) on the repo route"})
+		}
+		if hasChecksum && p.Tag == "" {
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: "app-artifact backend requires tag when a checksum source is set (a checksum pinned against releases/latest breaks on the next upstream release)"})
+		}
+	}
+
+	if p.App != nil {
+		if icon := p.App.Icon; icon != "" {
+			if strings.Contains(icon, "://") {
+				if !isHTTPSURL(icon) {
+					errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("app.icon %q must be an https URL or a relative path", icon)})
+				}
+			} else if why := relPathProblem(icon); why != "" {
+				errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("app.icon %q %s", icon, why)})
+			}
+		}
+		if d := p.App.Desktop; d != "" {
+			if why := relPathProblem(d); why != "" {
+				errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("app.desktop %q %s", d, why)})
+			}
+		}
+	}
+
+	appImage := hasSuffixFold(p.Asset, ".AppImage") || (p.URL != "" && urlPathHasSuffix(p.URL, ".AppImage"))
+	if appImage && (p.App == nil || p.App.Icon == "") {
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: "app-artifact AppImage requires app.icon"})
+	}
+
+	return errs
+}
+
+// pkgURLFormat resolves a pkg-url package's format: the explicit Format, else
+// inferred from the asset suffix, else the URL path suffix. It returns "" when
+// nothing identifies one.
+func pkgURLFormat(p Package) string {
+	if p.Format != "" {
+		return p.Format
+	}
+	for _, f := range []string{"rpm", "deb"} {
+		if hasSuffixFold(p.Asset, "."+f) || (p.URL != "" && urlPathHasSuffix(p.URL, "."+f)) {
+			return f
+		}
+	}
+	return ""
+}
+
+// validatePkgURL checks a pkg-url package. The source is exactly one of repo or
+// https url; pkg_name is required (it is the installed probe and remove name);
+// the format must resolve to rpm or deb (explicit, or from the asset/url
+// suffix) and agree with any suffix. gpg_key_url requires a 40-hex
+// gpg_fingerprint and an https URL; allow_unsigned requires a justification; a
+// deb requires a checksum (sha256, or a repo-route checksum source) because apt
+// installs a local .deb with no signature check of its own.
+func validatePkgURL(p Package) []error {
+	errs, repoRoute := validateArtifactSource(p, BackendPkgURL)
+
+	if strings.TrimSpace(p.PkgName) == "" {
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: "pkg-url backend requires pkg_name"})
+	}
+
+	format := pkgURLFormat(p)
+	switch {
+	case format == "":
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: "pkg-url backend requires format (rpm or deb) when the url/asset has no .rpm/.deb suffix"})
+	case format != "rpm" && format != "deb":
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("pkg-url format %q must be one of rpm, deb", format)})
+	default:
+		for _, other := range []string{"rpm", "deb"} {
+			if other != format && (hasSuffixFold(p.Asset, "."+other) || (p.URL != "" && urlPathHasSuffix(p.URL, "."+other))) {
+				errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("pkg-url format %q conflicts with the .%s suffix of its asset/url", format, other)})
+			}
+		}
+	}
+
+	if p.GPGKeyURL != "" {
+		if !isHTTPSURL(p.GPGKeyURL) {
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("pkg-url gpg_key_url %q must be an https URL", p.GPGKeyURL)})
+		}
+		if p.GPGKeyFingerprint == "" {
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: "pkg-url gpg_key_url requires gpg_fingerprint"})
+		}
+	}
+	if fp := p.GPGKeyFingerprint; fp != "" && !gpgFingerprintPattern.MatchString(fp) {
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("pkg-url gpg_fingerprint %q not 40-char hex OpenPGP fingerprint", fp)})
+	}
+
+	if p.AllowUnsigned && strings.TrimSpace(p.Justification) == "" {
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: "pkg-url allow_unsigned requires a justification"})
+	}
+
+	if p.RPMRepackStripBuildID && (format != "rpm" || !p.AllowUnsigned || p.Justification == "" || (p.SHA256 == "" && (!repoRoute || p.Class != ClassRolling))) {
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: "rpm_repack_strip_buildid requires unsigned RPM with justification and checksum source"})
+	}
+	if format == "deb" {
+		hasSum := p.SHA256 != "" || (repoRoute && (len(p.Checksums) > 0 || p.ChecksumsAsset != ""))
+		if !hasSum {
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: "pkg-url deb requires sha256 (or a checksums/checksums_asset source on the repo route)"})
+		}
+	}
+
+	return errs
+}
+
+// validateArtifactOnlyFields rejects the app-artifact / pkg-url fields on any
+// other backend, so they are never silently ignored.
+func validateArtifactOnlyFields(p Package) []error {
+	var errs []error
+
+	if p.Backend != BackendAppArtifact && p.App != nil {
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: "app is only valid for the app-artifact backend"})
+	}
+	if p.Backend != BackendPkgURL {
+		for field, set := range map[string]bool{
+			"pkg_name":        p.PkgName != "",
+			"format":          p.Format != "",
+			"gpg_key_url":     p.GPGKeyURL != "",
+			"gpg_fingerprint": p.GPGKeyFingerprint != "",
+			"allow_unsigned":  p.AllowUnsigned,
+		} {
+			if set {
+				errs = append(errs, &ValidationError{Package: p.Name, Msg: field + " is only valid for the pkg-url backend"})
+			}
+		}
+	}
+
+	return errs
+}
+
 // validateFont checks a font package. Font and Font.Family are always required
 // — the family name is the installed-state probe. A family with no Font.Archive
 // must be installable through a host package manager (Names). A family WITH an
@@ -559,6 +784,16 @@ var knownPackageOS = map[string]bool{
 // validatePackageOS checks a package's optional os platform gate: empty (no
 // gate) or one of the known tokens. A typo'd token is rejected fail-fast rather
 // than silently making the package match no host.
+func validatePackageArch(p Package) []error {
+	var errs []error
+	for _, a := range p.Arch {
+		if a != "x86_64" && a != "arm64" {
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("arch %q must be x86_64 or arm64", a)})
+		}
+	}
+	return errs
+}
+
 func validatePackageOS(p Package) []error {
 	if p.OS == "" || knownPackageOS[p.OS] {
 		return nil

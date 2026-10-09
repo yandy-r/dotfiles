@@ -40,6 +40,13 @@ func TestPackage_EffectiveClass(t *testing.T) {
 		{"github-release infers pinned", manifest.Package{Backend: manifest.BackendGitHubRelease}, manifest.ClassPinned},
 		{"script-url with sha256 infers pinned", manifest.Package{Backend: manifest.BackendScriptURL, SHA256: "abc"}, manifest.ClassPinned},
 		{"script-url without sha256 infers rolling", manifest.Package{Backend: manifest.BackendScriptURL}, manifest.ClassRolling},
+		{"app-artifact repo route (sha256) infers pinned", manifest.Package{Backend: manifest.BackendAppArtifact, Repo: "o/r", SHA256: "abc"}, manifest.ClassPinned},
+		{"app-artifact repo route (checksums_asset) infers pinned", manifest.Package{Backend: manifest.BackendAppArtifact, Repo: "o/r", ChecksumsAsset: "SHA256SUMS"}, manifest.ClassPinned},
+		{"app-artifact url with sha256 infers pinned", manifest.Package{Backend: manifest.BackendAppArtifact, URL: "https://x/y", SHA256: "abc"}, manifest.ClassPinned},
+		{"app-artifact url without sha256 infers rolling", manifest.Package{Backend: manifest.BackendAppArtifact, URL: "https://x/y"}, manifest.ClassRolling},
+		{"pkg-url repo route infers pinned", manifest.Package{Backend: manifest.BackendPkgURL, Repo: "o/r", ChecksumsAsset: "SHA256SUMS"}, manifest.ClassPinned},
+		{"pkg-url url with sha256 infers pinned", manifest.Package{Backend: manifest.BackendPkgURL, URL: "https://x/y.deb", SHA256: "abc"}, manifest.ClassPinned},
+		{"pkg-url url without sha256 infers rolling", manifest.Package{Backend: manifest.BackendPkgURL, URL: "https://x/y.rpm"}, manifest.ClassRolling},
 		{"custom-script has no safe default", manifest.Package{Backend: manifest.BackendCustomScript}, ""},
 		{"explicit class overrides inference", manifest.Package{Backend: manifest.BackendScriptURL, SHA256: "abc", Class: manifest.ClassRolling}, manifest.ClassRolling},
 		{"explicit class on custom-script", manifest.Package{Backend: manifest.BackendCustomScript, Class: manifest.ClassManaged}, manifest.ClassManaged},
@@ -67,6 +74,8 @@ func TestLegalClasses(t *testing.T) {
 		{manifest.BackendGitHubRelease, []manifest.Class{manifest.ClassPinned}},
 		{manifest.BackendScriptURL, []manifest.Class{manifest.ClassPinned, manifest.ClassRolling}},
 		{manifest.BackendCustomScript, []manifest.Class{manifest.ClassManaged, manifest.ClassPinned, manifest.ClassRolling}},
+		{manifest.BackendAppArtifact, []manifest.Class{manifest.ClassPinned, manifest.ClassRolling}},
+		{manifest.BackendPkgURL, []manifest.Class{manifest.ClassPinned, manifest.ClassRolling}},
 	}
 	for _, tc := range cases {
 		t.Run(string(tc.backend), func(t *testing.T) {

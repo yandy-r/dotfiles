@@ -1,23 +1,16 @@
 package backend
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 
 	"github.com/yandy-r/dotfiles/internal/exec"
 	"github.com/yandy-r/dotfiles/internal/lockfile"
 	"github.com/yandy-r/dotfiles/internal/manifest"
 	"github.com/yandy-r/dotfiles/internal/platform"
 )
-
-// githubRepoPattern validates a GitHub "owner/repo" slug.
-var githubRepoPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*/[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
 
 type githubReleaseBackend struct {
 	r          exec.Runner
@@ -148,80 +141,15 @@ type resolvedAsset struct {
 	SHA256 string
 }
 
-// resolveAsset resolves pkg for info into concrete download coordinates. It is
-// the SINGLE resolver both the lock-record path (resolve) and the lock-miss
-// install path route through, so add-time detection and apply-time verification
-// never diverge.
-//
-// Asset precedence: an explicit pkg.Asset is templated ({{.OS}}/{{.ReleaseOS}}/
-// {{.Arch}}); an empty pkg.Asset triggers release-page auto-detection via
-// listReleaseAssets + matchAsset. SHA precedence: Checksums[targetKey(info)] →
-// inline SHA256 → ChecksumsAsset sidecar. An unresolvable checksum yields SHA256
-// == "" (not an error); the caller enforces fail-closed for Pinnable packages.
+// resolveAsset resolves pkg for info into concrete download coordinates via the
+// shared resolveGitHubArtifact, the SINGLE resolver both the lock-record path
+// (resolve) and the lock-miss install path route through.
 func (b *githubReleaseBackend) resolveAsset(pkg manifest.Package, info platform.Info) (resolvedAsset, error) {
-	if err := validateGitHubRepo(pkg.Repo); err != nil {
-		return resolvedAsset{}, err
-	}
-
-	asset, err := b.resolveAssetName(pkg, info)
+	a, err := resolveGitHubArtifact(pkg, info, nil)
 	if err != nil {
 		return resolvedAsset{}, err
 	}
-
-	sha, err := b.resolveChecksum(pkg, info, asset)
-	if err != nil {
-		return resolvedAsset{}, err
-	}
-
-	return resolvedAsset{Repo: pkg.Repo, Tag: pkg.Tag, Asset: asset, SHA256: sha}, nil
-}
-
-// resolveAssetName returns the concrete asset filename: the templated explicit
-// asset when set (network-free), else the auto-detected asset from the release
-// page. An AssetMatchError from auto-detection is enriched with repo/tag.
-func (b *githubReleaseBackend) resolveAssetName(pkg manifest.Package, info platform.Info) (string, error) {
-	if pkg.Asset != "" {
-		return templateGitHubAsset(pkg.Asset, info), nil
-	}
-
-	assets, err := listReleaseAssets(pkg.Repo, pkg.Tag)
-	if err != nil {
-		return "", err
-	}
-
-	prefs := matchPrefs{name: binaryName(pkg)}
-	if pkg.Match != nil {
-		prefs.libc = pkg.Match.Libc
-		prefs.exclude = pkg.Match.Exclude
-	}
-
-	asset, err := matchAsset(assets, info, prefs)
-	if err != nil {
-		var ame *AssetMatchError
-		if errors.As(err, &ame) {
-			ame.Repo = pkg.Repo
-			ame.Tag = pkg.Tag
-		}
-		return "", err
-	}
-	return asset, nil
-}
-
-// resolveChecksum applies the SHA precedence for asset: the per-target Checksums
-// entry, then the inline SHA256, then the ChecksumsAsset sidecar. It returns ""
-// (no error) when no source is configured for this host, leaving the fail-closed
-// decision to the caller.
-func (b *githubReleaseBackend) resolveChecksum(pkg manifest.Package, info platform.Info, asset string) (string, error) {
-	if sum, ok := pkg.Checksums[targetKey(info)]; ok {
-		return sum, nil
-	}
-	if pkg.SHA256 != "" {
-		return pkg.SHA256, nil
-	}
-	if pkg.ChecksumsAsset != "" {
-		return checksumFor(pkg.Repo, pkg.Tag, pkg.ChecksumsAsset, asset)
-	}
-	return "", nil
+	return resolvedAsset{Repo: pkg.Repo, Tag: pkg.Tag, Asset: a.Asset, SHA256: a.SHA256}, nil
 }
 
 // resolve records a frozen Artifact for target by routing through resolveAsset —
@@ -251,54 +179,6 @@ func binaryName(pkg manifest.Package) string {
 		return pkg.Binary
 	}
 	return pkg.Name
-}
-
-// targetKey is the Checksums map key for info: "<ReleaseOS>/<canonical-arch>"
-// (e.g. "linux/x86_64", "darwin/arm64"). It uses the canonical detection arch
-// (info.Arch), not ReleaseArch, so the key is stable, human-writable, and free
-// of the amd64/x86_64 ambiguity.
-func targetKey(info platform.Info) string {
-	return info.OS.ReleaseOS() + "/" + string(info.Arch)
-}
-
-func validateGitHubRepo(repo string) error {
-	if !githubRepoPattern.MatchString(repo) {
-		return fmt.Errorf("github-release: invalid repo %q, want owner/repo", repo)
-	}
-	return nil
-}
-
-// templateGitHubAsset expands an explicit asset template. {{.OS}} renders the
-// distro-family OS (preserved for back-compat), {{.ReleaseOS}} renders the
-// release OS token (linux/darwin/windows), and {{.Arch}} renders the release
-// arch (amd64/arm64).
-func templateGitHubAsset(asset string, info platform.Info) string {
-	repl := strings.NewReplacer(
-		"{{.OS}}", string(info.OS),
-		"{{.ReleaseOS}}", info.OS.ReleaseOS(),
-		"{{.Arch}}", info.Arch.ReleaseArch(),
-	)
-	return repl.Replace(asset)
-}
-
-// githubReleaseURL builds the download URL for a release asset. A non-empty
-// tag pins the exact release (releases/download/<tag>/); an empty tag falls
-// back to the floating latest release. Manifest validation requires a tag
-// whenever a sha256 is pinned, because a checksum against releases/latest
-// breaks on the next upstream release.
-func githubReleaseURL(repo, tag, asset string) string {
-	if tag != "" {
-		return fmt.Sprintf("https://github.com/%s/releases/download/%s/%s", repo, url.PathEscape(tag), encodeAssetPath(asset))
-	}
-	return fmt.Sprintf("https://github.com/%s/releases/latest/download/%s", repo, encodeAssetPath(asset))
-}
-
-func encodeAssetPath(asset string) string {
-	parts := strings.Split(asset, "/")
-	for i, part := range parts {
-		parts[i] = url.PathEscape(part)
-	}
-	return strings.Join(parts, "/")
 }
 
 // findReleaseBinary locates the installed binary in the extracted/placed

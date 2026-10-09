@@ -119,15 +119,29 @@ if ((${#need[@]})); then
   sudo dnf install -y rpm-build gnupg2 binutils xz curl coreutils
 fi
 
+cleanup() {
+  # Kill only agents spawned for our private GNUPGHOME; ~/.gnupg is never touched.
+  if [[ -n "${GNUPGHOME:-}" && -d "$GNUPGHOME" ]] && command -v gpgconf >/dev/null 2>&1; then
+    GNUPGHOME="$GNUPGHOME" gpgconf --kill gpg-agent >/dev/null 2>&1 || :
+  fi
+  rm -rf "$WORK"
+}
 WORK="$(mktemp -d)"
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 chmod 700 "$WORK"
-trap 'rm -rf "$WORK"' EXIT
+# All scratch (gpg sockets, rpm-tmp.*) stays under WORK; nothing leaks to /tmp or ~/.gnupg.
+mkdir -p "$WORK/tmp" "$WORK/gnupg"
+chmod 700 "$WORK/tmp" "$WORK/gnupg"
+export TMPDIR="$WORK/tmp" GNUPGHOME="$WORK/gnupg"
 
 # 1. Key fingerprint.
 curl -fsSL "$KEY_URL" -o "$WORK/key.asc"
-fpr="$(gpg --show-keys --with-colons "$WORK/key.asc" | awk -F: '$1=="fpr"{print $10; exit}')"
+fpr="$(gpg --no-autostart --show-keys --with-colons "$WORK/key.asc" | awk -F: '$1=="fpr"{print $10; exit}')"
 [[ "${fpr^^}" == "$ANTHROPIC_FPR" ]] || die "signing key fingerprint mismatch: got '$fpr'"
-gpg --dearmor <"$WORK/key.asc" >"$WORK/key.gpg"
+gpg --no-autostart --dearmor <"$WORK/key.asc" >"$WORK/key.gpg"
 
 # 2. Signed InRelease; keep only the verified text.
 curl -fsSL "$REPO_URL/dists/stable/InRelease" -o "$WORK/InRelease"
@@ -230,7 +244,8 @@ gtk-update-icon-cache -q /usr/share/icons/hicolor >/dev/null 2>&1 || :
 /usr/share/icons/hicolor/*/apps/*
 /usr/share/doc/claude-desktop
 EOF
-rpmbuild --quiet --define "_topdir $TOP" -bb "$TOP/SPECS/claude-desktop.spec" >&2
+mkdir -p "$TOP/tmp"
+rpmbuild --quiet --define "_topdir $TOP" --define "_tmppath $TOP/tmp" -bb "$TOP/SPECS/claude-desktop.spec" >&2
 rpm_file="$(find "$TOP/RPMS" -name 'claude-desktop-*.rpm' | head -1)"
 [[ -n "$rpm_file" ]] || die "rpmbuild produced no package"
 modes="$(rpm -qp --qf '[%{FILEMODES:perms} %{FILENAMES}\n]' "$rpm_file")"

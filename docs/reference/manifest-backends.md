@@ -191,3 +191,29 @@ count.class.rolling=NN
 
 `count.backend.custom-script` is the live escape-hatch population — the number the
 ratchet pins. With `--json`, the same aggregate is attached as a `Summary` object.
+
+## Native desktop artifacts
+
+`app-artifact` installs a Linux AppImage or tarball per user, with a dotf-owned
+menu entry. Declare `url` (HTTPS) or `repo`/`tag`/`asset`, plus `app` metadata
+(`icon`, `desktop_name`, optional `desktop` and `categories`). Archives need
+`binary` relative to their root. SHA256 pins immutable artifacts; rolling
+vendor URLs rely on HTTPS. ELF architecture, archive paths and desktop values
+are checked before activation. Install/update stages the full artifact before
+replacing the old copy; remove touches only dotf-owned paths.
+
+`pkg-url` installs an official downloaded RPM/DEB through dnf/apt. Declare
+`url` or GitHub coordinates, `format` and `pkg_name`. RPM signatures use
+`gpg_key_url` plus a full `gpg_fingerprint`; only that key is imported. Unsigned
+upstream packages require `allow_unsigned = true`, a `justification` and
+SHA256. Debian packages require SHA256. Package name, magic and architecture
+are checked before privileged installation.
+
+Choose these native backends before `custom-script` when the vendor supplies
+an artifact but no usable package repository. See [desktop apps](desktop-apps.md)
+for source routes and platform limits.
+
+`arch = ["x86_64"]` restricts package applicability. `requires = ["package"]`
+selects prerequisites alongside install (including `--only`); update/remove do
+not implicitly operate on shared prerequisites. `--skip` cannot omit a prerequisite while retaining its dependent.
+Prerequisites install first; cycles are rejected during selection.

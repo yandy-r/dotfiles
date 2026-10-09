@@ -396,8 +396,8 @@ func TestParsePlatform(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parsePlatform(linux/amd64) error = %v, want nil", err)
 	}
-	if string(ok.OS) != "linux" || string(ok.Arch) != "amd64" {
-		t.Errorf("parsePlatform(linux/amd64) = %+v, want os=linux arch=amd64", ok)
+	if string(ok.OS) != "linux" || string(ok.Arch) != "x86_64" {
+		t.Errorf("parsePlatform(linux/amd64) = %+v, want os=linux arch=x86_64", ok)
 	}
 	for _, bad := range []string{"", "linux", "/amd64", "linux/"} {
 		if _, err := parsePlatform(bad); err == nil {

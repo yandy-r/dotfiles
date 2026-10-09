@@ -47,8 +47,6 @@ func TestEngine_Update_UnsupportedBackend(t *testing.T) {
 	backends := []manifest.Backend{
 		manifest.BackendScriptURL,
 		manifest.BackendGitHubRelease,
-		manifest.BackendAUR,
-		manifest.BackendAPTRepo,
 		manifest.BackendGitClone,
 	}
 	for _, b := range backends {
@@ -76,8 +74,6 @@ func TestEngine_Remove_UnsupportedBackend(t *testing.T) {
 	backends := []manifest.Backend{
 		manifest.BackendScriptURL,
 		manifest.BackendGitHubRelease,
-		manifest.BackendAUR,
-		manifest.BackendAPTRepo,
 		manifest.BackendGitClone,
 	}
 	for _, b := range backends {
@@ -179,5 +175,22 @@ func TestEngine_Perform_RoutesByAction(t *testing.T) {
 				t.Errorf("Perform(%s) args = %v, want %v", tc.action, calls[0].Args, tc.want)
 			}
 		})
+	}
+}
+
+// TestEngine_RepoAUR_ImplementLifecycle: repo, its apt-repo alias, and aur now
+// satisfy the optional lifecycle interfaces (no ActionUnsupportedError).
+func TestEngine_RepoAUR_ImplementLifecycle(t *testing.T) {
+	t.Parallel()
+
+	eng := testLifecycleEngine(exec.NewFake())
+	for _, b := range []manifest.Backend{manifest.BackendRepo, manifest.BackendAPTRepo, manifest.BackendAUR} {
+		be := eng.backends[b]
+		if _, ok := be.(Updater); !ok {
+			t.Errorf("%s: not an Updater", b)
+		}
+		if _, ok := be.(Remover); !ok {
+			t.Errorf("%s: not a Remover", b)
+		}
 	}
 }

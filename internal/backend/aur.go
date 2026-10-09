@@ -42,6 +42,31 @@ func newAURBackend(r exec.Runner, drop privilege.Dropper) Backend {
 }
 
 func (b *aurBackend) Install(pkg manifest.Package, info platform.Info) error {
+	return b.yayInstall(pkg, info, []string{"yay", "-S", "--noconfirm", aurPackageName(pkg)}, "install")
+}
+
+// Update re-runs yay with --needed so only an out-of-date package is rebuilt.
+func (b *aurBackend) Update(pkg manifest.Package, info platform.Info) error {
+	return b.yayInstall(pkg, info, []string{"yay", "-S", "--noconfirm", "--needed", aurPackageName(pkg)}, "update")
+}
+
+// Remove uninstalls the package with pacman as the invoking user (pacman
+// self-elevates through sudo, like yay).
+func (b *aurBackend) Remove(pkg manifest.Package, info platform.Info) error {
+	if err := ensureArch(info); err != nil {
+		return err
+	}
+	home, err := aurHome()
+	if err != nil {
+		return err
+	}
+	if err := b.runAsUser([]string{"sudo", "pacman", "-Rns", "--noconfirm", aurPackageName(pkg)}, home); err != nil {
+		return fmt.Errorf("aur: remove %q: %w", pkg.Name, err)
+	}
+	return nil
+}
+
+func (b *aurBackend) yayInstall(pkg manifest.Package, info platform.Info, argv []string, verb string) error {
 	if err := ensureArch(info); err != nil {
 		return err
 	}
@@ -57,8 +82,8 @@ func (b *aurBackend) Install(pkg manifest.Package, info platform.Info) error {
 		}
 	}
 
-	if err := b.runAsUser([]string{"yay", "-S", "--noconfirm", pkg.Name}, home); err != nil {
-		return fmt.Errorf("aur: install %q: %w", pkg.Name, err)
+	if err := b.runAsUser(argv, home); err != nil {
+		return fmt.Errorf("aur: %s %q: %w", verb, pkg.Name, err)
 	}
 	return nil
 }
@@ -68,7 +93,7 @@ func (b *aurBackend) Installed(pkg manifest.Package, info platform.Info) (bool, 
 		return false, err
 	}
 
-	if _, err := b.r.Output("pacman", "-Q", pkg.Name); err != nil {
+	if _, err := b.r.Output("pacman", "-Q", aurPackageName(pkg)); err != nil {
 		return false, nil
 	}
 	return true, nil
@@ -153,4 +178,17 @@ func (b *aurBackend) runAsUser(argv []string, home string) error {
 		return b.drop.Run(argv, home)
 	}
 	return b.r.Run(argv[0], argv[1:]...)
+}
+
+var (
+	_ Updater = (*aurBackend)(nil)
+	_ Remover = (*aurBackend)(nil)
+)
+
+// aurPackageName allows a logical manifest name with an explicit AUR identifier.
+func aurPackageName(pkg manifest.Package) string {
+	if name := pkg.Names["pacman"]; name != "" {
+		return name
+	}
+	return pkg.Name
 }

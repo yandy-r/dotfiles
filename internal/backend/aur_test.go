@@ -5,6 +5,7 @@ import (
 	"os"
 	osexec "os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -320,5 +321,53 @@ func TestAUR_Install_dropNeverUIDZero(t *testing.T) {
 	}
 	if len(f.CallsSnapshot()) != 0 {
 		t.Errorf("len(Calls) = %d, want 0 (install routed through dropper)", len(f.CallsSnapshot()))
+	}
+}
+
+func TestAUR_UpdateRemove_OffArchUnsupported(t *testing.T) {
+	pkg := manifest.Package{Name: "yazi", Backend: manifest.BackendAUR}
+	info := platform.Info{OS: platform.OSDebian}
+	b := newAURBackend(exec.NewFake(), privilege.NewFakeDropper())
+	if err := b.(Updater).Update(pkg, info); !isAURUnsupported(err) {
+		t.Errorf("Update() = %v, want *AURUnsupportedOSError", err)
+	}
+	if err := b.(Remover).Remove(pkg, info); !isAURUnsupported(err) {
+		t.Errorf("Remove() = %v, want *AURUnsupportedOSError", err)
+	}
+}
+
+func isAURUnsupported(err error) bool {
+	var u *AURUnsupportedOSError
+	return errors.As(err, &u)
+}
+
+func TestAUR_UpdateRemove_Argv(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("requires non-root euid")
+	}
+
+	pkg := manifest.Package{Name: "yazi", Backend: manifest.BackendAUR}
+	tests := []struct {
+		name string
+		run  func(b Backend) error
+		want exec.FakeCall
+	}{
+		{"update", func(b Backend) error { return b.(Updater).Update(pkg, archInfo()) },
+			exec.FakeCall{Name: "yay", Args: []string{"-S", "--noconfirm", "--needed", "yazi"}}},
+		{"remove", func(b Backend) error { return b.(Remover).Remove(pkg, archInfo()) },
+			exec.FakeCall{Name: "sudo", Args: []string{"pacman", "-Rns", "--noconfirm", "yazi"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := exec.NewFake()
+			f.AddPath("yay", "/usr/bin/yay")
+			if err := tt.run(newAURBackend(f, privilege.NewFakeDropper())); err != nil {
+				t.Fatalf("%s error = %v", tt.name, err)
+			}
+			calls := f.CallsSnapshot()
+			if len(calls) != 1 || calls[0].Name != tt.want.Name || !slices.Equal(calls[0].Args, tt.want.Args) {
+				t.Errorf("calls = %+v, want one %+v", calls, tt.want)
+			}
+		})
 	}
 }

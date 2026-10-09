@@ -271,3 +271,62 @@ func TestRepoBackend_Install_KeyFingerprint(t *testing.T) {
 		})
 	}
 }
+
+// TestRepoBackend_UpdateRemove_Argv: once the repo is configured, update/remove
+// are plain package-manager ops (no repo setup, no key/curl), gated like Install.
+func TestRepoBackend_UpdateRemove_Argv(t *testing.T) {
+	t.Parallel()
+
+	pkg := manifest.Package{
+		Name: "docker-ce", Backend: manifest.BackendRepo,
+		Names:   map[string]string{"apt": "docker-ce-apt", "dnf": "docker-ce-dnf"},
+		AptRepo: &manifest.AptRepo{KeyURL: "https://k", Keyring: "/k.gpg", RepoLine: "deb x", SourcesPath: "/s.list"},
+		DNFRepo: &manifest.DNFRepo{ID: "docker-ce", RepoFile: "https://r.repo"},
+	}
+	apt := platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrAPT}
+	dnf := platform.Info{OS: platform.OSRedHat, PkgMgr: platform.PkgMgrDNF}
+
+	tests := []struct {
+		name string
+		info platform.Info
+		op   func(b *repoBackend, info platform.Info) error
+		want []string
+	}{
+		{"apt update", apt, func(b *repoBackend, i platform.Info) error { return b.Update(pkg, i) },
+			[]string{"env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "--only-upgrade", "-y", "docker-ce-apt"}},
+		{"apt remove", apt, func(b *repoBackend, i platform.Info) error { return b.Remove(pkg, i) },
+			[]string{"env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "remove", "-y", "docker-ce-apt"}},
+		{"dnf update", dnf, func(b *repoBackend, i platform.Info) error { return b.Update(pkg, i) },
+			[]string{"dnf", "upgrade", "-y", "docker-ce-dnf"}},
+		{"dnf remove", dnf, func(b *repoBackend, i platform.Info) error { return b.Remove(pkg, i) },
+			[]string{"dnf", "remove", "-y", "docker-ce-dnf"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := exec.NewFake()
+			if err := tt.op(newRepoBackend(r), tt.info); err != nil {
+				t.Fatalf("error = %v", err)
+			}
+			calls := r.CallsSnapshot()
+			if len(calls) != 1 {
+				t.Fatalf("calls = %v, want exactly 1", calls)
+			}
+			assertSudoCall(t, calls[0], tt.want[0], tt.want[1:]...)
+		})
+	}
+
+	// Unsupported manager (and sub-table-less host) -> UnsupportedPlatformError, no commands.
+	brew := platform.Info{OS: platform.OSMacOS, PkgMgr: platform.PkgMgrHomebrew}
+	r := exec.NewFake()
+	b := newRepoBackend(r)
+	for name, err := range map[string]error{"update": b.Update(pkg, brew), "remove": b.Remove(pkg, brew)} {
+		var u *UnsupportedPlatformError
+		if !errors.As(err, &u) {
+			t.Errorf("%s on brew: error = %T(%v), want *UnsupportedPlatformError", name, err, err)
+		}
+	}
+	if len(r.CallsSnapshot()) != 0 {
+		t.Errorf("unsupported host ran commands: %v", r.CallsSnapshot())
+	}
+}

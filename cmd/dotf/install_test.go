@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -889,7 +890,176 @@ func TestFilterPackages_DesktopApps(t *testing.T) {
 	}
 
 	desktop := m.Intents["desktop"]
-	if !optInIntents["desktop"] || desktop.Default || len(desktop.Packages) != 4 {
-		t.Errorf("desktop intent = %+v, opt-in %t; want opt-in, non-default, 4 packages", desktop, optInIntents["desktop"])
+	if !optInIntents["desktop"] || desktop.Default {
+		t.Errorf("desktop intent = %+v, opt-in %t; want opt-in, non-default", desktop, optInIntents["desktop"])
+	}
+	for _, name := range []string{"claude-desktop", "espanso"} {
+		if !slices.Contains(desktop.Packages, name) {
+			t.Errorf("desktop intent missing %q", name)
+		}
+	}
+
+	// Each logical desktop app is selected by its bare --only name and pulls in
+	// exactly its OS-suffix siblings (declared in the manifest, in file order).
+	apps := map[string]string{
+		"wezterm":          "wezterm,wezterm-linux,wezterm-macos",
+		"ghostty":          "ghostty,ghostty-macos,ghostty-fedora",
+		"1password":        "1password-linux,1password,1password-macos",
+		"cursor":           "cursor,cursor-arch,cursor-macos",
+		"chatgpt":          "chatgpt,chatgpt-arch,chatgpt-macos",
+		"obs-studio":       "obs-studio,obs-studio-macos",
+		"gimp":             "gimp,gimp-macos",
+		"darktable":        "darktable,darktable-macos",
+		"kdenlive":         "kdenlive,kdenlive-macos",
+		"meld":             "meld,meld-macos",
+		"pinta":            "pinta,pinta-macos",
+		"vlc":              "vlc,vlc-macos",
+		"qalculate":        "qalculate,qalculate-macos",
+		"mediawriter":      "mediawriter,mediawriter-macos",
+		"libreoffice":      "libreoffice,libreoffice-macos",
+		"virt-manager":     "virt-manager,virt-runtime,libvirt-runtime,libvirt-network",
+		"whatsapp-macos":   "whatsapp-macos",
+		"grok-bot":         "grok-bot,grok-bot-arch,grok-bot-macos",
+		"zed-preview":      "zed-preview,zed-preview-macos",
+		"lm-studio":        "lm-studio,lm-studio-macos,appimage-runtime",
+		"obsidian":         "obsidian,obsidian-macos,appimage-runtime",
+		"code-insiders":    "code-insiders,code-insiders-arch,code-insiders-macos",
+		"google-chrome":    "google-chrome,google-chrome-arch,google-chrome-macos",
+		"discord":          "discord,discord-macos",
+		"slack":            "slack,slack-arch,slack-macos",
+		"zoom":             "zoom,zoom-arch,zoom-macos",
+		"dropbox":          "dropbox,dropbox-arch,dropbox-macos",
+		"teams-for-linux":  "teams-for-linux,teams-for-linux-arch,teams-for-linux-macos",
+		"beekeeper-studio": "beekeeper-studio,beekeeper-studio-arch,beekeeper-studio-macos",
+		"localsend":        "localsend,localsend-macos,appimage-runtime",
+		"winboat":          "winboat,winboat-arch",
+	}
+	for app, want := range apps {
+		got, err := filterPackages(m, nil, []string{app}, nil)
+		if err != nil {
+			t.Errorf("--only %s error = %v", app, err)
+			continue
+		}
+		gotNames := strings.Split(names(got), ",")
+		wantNames := strings.Split(want, ",")
+		slices.Sort(gotNames)
+		slices.Sort(wantNames)
+		if !slices.Equal(gotNames, wantNames) {
+			t.Errorf("--only %s = %v, want %v", app, gotNames, wantNames)
+		}
+		if !slices.Contains(desktop.Packages, app) && app != "1password" {
+			t.Errorf("desktop intent missing %q", app)
+		}
+	}
+	for _, name := range []string{"code-insiders", "code-insiders-macos"} {
+		if !slices.Contains(desktop.Packages, name) {
+			t.Errorf("desktop intent missing %q", name)
+		}
+	}
+}
+
+const testSiblingManifest = `
+[[package]]
+name = "tool"
+backend = "toolchain"
+tool = "cargo"
+
+[[package]]
+name = "tool-arch"
+backend = "toolchain"
+tool = "cargo"
+
+[[package]]
+name = "tool-debian"
+backend = "toolchain"
+tool = "cargo"
+
+[[package]]
+name = "tool-linux"
+backend = "toolchain"
+tool = "cargo"
+
+[[package]]
+name = "tool-macos"
+backend = "toolchain"
+tool = "cargo"
+
+[[package]]
+name = "tool-fedora"
+backend = "toolchain"
+tool = "cargo"
+
+[[package]]
+name = "tool-desktop"
+backend = "toolchain"
+tool = "cargo"
+
+[[package]]
+name = "other"
+backend = "toolchain"
+tool = "cargo"
+`
+
+// TestFilterPackages_PlatformSiblings: a bare name selects/skips its exact
+// -arch/-debian/-linux/-macos/-fedora siblings (never a mere prefix match such
+// as tool-desktop), an explicit sibling stays exact, and output is manifest-ordered.
+func TestFilterPackages_PlatformSiblings(t *testing.T) {
+	m := parseManifestString(t, testSiblingManifest)
+	const family = "tool,tool-arch,tool-debian,tool-linux,tool-macos,tool-fedora"
+	join := func(pkgs []manifest.Package) string {
+		out := make([]string, 0, len(pkgs))
+		for _, p := range pkgs {
+			out = append(out, p.Name)
+		}
+		return strings.Join(out, ",")
+	}
+
+	tests := []struct {
+		name       string
+		only, skip []string
+		want       string
+	}{
+		{"only expands all suffixes", []string{"tool"}, nil, family},
+		{"only dedupes explicit sibling", []string{"tool", "tool-linux", "tool"}, nil, family},
+		{"only explicit sibling is exact", []string{"tool-arch"}, nil, "tool-arch"},
+		{"only explicit -linux is exact", []string{"tool-linux"}, nil, "tool-linux"},
+		{"unrelated prefix not selected", []string{"tool"}, nil, family}, // tool-desktop absent
+		{"skip expands all suffixes", nil, []string{"tool"}, "tool-desktop,other"},
+		{"skip explicit sibling is exact", nil, []string{"tool-macos"}, "tool,tool-arch,tool-debian,tool-linux,tool-fedora,tool-desktop,other"},
+		{"only and skip compose", []string{"tool", "other"}, []string{"tool"}, "other"},
+		{"only family skip one sibling", []string{"tool"}, []string{"tool-debian"}, "tool,tool-arch,tool-linux,tool-macos,tool-fedora"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := filterPackages(m, m.Packages, tt.only, tt.skip)
+			if err != nil {
+				t.Fatalf("filterPackages() error = %v", err)
+			}
+			if s := join(got); s != tt.want {
+				t.Errorf("filterPackages(only=%v skip=%v) = %q, want %q", tt.only, tt.skip, s, tt.want)
+			}
+		})
+	}
+
+	// Validation precedes expansion: an unknown name errors even beside a valid one.
+	if _, err := filterPackages(m, m.Packages, []string{"tool", "tool-nope"}, nil); err == nil {
+		t.Error("filterPackages(unknown name) error = nil, want unknown package")
+	}
+}
+
+func TestFilterPackages_PrerequisiteOrderAndSkip(t *testing.T) {
+	m, err := manifest.LoadFS(dotfiles.ManifestFS, "manifest/packages.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := filterPackages(m, nil, []string{"obsidian"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[0].Name != "appimage-runtime" {
+		t.Fatalf("--only obsidian first = %s, want prerequisite first", got[0].Name)
+	}
+	if _, err := filterPackages(m, nil, []string{"obsidian"}, []string{"appimage-runtime"}); err == nil {
+		t.Fatal("--skip accepted removing obsidian prerequisite")
 	}
 }

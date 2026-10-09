@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -945,7 +946,7 @@ func TestApplyPackages_NotApplicableRecordedOK(t *testing.T) {
 			}
 
 			var coll failure.Collector
-			results := applyPackages(engine, pkgs, tt.info, false, &coll)
+			results := applyPackages(context.Background(), engine, pkgs, tt.info, false, &coll)
 
 			if len(results) != 1 {
 				t.Fatalf("applyPackages() results = %d, want 1", len(results))
@@ -981,7 +982,7 @@ func TestApplyPackages_SkipsAlreadyInstalled(t *testing.T) {
 	}
 
 	var coll failure.Collector
-	results := applyPackages(engine, pkgs, archInfo(), false, &coll)
+	results := applyPackages(context.Background(), engine, pkgs, archInfo(), false, &coll)
 
 	if len(results) != 1 {
 		t.Fatalf("applyPackages() results = %d, want 1", len(results))
@@ -997,7 +998,7 @@ func TestApplyPackages_SkipsAlreadyInstalled(t *testing.T) {
 	}
 
 	// A second identical pass over a converged host installs nothing either.
-	_ = applyPackages(engine, pkgs, archInfo(), false, &coll)
+	_ = applyPackages(context.Background(), engine, pkgs, archInfo(), false, &coll)
 	if n := countSudoCalls(fake, "pacman", "-S", "--noconfirm", "--needed", "git"); n != 0 {
 		t.Errorf("install argv ran %d times across two passes, want 0", n)
 	}

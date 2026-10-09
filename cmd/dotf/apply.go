@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -38,7 +37,7 @@ import (
 // extension over the sibling 0/1/2 convention (via the local reportFatal), and
 // 130 is the Unix SIGINT convention (via wizardExit/reportAbort), so CI can
 // distinguish a hard abort and a user cancellation from a soft failure.
-func runApply(args []string, stdout, stderr io.Writer, r exec.Runner) int {
+func runApply(args []string, stdout, stderr io.Writer, r exec.Runner) (code int) {
 	fs := flag.NewFlagSet("apply", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
@@ -146,7 +145,15 @@ func runApply(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	if err := sudo.Prime(r); err != nil {
 		return reportFatal(stderr, fmt.Errorf("sudo prime: %w", err))
 	}
-	cancel := sudo.KeepAlive(context.Background(), r)
+	ctx, r, stop := withExecutionSignals(r)
+	defer stop()
+	defer func() {
+		if ctxAbortExitCode(ctx) && code != 2 {
+			_, _ = fmt.Fprintf(stderr, "%s: aborted\n", progName)
+			code = abortExitCode
+		}
+	}()
+	cancel := sudo.KeepAlive(ctx, r)
 	defer cancel()
 
 	// P1: best-effort snapper snapshot. Its outcome is a warning only — never
@@ -178,7 +185,7 @@ func runApply(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	info = applyBrew(r, stderr, info, opts, &coll)
 
 	engine := backend.Default(r, sudo, privilege.NewDropper(), repoRoot, lock)
-	results := applyPackages(engine, pkgs, info, opts.Force, &coll)
+	results := applyPackages(ctx, engine, pkgs, info, opts.Force, &coll)
 
 	se := symlink.NewEngine(repoRoot, home)
 	specs := symlink.DefaultTable()
