@@ -109,7 +109,10 @@ M.font_size_adjustments = {
 M.window = {
 	opacity = functions.get_env_number("WEZTERM_OPACITY", 0.95),
 	blur = functions.get_env_number("WEZTERM_BLUR", 40),
-	decorations = functions.get_env("WEZTERM_DECORATIONS", "RESIZE"),
+	-- On Linux, let the compositor draw the titlebar: WezTerm's own Wayland
+	-- decorations (RESIZE / INTEGRATED_BUTTONS) oversize maximized windows on
+	-- KDE, pushing the bottom tab bar under the panel.
+	decorations = functions.get_env("WEZTERM_DECORATIONS", functions.is_linux() and "TITLE | RESIZE" or "RESIZE"),
 	padding = {
 		left = functions.get_env_number("WEZTERM_PADDING_H", 8),
 		right = functions.get_env_number("WEZTERM_PADDING_H", 8),
