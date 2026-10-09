@@ -4,8 +4,10 @@ package exec
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -28,6 +30,7 @@ func TestWithContext_Cancel_KillsProcessGroup(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	r := WithContext(ctx, New())
 
 	done := make(chan error, 1)
@@ -51,6 +54,13 @@ func TestWithContext_Cancel_KillsProcessGroup(t *testing.T) {
 		}
 	}
 
+	// Also kill the child on a failed assertion, including when a regression
+	// leaves it outside the canceled process group.
+	t.Cleanup(func() { _ = syscall.Kill(pid, syscall.SIGKILL) })
+	if processExited(t, pid) {
+		t.Fatal("sleep child exited before cancellation")
+	}
+
 	start := time.Now()
 	cancel()
 	select {
@@ -65,18 +75,48 @@ func TestWithContext_Cancel_KillsProcessGroup(t *testing.T) {
 		t.Errorf("Run() took %v to return after cancel, want prompt", elapsed)
 	}
 
-	// The sleep grandchild must be gone. It may linger briefly as a zombie
-	// until init reaps it, so poll for ESRCH.
+	// The sleep grandchild must have exited. Container PID 1 may never reap
+	// orphans, so a Linux zombie is also proof of exit; kill(pid, 0) alone
+	// reports that an unreaped PID exists, not that it is still running.
 	deadline = time.Now().Add(2 * time.Second)
-	for {
-		err := syscall.Kill(pid, 0)
-		if err == syscall.ESRCH {
-			break
-		}
+	for !processExited(t, pid) {
 		if time.Now().After(deadline) {
-			t.Errorf("sleep child pid %d still alive after cancel (kill(0) = %v)", pid, err)
+			t.Errorf("sleep child pid %d still running after cancel", pid)
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+}
+
+func processExited(t *testing.T, pid int) bool {
+	t.Helper()
+	err := syscall.Kill(pid, 0)
+	if err == syscall.ESRCH {
+		return true
+	}
+	if err != nil {
+		t.Fatalf("probe child pid %d: %v", pid, err)
+	}
+	if runtime.GOOS != "linux" {
+		return false
+	}
+
+	data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "status"))
+	if os.IsNotExist(err) || errors.Is(err, syscall.ESRCH) {
+		return true // Reaped between the signal probe and the procfs read.
+	}
+	if err != nil {
+		t.Fatalf("read child pid %d status: %v", pid, err)
+	}
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if strings.HasPrefix(line, "State:") {
+			fields := strings.Fields(line)
+			if len(fields) < 2 {
+				t.Fatalf("malformed child pid %d state: %q", pid, line)
+			}
+			return fields[1] == "Z"
+		}
+	}
+	t.Fatalf("child pid %d status has no State field", pid)
+	return false
 }
