@@ -27,6 +27,7 @@
     "format:md:modified": "bin/format.sh --modified --docs",
     "format:md:staged": "bin/format.sh --staged --docs",
     "format:md:unstaged": "bin/format.sh --unstaged --docs",
+    "test:espanso": "espanso/scripts/check-prompt-length",
     "go:test": "go test ./...",
     "go:vet": "go vet ./...",
     "go:build": "go build -o dotf ./cmd/dotf"

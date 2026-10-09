@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Check that every agent prompt fits the paste limit of agent CLIs
+# (Claude Code's /goal accepts at most 4000 characters).
+#
+# Renders agent-prompt for every profile, task, and skills combination, and
+# measures the static `replace: |` body of each match/prompts/*.yml (form
+# placeholders count at their literal length, which is longer than any value).
+#
+#   check-prompt-length          # exit 1 if any prompt is over the limit
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROMPTS_DIR="$SCRIPT_DIR/../match/prompts"
+RENDER="$SCRIPT_DIR/agent-prompt"
+MAX_CHARS=4000
+# Long enough to stand in for a real project name or issue list.
+SAMPLE_TARGET="YAN-723, YAN-724 and YAN-725"
+
+failures=0
+worst=0
+
+check() {
+  local name="$1" chars="$2"
+  ((chars > worst)) && worst=$chars
+  if ((chars > MAX_CHARS)); then
+    printf 'FAIL %s: %d characters (limit %d)\n' "$name" "$chars" "$MAX_CHARS" >&2
+    failures=$((failures + 1))
+  fi
+}
+
+check_renders() {
+  local profile task skills target out
+  while IFS= read -r profile; do
+    for task in bugs features any project issues; do
+      for skills in yes no; do
+        target=""
+        [[ "$task" == project || "$task" == issues ]] && target="$SAMPLE_TARGET"
+        # agent-prompt enforces the limit itself; a refusal counts as a failure.
+        if ! out="$("$RENDER" --profile "$profile" --task "$task" --skills "$skills" --target "$target" 2>&1)"; then
+          [[ "$out" == *"-character limit"* ]] || continue # e.g. no default project for "any"
+          printf 'FAIL %s/%s/skills=%s: %s\n' "$profile" "$task" "$skills" "$out" >&2
+          failures=$((failures + 1))
+          continue
+        fi
+        check "$profile/$task/skills=$skills" "${#out}"
+      done
+    done
+  done < <("$RENDER" --list-profiles)
+}
+
+# Print the de-indented block scalar that follows `replace: |`.
+replace_body() {
+  awk '
+    /^ *replace: \|/ { match($0, /^ */); indent = RLENGTH + 2; inblock = 1; next }
+    inblock && /^ *[^ ]/ { match($0, /^ */); if (RLENGTH < indent) exit }
+    inblock { print substr($0, indent + 1) }
+  ' "$1"
+}
+
+check_static() {
+  local file body
+  for file in "$PROMPTS_DIR"/*.yml; do
+    body="$(replace_body "$file")"
+    [[ -n "$body" ]] || continue
+    check "${file##*/}" "${#body}"
+  done
+}
+
+check_renders
+check_static
+if ((failures > 0)); then
+  printf '%d prompt(s) over %d characters\n' "$failures" "$MAX_CHARS" >&2
+  exit 1
+fi
+printf 'ok: every prompt fits in %d characters (longest: %d)\n' "$MAX_CHARS" "$worst"

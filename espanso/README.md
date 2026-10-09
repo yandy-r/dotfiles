@@ -12,6 +12,7 @@ match/prompts/release.yml      :release
 match/prompts/op-secrets.yml   :opsecrets
 match/prompts/project-init.yml :projinit
 scripts/agent-prompt           renders the end-to-end workflow prompt
+scripts/check-prompt-length    checks every prompt fits the 4000-char limit
 scripts/profiles/<name>.conf   per-project values for agent-prompt
 match/local/                   machine-private snippets (git-ignored)
 match/packages/                `espanso install` packages (git-ignored)
@@ -39,6 +40,16 @@ works outside espanso:
 ```bash
 ~/.config/espanso/scripts/agent-prompt --profile tokenhop --task bugs | wl-copy
 ```
+
+## Prompt length limit
+
+Agent CLIs cap pasted goals; Claude Code's `/goal` accepts at most 4000
+characters. Every prompt here stays under that, so it works pasted into any
+tool. `agent-prompt` refuses to render anything longer, and
+`npm run test:espanso` (`scripts/check-prompt-length`) renders every profile,
+task, and skills combination and measures each `match/prompts/*.yml` body. Run
+it after editing a prompt; keep new prompts terse (one rule per bullet, no
+repeated context).
 
 ## Extending
 
