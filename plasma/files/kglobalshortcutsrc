@@ -3,13 +3,6 @@ Switch to Last-Used Keyboard Layout=Meta+Alt+L,Meta+Alt+L,Switch to Last-Used Ke
 Switch to Next Keyboard Layout=Meta+Alt+K,Meta+Alt+K,Switch to Next Keyboard Layout
 _k_friendly_name=Keyboard Layout Switcher
 
-[com.onepassword.OnePassword]
-3D8EFBA38388CD6F0BD1FC2723E39CDE-Ctrl+Shift+Space=Ctrl+Shift+Space,Ctrl+Shift+Space,1Password shortcut: Ctrl+Shift+Space
-5755698F013D5BCCC3123D0D16191811-=none,none,1Password shortcut:\s
-8E510F259D7352BF6A70F82ECED0A10A-=none,none,1Password shortcut:\s
-DE37B2DDE3F8D27F5AF5857CACE2FA96-Ctrl+Shift+Space=Ctrl+Shift+Space,Ctrl+Shift+Space,1Password shortcut: Ctrl+Shift+Space
-_k_friendly_name=1Password
-
 [kaccess]
 Toggle Screen Reader On and Off=Meta+Alt+S,Meta+Alt+S,Toggle Screen Reader On and Off
 _k_friendly_name=Accessibility

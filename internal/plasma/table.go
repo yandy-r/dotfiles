@@ -157,6 +157,9 @@ func DefaultFiles() []FileSpec {
 				// A per-install minted token; a transplanted entry would be a
 				// dead binding.
 				"[com.anthropic.Claude]",
+				// Same: 1Password mints a token per install, baked into
+				// every key name in the group.
+				"[com.onepassword.OnePassword]",
 				"[khotkeys]",
 			},
 			VolatileKeys: []string{
