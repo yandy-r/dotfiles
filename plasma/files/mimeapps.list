@@ -37,7 +37,9 @@ video/x-theora=vlc.desktop;
 video/x-theora+ogg=vlc.desktop;
 
 [Default Applications]
+application/pdf=FoxitReader.desktop
 application/pkix-cert=org.kde.kate.desktop
+application/ppdf=FoxitReader.desktop
 application/x-matroska=vlc.desktop;
 image/webp=com.github.PintaProject.Pinta.desktop
 video/3gp=vlc.desktop;
@@ -76,4 +78,6 @@ x-scheme-handler/antigravity=antigravity.desktop
 x-scheme-handler/claude=com.anthropic.Claude.desktop
 x-scheme-handler/claude-cli=claude-code-url-handler.desktop
 x-scheme-handler/codex=chatgpt.desktop
+x-scheme-handler/grokbot=grok-bot.desktop
+x-scheme-handler/sand=grok-bot.desktop
 x-scheme-handler/simplenote=simplenote.desktop

@@ -1,9 +1,12 @@
 [General]
 BrowserApplication=google-chrome.desktop
-TerminalApplication=/usr/bin/ghostty --gtk-single-instance=true
-TerminalService=com.mitchellh.ghostty.desktop
+TerminalApplication=wezterm start --cwd .
+TerminalService=org.wezfurlong.wezterm.desktop
 XftAntialias=true
 XftHintStyle=hintslight
+
+[Icons]
+Theme=breeze-dark
 
 [KDE]
 AnimationDurationFactor=0.5
@@ -11,13 +14,14 @@ LookAndFeelPackage=org.kde.breezedark.desktop
 ShowDeleteCommand=false
 contrast=4
 frameContrast=0.2
+widgetStyle=Breeze
 
 [KFileDialog Settings]
 Allow Expansion=false
 Automatically select filename extension=true
 Breadcrumb Navigation=false
 Decoration position=2
-Preview Width=472
+Preview Width=474
 Show Full Path=false
 Show Inline Previews=true
 Show Preview=false

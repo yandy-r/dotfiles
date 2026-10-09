@@ -31,3 +31,8 @@ ElectricBorderMaximize=false
 FocusStealingPreventionLevel=0
 PerOutputVirtualDesktops=true
 RollOverDesktops=true
+
+[org.kde.kdecoration2]
+NoPlugin=false
+library=org.kde.breeze
+theme=Breeze

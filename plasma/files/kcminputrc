@@ -10,3 +10,6 @@ TapToClick=false
 
 [Libinput][13364][3648][Keychron Keychron K4 HE Keyboard]
 NaturalScroll=false
+
+[Mouse]
+cursorTheme=capitaine-cursors
