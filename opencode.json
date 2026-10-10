@@ -8,7 +8,7 @@
           "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_API_TOKEN}"
         }
       },
-      "linear-linear": {
+      "linear-personal": {
         "type": "remote",
         "url": "https://mcp.linear.app/mcp"
       },
