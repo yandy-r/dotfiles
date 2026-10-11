@@ -11,7 +11,7 @@ EdgeBarrier=0
 
 [NightColor]
 Active=true
-NightTemperature=4000
+NightTemperature=5000
 
 [Plugins]
 blurEnabled=false

@@ -1,4 +1,5 @@
 [Notification Messages]
+CloseAllEmptyTabs=true
 CloseAllTabs=true
 
 [UiSettings]
