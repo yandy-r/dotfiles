@@ -91,6 +91,62 @@ func TestPkgBackend_Install_Argv(t *testing.T) {
 	}
 }
 
+func TestPkgBackend_DNFExclude_Argv(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		pkgMgr platform.PkgMgr
+		run    func(*pkgBackend, manifest.Package, platform.Info) error
+		want   []string
+	}{
+		{
+			name:   "install on dnf",
+			pkgMgr: platform.PkgMgrDNF,
+			run:    (*pkgBackend).Install,
+			want:   []string{"dnf", "install", "--exclude=kf6-kmime*", "--exclude=foo", "-y", "vlc"},
+		},
+		{
+			name:   "update on dnf",
+			pkgMgr: platform.PkgMgrDNF,
+			run:    (*pkgBackend).Update,
+			want:   []string{"dnf", "upgrade", "--exclude=kf6-kmime*", "--exclude=foo", "-y", "vlc"},
+		},
+		{
+			name:   "ignored on pacman",
+			pkgMgr: platform.PkgMgrPacman,
+			run:    (*pkgBackend).Install,
+			want:   []string{"pacman", "-S", "--noconfirm", "--needed", "vlc"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fake := exec.NewFake()
+			b := newPkgBackend(fake).(*pkgBackend)
+			pkg := manifest.Package{
+				Name:       "vlc",
+				Backend:    manifest.BackendPkg,
+				Names:      map[string]string{string(tt.pkgMgr): "vlc"},
+				DNFExclude: []string{"kf6-kmime*", "foo"},
+			}
+
+			if err := tt.run(b, pkg, platform.Info{PkgMgr: tt.pkgMgr}); err != nil {
+				t.Fatalf("error = %v, want nil", err)
+			}
+			calls := fake.CallsSnapshot()
+			if len(calls) != 1 {
+				t.Fatalf("calls len = %d, want 1", len(calls))
+			}
+			if fmt.Sprint(calls[0].Args) != fmt.Sprint(tt.want) {
+				t.Errorf("args = %v, want %v", calls[0].Args, tt.want)
+			}
+		})
+	}
+}
+
 func TestPkgBackend_Update_Argv(t *testing.T) {
 	t.Parallel()
 

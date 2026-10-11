@@ -734,6 +734,50 @@ args = ["--yes", ""]`,
 	}
 }
 
+func TestValidate_DNFExclude(t *testing.T) {
+	tests := []struct {
+		name    string
+		pkg     string
+		wantErr string
+	}{
+		{"accepted on pkg", `
+name = "vlc"
+backend = "pkg"
+names = { dnf = "vlc" }
+dnf_exclude = ["kf6-kmime*"]`, ""},
+		{"rejected off pkg", `
+name = "starship"
+backend = "script-url"
+url = "https://starship.rs/install.sh"
+dnf_exclude = ["kf6-kmime*"]`, "dnf_exclude is only valid on the pkg backend"},
+		{"empty entry rejected", `
+name = "vlc"
+backend = "pkg"
+names = { dnf = "vlc" }
+dnf_exclude = [""]`, "dnf_exclude entry"},
+		{"whitespace rejected", `
+name = "vlc"
+backend = "pkg"
+names = { dnf = "vlc" }
+dnf_exclude = ["a b"]`, "dnf_exclude entry"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := manifest.Parse(strings.NewReader("[[package]]" + tt.pkg + "\n"))
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Parse() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Parse() error = %v, want substring %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 // TestValidate_PackageOS covers the optional package os platform gate: the
 // accepted token set (macos/windows/linux + the distro families), an absent
 // gate, and rejection of unknown tokens — including "wsl", which is

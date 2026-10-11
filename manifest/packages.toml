@@ -948,6 +948,10 @@ backend = "pkg"
 os = "linux"
 requires_desktop = true
 names = { pacman = "obs-studio", apt = "obs-studio", dnf = "obs-studio" }
+# Fedora updates ships kf6-kmime without Obsoletes, which file-conflicts with the
+# installed kmime and fails the whole transaction (the KDE Gear 26.08 upgrade
+# these pull in). Drop once Fedora fixes kf6-kmime.
+dnf_exclude = ["kf6-kmime*"]
 
 [[package]]
 name = "obs-studio-macos"
@@ -990,6 +994,10 @@ backend = "pkg"
 os = "linux"
 requires_desktop = true
 names = { pacman = "kdenlive", apt = "kdenlive", dnf = "kdenlive" }
+# Fedora updates ships kf6-kmime without Obsoletes, which file-conflicts with the
+# installed kmime and fails the whole transaction (the KDE Gear 26.08 upgrade
+# these pull in). Drop once Fedora fixes kf6-kmime.
+dnf_exclude = ["kf6-kmime*"]
 
 [[package]]
 name = "kdenlive-macos"
@@ -1032,6 +1040,10 @@ backend = "pkg"
 os = "linux"
 requires_desktop = true
 names = { pacman = "vlc", apt = "vlc", dnf = "vlc" }
+# Fedora updates ships kf6-kmime without Obsoletes, which file-conflicts with the
+# installed kmime and fails the whole transaction (the KDE Gear 26.08 upgrade
+# these pull in). Drop once Fedora fixes kf6-kmime.
+dnf_exclude = ["kf6-kmime*"]
 
 [[package]]
 name = "vlc-macos"

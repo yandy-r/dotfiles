@@ -90,6 +90,13 @@ type Package struct {
 	// package name used by that package manager, for the "pkg" backend.
 	Names map[string]string `toml:"names"`
 
+	// DNFExclude lists package globs passed to dnf as --exclude=<glob> on
+	// install and upgrade, for the "pkg" backend. It works around a broken
+	// distro update (e.g. a file conflict in a transitive dependency) without
+	// editing the host's dnf.conf; other package managers ignore it. Remove an
+	// entry once the upstream fix lands.
+	DNFExclude []string `toml:"dnf_exclude"`
+
 	// Repo is the GitHub "owner/repo" slug, for the "github-release"
 	// backend.
 	Repo string `toml:"repo"`

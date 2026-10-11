@@ -301,6 +301,30 @@ func validatePackage(p Package) []error {
 
 	errs = append(errs, validateArgs(p)...)
 
+	errs = append(errs, validateDNFExclude(p)...)
+
+	return errs
+}
+
+// validateDNFExclude checks a package's optional dnf_exclude. It is valid ONLY
+// on the pkg backend (the sole consumer); an element must be a non-empty glob
+// with no whitespace, since each becomes a single --exclude=<glob> argv entry.
+func validateDNFExclude(p Package) []error {
+	if len(p.DNFExclude) == 0 {
+		return nil
+	}
+	if p.Backend != BackendPkg {
+		return []error{&ValidationError{Package: p.Name, Msg: "dnf_exclude is only valid on the pkg backend"}}
+	}
+	var errs []error
+	for _, g := range p.DNFExclude {
+		if g == "" || strings.ContainsAny(g, " \t\n,") {
+			errs = append(errs, &ValidationError{
+				Package: p.Name,
+				Msg:     fmt.Sprintf("dnf_exclude entry %q must be a non-empty glob without whitespace or commas", g),
+			})
+		}
+	}
 	return errs
 }
 

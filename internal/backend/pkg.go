@@ -56,6 +56,7 @@ func (b *pkgBackend) Install(pkg manifest.Package, info platform.Info) error {
 		return err
 	}
 
+	argv = withDNFExclude(argv, pkg, info)
 	return b.r.Run(argv[0], argv[1:]...)
 }
 
@@ -72,6 +73,7 @@ func (b *pkgBackend) Update(pkg manifest.Package, info platform.Info) error {
 		return err
 	}
 
+	argv = withDNFExclude(argv, pkg, info)
 	return b.r.Run(argv[0], argv[1:]...)
 }
 
@@ -136,6 +138,21 @@ func resolvePkgName(pkg manifest.Package, info platform.Info) (string, error) {
 func (b *pkgBackend) applicableFor(pkg manifest.Package, info platform.Info) bool {
 	name, ok := pkg.Names[string(info.PkgMgr)]
 	return ok && name != ""
+}
+
+// withDNFExclude inserts pkg.DNFExclude as --exclude=<glob> flags right after
+// the dnf subcommand ("sudo dnf install -y ..."), and is a no-op on every other
+// package manager.
+func withDNFExclude(argv []string, pkg manifest.Package, info platform.Info) []string {
+	if info.PkgMgr != platform.PkgMgrDNF || len(pkg.DNFExclude) == 0 {
+		return argv
+	}
+	// argv is ["sudo", "dnf", <verb>, ...]: flags go after the verb.
+	out := append([]string{}, argv[:3]...)
+	for _, g := range pkg.DNFExclude {
+		out = append(out, "--exclude="+g)
+	}
+	return append(out, argv[3:]...)
 }
 
 func installArgv(mgr platform.PkgMgr, name string) ([]string, error) {

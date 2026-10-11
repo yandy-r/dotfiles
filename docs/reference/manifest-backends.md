@@ -70,6 +70,15 @@ name = "ripgrep"
 backend = "pkg"
 names = { apt = "ripgrep", dnf = "ripgrep", pacman = "ripgrep", brew = "ripgrep" }
 
+# 1b. pkg with a distro-bug workaround — dnf_exclude is passed as --exclude=<glob> on
+#     dnf install/upgrade (other managers ignore it; pkg backend only). Document the
+#     upstream bug in a comment and drop the entry once it is fixed.
+[[package]]
+name = "vlc"
+backend = "pkg"
+names = { pacman = "vlc", apt = "vlc", dnf = "vlc" }
+dnf_exclude = ["kf6-kmime*"]
+
 # 3. repo — one tool, one entry; the sub-table matching the host's package manager wins
 [[package]]
 name = "docker-ce"
