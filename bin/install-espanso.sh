@@ -483,6 +483,18 @@ espanso_running() {
   espanso status 2>/dev/null | grep -q '^espanso is running'
 }
 
+# `espanso service register` starts the unit, but the daemon needs a few seconds
+# before `espanso status` reports it. Calling `espanso start` inside that window
+# fails (exit 3/5), so poll first.
+wait_for_espanso() {
+  local i
+  for ((i = 0; i < 15; i++)); do
+    espanso_running && return 0
+    sleep 1
+  done
+  return 1
+}
+
 register_service() {
   [[ "$SKIP_SERVICE" == "true" ]] && return 0
   case "$DOTFILES_OS" in
@@ -497,7 +509,9 @@ register_service() {
       return 0
     fi
     run espanso service register
-    if [[ "$DRY_RUN" == "true" ]] || ! espanso_running; then
+    if [[ "$DRY_RUN" == "true" ]]; then
+      run espanso start
+    elif ! wait_for_espanso; then
       run espanso start
     fi
     ;;
