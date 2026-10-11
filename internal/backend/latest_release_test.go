@@ -5,7 +5,11 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/yandy-r/dotfiles/internal/platform"
 )
+
+var linuxX86 = platform.Info{OS: platform.OSRedHat, Arch: platform.ArchX86_64}
 
 const testSum = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
@@ -48,6 +52,8 @@ func TestLatestReleaseArtifact(t *testing.T) {
 			"", "", "non-https"},
 		{"ambiguous", `{"tag_name":"v1","assets":[` + good + `,` + asset("tool-linux.zip", "sha256:"+testSum, "https://x/z") + `]}`, false, "*linux*",
 			"", "", "multiple assets"},
+		{"skips foreign arch", `{"tag_name":"v1","assets":[` + asset("tool-linux-arm64.tar.gz", "sha256:"+testSum, "https://x/arm") + `,` + good + `]}`, false, "*linux*",
+			"", "v1", ""},
 		{"no match", `{"tag_name":"v1","assets":[` + good + `]}`, false, "*windows*",
 			"", "", "no asset matches"},
 		{"preview skips draft and stable", `[{"tag_name":"d","draft":true,"prerelease":true,"assets":[]},{"tag_name":"s","assets":[]},` +
@@ -59,7 +65,7 @@ func TestLatestReleaseArtifact(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			url := stubLatest(t, tc.body)
-			art, err := latestReleaseArtifact("o/r", tc.pattern, tc.preview)
+			art, err := latestReleaseArtifact("o/r", tc.pattern, tc.preview, linuxX86)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("err = %v, want containing %q", err, tc.wantErr)

@@ -42,7 +42,7 @@ func resolveArtifact(pkg manifest.Package, info platform.Info, allowExts []strin
 			if err := validateGitHubRepo(pkg.Repo); err != nil {
 				return artifact{}, err
 			}
-			return latestReleaseArtifact(pkg.Repo, pkg.Asset, pkg.Preview)
+			return latestReleaseArtifact(pkg.Repo, pkg.Asset, pkg.Preview, info)
 		}
 		return resolveGitHubArtifact(pkg, info, allowExts)
 	}

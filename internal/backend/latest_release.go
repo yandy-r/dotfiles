@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+
+	"github.com/yandy-r/dotfiles/internal/platform"
 )
 
 type ghAsset struct {
@@ -24,10 +26,11 @@ type ghRelease struct {
 
 // latestReleaseArtifact resolves repo's latest stable release (or, when
 // preview, the first non-draft prerelease of the newest 20) into an artifact
-// whose asset name matches the glob pattern. Exactly one asset must match, with
-// a GitHub-native sha256:<64-hex> digest and an https download URL; anything
-// else fails closed.
-func latestReleaseArtifact(repo, pattern string, preview bool) (artifact, error) {
+// whose asset name matches the glob pattern. Assets carrying a foreign-arch
+// token (e.g. "-arm64" on an x86_64 host) are skipped so a multi-arch release
+// resolves with one glob. Exactly one asset must match, with a GitHub-native
+// sha256:<64-hex> digest and an https download URL; anything else fails closed.
+func latestReleaseArtifact(repo, pattern string, preview bool, info platform.Info) (artifact, error) {
 	url := "https://api.github.com/repos/" + repo + "/releases/latest"
 	if preview {
 		url = "https://api.github.com/repos/" + repo + "/releases?per_page=20"
@@ -61,13 +64,14 @@ func latestReleaseArtifact(repo, pattern string, preview bool) (artifact, error)
 		return artifact{}, fmt.Errorf("github-latest %s: decode: %w", repo, err)
 	}
 
+	foreignArch := foreignArchTokens(info.Arch)
 	var match *ghAsset
 	for i := range rel.Assets {
 		ok, err := filepath.Match(pattern, rel.Assets[i].Name)
 		if err != nil {
 			return artifact{}, fmt.Errorf("github-latest %s: bad pattern %q: %w", repo, pattern, err)
 		}
-		if !ok {
+		if !ok || hasAnyToken(rel.Assets[i].Name, foreignArch) {
 			continue
 		}
 		if match != nil {
