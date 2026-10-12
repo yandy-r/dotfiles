@@ -1553,8 +1553,9 @@ class = "rolling"
 preview = true
 
 [[package]]
-# arm64 sibling of zed-preview (selected by `--only zed-preview`); upstream
-# spells the arch "aarch64", which {{.Arch}} (arm64) cannot render.
+# arm64 sibling of zed-preview (selected by `--only zed-preview`). The rolling
+# route matches `asset` as a literal glob (no templating), so upstream's
+# "aarch64" spelling needs its own entry.
 name = "zed-preview-arm64"
 arch = ["arm64"]
 backend = "app-artifact"
@@ -1707,8 +1708,9 @@ asset = "teams-for-linux-*.x86_64.rpm"
 class = "rolling"
 
 [[package]]
-# arm64 sibling of teams-for-linux (selected by `--only teams-for-linux`);
-# upstream spells the RPM arch "aarch64", which {{.Arch}} (arm64) cannot render.
+# arm64 sibling of teams-for-linux (selected by `--only teams-for-linux`). The
+# rolling route matches `asset` as a literal glob (no templating), so upstream's
+# "aarch64" RPM spelling needs its own entry.
 name = "teams-for-linux-arm64"
 arch = ["arm64"]
 backend = "pkg-url"
@@ -1751,8 +1753,9 @@ asset = "beekeeper-studio-*.x86_64.rpm"
 class = "rolling"
 
 [[package]]
-# arm64 sibling of beekeeper-studio (selected by `--only beekeeper-studio`);
-# upstream spells the RPM arch "aarch64", which {{.Arch}} (arm64) cannot render.
+# arm64 sibling of beekeeper-studio (selected by `--only beekeeper-studio`). The
+# rolling route matches `asset` as a literal glob (no templating), so upstream's
+# "aarch64" RPM spelling needs its own entry.
 name = "beekeeper-studio-arm64"
 arch = ["arm64"]
 backend = "pkg-url"

@@ -296,6 +296,7 @@ func validatePackage(p Package) []error {
 	errs = append(errs, validatePostInstall(p)...)
 
 	errs = append(errs, validateClass(p)...)
+	errs = append(errs, validateRollingRelease(p)...)
 
 	errs = append(errs, validateActions(p)...)
 
