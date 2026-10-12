@@ -972,7 +972,6 @@ func TestValidate_SSHServer(t *testing.T) {
 	}
 }
 
-
 func TestValidateRequiresAndArch(t *testing.T) {
 	m := &manifest.Manifest{Packages: []manifest.Package{{Name: "app", Backend: manifest.BackendPkg, Names: map[string]string{"dnf": "app"}, Arch: []string{"ppc64le"}, Requires: []string{"missing", "app"}}}}
 	err := manifest.Validate(m)
