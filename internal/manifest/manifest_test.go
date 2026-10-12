@@ -998,6 +998,57 @@ func TestEmbeddedManifest_PlaywrightCLI(t *testing.T) {
 	}
 }
 
+// TestEmbeddedManifest_GitHubMCPServer pins github-mcp-server as a native,
+// pinned github-release in the opt-in ai intent (no custom-script spend).
+func TestEmbeddedManifest_GitHubMCPServer(t *testing.T) {
+	m := loadEmbeddedManifest(t)
+
+	var pkg manifest.Package
+	var found bool
+	for _, p := range m.Packages {
+		if p.Name == "github-mcp-server" {
+			pkg, found = p, true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("github-mcp-server package missing from embedded manifest")
+	}
+
+	if pkg.Backend != manifest.BackendGitHubRelease {
+		t.Errorf("backend = %q, want github-release", pkg.Backend)
+	}
+	if pkg.Repo != "github/github-mcp-server" {
+		t.Errorf("repo = %q, want github/github-mcp-server", pkg.Repo)
+	}
+	if pkg.Tag != "v2.0.2" {
+		t.Errorf("tag = %q, want v2.0.2", pkg.Tag)
+	}
+	if pkg.Binary != "github-mcp-server" {
+		t.Errorf("binary = %q, want github-mcp-server", pkg.Binary)
+	}
+	if pkg.ChecksumsAsset != "github-mcp-server_2.0.2_checksums.txt" {
+		t.Errorf("checksums_asset = %q, want github-mcp-server_2.0.2_checksums.txt", pkg.ChecksumsAsset)
+	}
+	if pkg.Asset != "" {
+		t.Errorf("asset = %q, want empty (auto-detected)", pkg.Asset)
+	}
+	if got := pkg.EffectiveClass(); got != manifest.ClassPinned {
+		t.Errorf("effective class = %q, want pinned", got)
+	}
+
+	ai, ok := m.Intents["ai"]
+	if !ok {
+		t.Fatal("intent \"ai\" missing from embedded manifest")
+	}
+	if !slices.Contains(ai.Packages, "github-mcp-server") {
+		t.Errorf("intent ai packages = %v, want to contain github-mcp-server", ai.Packages)
+	}
+	if ai.Default {
+		t.Error("intent ai must stay opt-in (default = false)")
+	}
+}
+
 // TestEmbeddedManifest_RetainedCustomScriptSentinels pins the Phase 3 (#51)
 // installed-state sentinels: every retained custom-script entry carries an
 // explicit probe naming the real binary/binaries it installs, so status/diff

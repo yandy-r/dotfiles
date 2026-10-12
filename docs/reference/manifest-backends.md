@@ -140,6 +140,24 @@ escape-hatch budget is frozen by the ratchet below, and cosmetics do not spend i
 See `manifest/packages.toml` for live examples of every backend, and
 `internal/manifest/validate.go` for the exact per-backend required-field rules.
 
+### Example: `github-mcp-server`
+
+`github-mcp-server` (in the opt-in `ai` intent) is a native pinned
+`github-release`: repo `github/github-mcp-server`, tag `v2.0.2`, binary
+`github-mcp-server`, checksums from `github-mcp-server_2.0.2_checksums.txt`. No
+`asset` is set — the upstream `Linux`/`Darwin` × `x86_64`/`arm64` flat-binary
+`tar.gz` archives are auto-detected for the host, and the sha256 is verified from
+the sidecar. It needs no `custom-script` entry or backend change.
+
+```sh
+dotf install --intent ai --only github-mcp-server --dry-run
+dotf install --intent ai --only github-mcp-server
+```
+
+This installs the binary to `~/.local/bin` only. GitHub credentials (e.g. a
+personal access token) and MCP client configuration are separate and are not
+managed by this entry.
+
 ### A COPR-only tool
 
 Reach for `dnf_repo = { copr = "owner/project" }` **only** when the tool has no

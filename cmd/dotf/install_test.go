@@ -843,6 +843,28 @@ func TestResolveRepoRootEnv(t *testing.T) {
 	}
 }
 
+// TestFilterPackages_GitHubMCPServer: within the opt-in ai intent, --only
+// narrows to exactly github-mcp-server (no siblings, no prerequisites).
+func TestFilterPackages_GitHubMCPServer(t *testing.T) {
+	m, err := manifest.Resolve("", "", dotfiles.ManifestFS, manifest.ResolveOptions{})
+	if err != nil {
+		t.Fatalf("resolve embedded manifest: %v", err)
+	}
+
+	pkgs := packagesForInstall(m, []string{"ai"})
+	if !slices.ContainsFunc(pkgs, func(p manifest.Package) bool { return p.Name == "github-mcp-server" }) {
+		t.Fatal("--intent ai does not include github-mcp-server")
+	}
+
+	got, err := filterPackages(m, pkgs, []string{"github-mcp-server"}, nil)
+	if err != nil {
+		t.Fatalf("filterPackages(--intent ai --only github-mcp-server) error = %v", err)
+	}
+	if len(got) != 1 || got[0].Name != "github-mcp-server" || got[0].Backend != manifest.BackendGitHubRelease {
+		t.Errorf("--only github-mcp-server = %+v, want exactly the github-release package", got)
+	}
+}
+
 // TestFilterPackages_DesktopApps: the embedded manifest makes espanso and
 // claude-desktop selectable via --only; claude-desktop pulls in its macOS cask
 // sibling (and --skip drops both), while the claude CLI stays distinct.

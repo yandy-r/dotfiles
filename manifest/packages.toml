@@ -107,7 +107,7 @@ packages = ["mise", "rust", "lua"]
 [intents.ai]
 description = "AI coding assistants and CLIs"
 default = false
-packages = ["claude", "codex", "opencode", "fabric", "coderabbit", "playwright-cli", "claude-desktop", "claude-desktop-macos", "claude-desktop-fedora"]
+packages = ["claude", "codex", "opencode", "fabric", "coderabbit", "playwright-cli", "github-mcp-server", "claude-desktop", "claude-desktop-macos", "claude-desktop-fedora"]
 
 [intents.desktop]
 description = "Desktop GUI apps (terminals, editors, media, virt); skipped without a graphical session"
@@ -1209,6 +1209,19 @@ provides = ["playwright-cli"]
 actions = ["update", "remove"]
 class = "rolling"
 justification = "npm global install of the latest package version (PLAYWRIGHT_CLI_VERSION defaults to latest)"
+
+# github-mcp-server ships flat-binary tar.gz archives for Linux/Darwin x86_64 and
+# arm64 plus a combined checksums sidecar; the native github-release backend
+# auto-detects the host asset and verifies its sha256 from the sidecar. This
+# installs only the binary — GitHub credentials and MCP client config are
+# configured separately. github-release infers class = pinned.
+[[package]]
+name = "github-mcp-server"
+backend = "github-release"
+repo = "github/github-mcp-server"
+tag = "v2.0.2"
+binary = "github-mcp-server"
+checksums_asset = "github-mcp-server_2.0.2_checksums.txt"
 
 # cloud intent
 # Bundle: the installer provisions aws, sam, and ecs-cli; all-present so the
