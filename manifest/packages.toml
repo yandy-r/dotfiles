@@ -161,8 +161,10 @@ packages = [
     "libvirt-network",
     "whatsapp-macos",
     "lm-studio",
+    "lm-studio-arm64",
     "lm-studio-macos",
     "obsidian",
+    "obsidian-arm64",
     "obsidian-macos",
     "localsend",
     "appimage-runtime",
@@ -170,6 +172,7 @@ packages = [
     "discord",
     "discord-macos",
     "zed-preview",
+    "zed-preview-arm64",
     "zed-preview-macos",
     "grok-bot",
     "grok-bot-macos",
@@ -187,9 +190,11 @@ packages = [
     "zoom-macos",
     "zoom-arch",
     "teams-for-linux",
+    "teams-for-linux-arm64",
     "teams-for-linux-macos",
     "teams-for-linux-arch",
     "beekeeper-studio",
+    "beekeeper-studio-arm64",
     "beekeeper-studio-macos",
     "beekeeper-studio-arch",
     "winboat",
@@ -732,12 +737,12 @@ name = "claude-desktop-fedora"
 backend = "custom-script"
 script = "bin/install-claude-desktop-rpm.sh"
 os = "redhat"
+arch = ["x86_64", "arm64"]
 requires_desktop = true
 provides = ["claude-desktop"]
 actions = ["update", "remove"]
 class = "rolling"
 justification = "no official RPM exists; repacks the signature-verified official .deb into a local RPM"
-arch = ["x86_64", "arm64"]
 
 [[package]]
 name = "espanso"
@@ -813,10 +818,11 @@ requires_desktop = true
 names = { homebrew = "ghostty" }
 
 [[package]]
-# 1Password from the official vendor repositories. The apt repo is amd64-only,
-# so the arch is pinned in the URL rather than templated. Arch takes the AUR
-# sibling (the aur backend installs pkg.Name, and the AUR package is exactly
-# "1password").
+# 1Password from the official vendor repositories. The arm64/aarch64 repo trees
+# carry only 1password-cli (the arm64 desktop app ships solely as a tarball),
+# so the desktop package is x86_64-only and the arch is pinned in the URLs.
+# Arch takes the AUR sibling (the aur backend installs pkg.Name, and the AUR
+# package is exactly "1password").
 name = "1password-linux"
 arch = ["x86_64"]
 backend = "repo"
@@ -906,11 +912,11 @@ requires_desktop = true
 names = { homebrew = "cursor" }
 
 [[package]]
-# ChatGPT desktop app from OpenAI's vendor repositories. The RPM repo is
-# x86_64-only (no aarch64 tree exists), so the arch is hardcoded rather than
-# templated. Key fingerprint verified against the published signing key.
+# ChatGPT desktop app from OpenAI's vendor repositories. Both repos publish
+# amd64/x86_64 and arm64/aarch64 trees (apt {{.Arch}}, dnf $basearch). Key
+# fingerprint verified against the published signing key.
 name = "chatgpt"
-arch = ["x86_64"]
+arch = ["x86_64", "arm64"]
 backend = "repo"
 os = "linux"
 requires_desktop = true
@@ -925,7 +931,7 @@ sources_path = "/etc/apt/sources.list.d/chatgpt.list"
 
 [package.dnf_repo]
 id = "chatgpt"
-baseurl = "https://persistent.oaistatic.com/codex-app-prod/linux/rpm/x86_64"
+baseurl = "https://persistent.oaistatic.com/codex-app-prod/linux/rpm/$basearch"
 gpgkey = "https://persistent.oaistatic.com/codex-app-prod/linux/repository-signing-key.gpg"
 
 [[package]]
@@ -1445,6 +1451,18 @@ url = "https://lmstudio.ai/download/latest/linux/x64"
 app = { icon = "https://lmstudio.ai/assets/marketing/logo-192x192.png", desktop_name = "LM Studio" }
 
 [[package]]
+# arm64 sibling of lm-studio (selected by `--only lm-studio`): the vendor's
+# latest-download URL spells the arch "x64"/"arm64", so it cannot be templated.
+name = "lm-studio-arm64"
+requires = ["appimage-runtime"]
+arch = ["arm64"]
+backend = "app-artifact"
+os = "linux"
+requires_desktop = true
+url = "https://lmstudio.ai/download/latest/linux/arm64"
+app = { icon = "https://lmstudio.ai/assets/marketing/logo-192x192.png", desktop_name = "LM Studio" }
+
+[[package]]
 name = "lm-studio-macos"
 backend = "pkg"
 os = "macos"
@@ -1461,6 +1479,21 @@ requires_desktop = true
 app = { icon = "https://obsidian.md/favicon.svg", desktop_name = "Obsidian" }
 repo = "obsidianmd/obsidian-releases"
 asset = "Obsidian-*.AppImage"
+class = "rolling"
+
+[[package]]
+# arm64 sibling of obsidian (selected by `--only obsidian`). Upstream's x86_64
+# AppImage carries no arch token, so the shared glob would match both assets on
+# an arm64 host; this entry globs the "-arm64" asset explicitly.
+name = "obsidian-arm64"
+requires = ["appimage-runtime"]
+arch = ["arm64"]
+backend = "app-artifact"
+os = "linux"
+requires_desktop = true
+app = { icon = "https://obsidian.md/favicon.svg", desktop_name = "Obsidian" }
+repo = "obsidianmd/obsidian-releases"
+asset = "Obsidian-*-arm64.AppImage"
 class = "rolling"
 
 [[package]]
@@ -1520,6 +1553,21 @@ class = "rolling"
 preview = true
 
 [[package]]
+# arm64 sibling of zed-preview (selected by `--only zed-preview`); upstream
+# spells the arch "aarch64", which {{.Arch}} (arm64) cannot render.
+name = "zed-preview-arm64"
+arch = ["arm64"]
+backend = "app-artifact"
+os = "linux"
+requires_desktop = true
+binary = "zed-preview.app/bin/zed"
+app = { icon = "zed-preview.app/share/icons/hicolor/512x512/apps/zed.png", desktop_name = "Zed Preview", desktop = "zed-preview.app/share/applications/dev.zed.Zed-Preview.desktop" }
+repo = "zed-industries/zed"
+asset = "zed-linux-aarch64.tar.gz"
+class = "rolling"
+preview = true
+
+[[package]]
 name = "zed-preview-macos"
 backend = "pkg"
 os = "macos"
@@ -1570,14 +1618,16 @@ requires_desktop = true
 names = { pacman = "chatgpt-desktop-bin" }
 
 [[package]]
+# Google Chrome from Google's repositories; both publish amd64/x86_64 and
+# arm64/aarch64 trees (apt {{.Arch}}, dnf $basearch).
 name = "google-chrome"
-arch = ["x86_64"]
+arch = ["x86_64", "arm64"]
 backend = "repo"
 os = "linux"
 requires_desktop = true
 names = { apt = "google-chrome-stable", dnf = "google-chrome-stable" }
-apt_repo = { key_url = "https://dl.google.com/linux/linux_signing_key.pub", key_fingerprint = "EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796", keyring = "/usr/share/keyrings/google-chrome.gpg", repo_line = "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb stable main", sources_path = "/etc/apt/sources.list.d/google-chrome.list" }
-dnf_repo = { id = "google-chrome", baseurl = "https://dl.google.com/linux/chrome/rpm/stable/x86_64", gpgkey = "https://dl.google.com/linux/linux_signing_key.pub" }
+apt_repo = { key_url = "https://dl.google.com/linux/linux_signing_key.pub", key_fingerprint = "EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796", keyring = "/usr/share/keyrings/google-chrome.gpg", repo_line = "deb [arch={{.Arch}} signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb stable main", sources_path = "/etc/apt/sources.list.d/google-chrome.list" }
+dnf_repo = { id = "google-chrome", baseurl = "https://dl.google.com/linux/chrome/rpm/stable/$basearch", gpgkey = "https://dl.google.com/linux/linux_signing_key.pub" }
 
 [[package]]
 name = "google-chrome-macos"
@@ -1657,6 +1707,22 @@ asset = "teams-for-linux-*.x86_64.rpm"
 class = "rolling"
 
 [[package]]
+# arm64 sibling of teams-for-linux (selected by `--only teams-for-linux`);
+# upstream spells the RPM arch "aarch64", which {{.Arch}} (arm64) cannot render.
+name = "teams-for-linux-arm64"
+arch = ["arm64"]
+backend = "pkg-url"
+os = "redhat"
+requires_desktop = true
+format = "rpm"
+pkg_name = "teams-for-linux"
+allow_unsigned = true
+justification = "upstream publishes unsigned RPM; SHA256 pinned to GitHub release asset digest"
+repo = "IsmaelMartinez/teams-for-linux"
+asset = "teams-for-linux-*.aarch64.rpm"
+class = "rolling"
+
+[[package]]
 name = "teams-for-linux-macos"
 backend = "pkg"
 os = "macos"
@@ -1682,6 +1748,22 @@ allow_unsigned = true
 justification = "upstream publishes unsigned RPM; SHA256 pinned to GitHub release asset digest"
 repo = "beekeeper-studio/beekeeper-studio"
 asset = "beekeeper-studio-*.x86_64.rpm"
+class = "rolling"
+
+[[package]]
+# arm64 sibling of beekeeper-studio (selected by `--only beekeeper-studio`);
+# upstream spells the RPM arch "aarch64", which {{.Arch}} (arm64) cannot render.
+name = "beekeeper-studio-arm64"
+arch = ["arm64"]
+backend = "pkg-url"
+os = "redhat"
+requires_desktop = true
+format = "rpm"
+pkg_name = "beekeeper-studio"
+allow_unsigned = true
+justification = "upstream publishes unsigned RPM; SHA256 pinned to GitHub release asset digest"
+repo = "beekeeper-studio/beekeeper-studio"
+asset = "beekeeper-studio-*.aarch64.rpm"
 class = "rolling"
 
 [[package]]

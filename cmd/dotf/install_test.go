@@ -920,17 +920,17 @@ func TestFilterPackages_DesktopApps(t *testing.T) {
 		"virt-manager":     "virt-manager,virt-runtime,libvirt-runtime,libvirt-network",
 		"whatsapp-macos":   "whatsapp-macos",
 		"grok-bot":         "grok-bot,grok-bot-arch,grok-bot-macos",
-		"zed-preview":      "zed-preview,zed-preview-macos",
-		"lm-studio":        "lm-studio,lm-studio-macos,appimage-runtime",
-		"obsidian":         "obsidian,obsidian-macos,appimage-runtime",
+		"zed-preview":      "zed-preview,zed-preview-arm64,zed-preview-macos",
+		"lm-studio":        "lm-studio,lm-studio-arm64,lm-studio-macos,appimage-runtime",
+		"obsidian":         "obsidian,obsidian-arm64,obsidian-macos,appimage-runtime",
 		"code-insiders":    "code-insiders,code-insiders-arch,code-insiders-macos",
 		"google-chrome":    "google-chrome,google-chrome-arch,google-chrome-macos",
 		"discord":          "discord,discord-macos",
 		"slack":            "slack,slack-arch,slack-macos",
 		"zoom":             "zoom,zoom-arch,zoom-macos",
 		"dropbox":          "dropbox,dropbox-arch,dropbox-macos",
-		"teams-for-linux":  "teams-for-linux,teams-for-linux-arch,teams-for-linux-macos",
-		"beekeeper-studio": "beekeeper-studio,beekeeper-studio-arch,beekeeper-studio-macos",
+		"teams-for-linux":  "teams-for-linux,teams-for-linux-arch,teams-for-linux-arm64,teams-for-linux-macos",
+		"beekeeper-studio": "beekeeper-studio,beekeeper-studio-arch,beekeeper-studio-arm64,beekeeper-studio-macos",
 		"localsend":        "localsend,localsend-macos,appimage-runtime",
 		"winboat":          "winboat,winboat-arch",
 	}
@@ -990,6 +990,11 @@ backend = "toolchain"
 tool = "cargo"
 
 [[package]]
+name = "tool-arm64"
+backend = "toolchain"
+tool = "cargo"
+
+[[package]]
 name = "tool-desktop"
 backend = "toolchain"
 tool = "cargo"
@@ -1001,11 +1006,11 @@ tool = "cargo"
 `
 
 // TestFilterPackages_PlatformSiblings: a bare name selects/skips its exact
-// -arch/-debian/-linux/-macos/-fedora siblings (never a mere prefix match such
+// -arch/-debian/-linux/-macos/-fedora/-arm64 siblings (never a mere prefix match such
 // as tool-desktop), an explicit sibling stays exact, and output is manifest-ordered.
 func TestFilterPackages_PlatformSiblings(t *testing.T) {
 	m := parseManifestString(t, testSiblingManifest)
-	const family = "tool,tool-arch,tool-debian,tool-linux,tool-macos,tool-fedora"
+	const family = "tool,tool-arch,tool-debian,tool-linux,tool-macos,tool-fedora,tool-arm64"
 	join := func(pkgs []manifest.Package) string {
 		out := make([]string, 0, len(pkgs))
 		for _, p := range pkgs {
@@ -1025,9 +1030,9 @@ func TestFilterPackages_PlatformSiblings(t *testing.T) {
 		{"only explicit -linux is exact", []string{"tool-linux"}, nil, "tool-linux"},
 		{"unrelated prefix not selected", []string{"tool"}, nil, family}, // tool-desktop absent
 		{"skip expands all suffixes", nil, []string{"tool"}, "tool-desktop,other"},
-		{"skip explicit sibling is exact", nil, []string{"tool-macos"}, "tool,tool-arch,tool-debian,tool-linux,tool-fedora,tool-desktop,other"},
+		{"skip explicit sibling is exact", nil, []string{"tool-macos"}, "tool,tool-arch,tool-debian,tool-linux,tool-fedora,tool-arm64,tool-desktop,other"},
 		{"only and skip compose", []string{"tool", "other"}, []string{"tool"}, "other"},
-		{"only family skip one sibling", []string{"tool"}, []string{"tool-debian"}, "tool,tool-arch,tool-linux,tool-macos,tool-fedora"},
+		{"only family skip one sibling", []string{"tool"}, []string{"tool-debian"}, "tool,tool-arch,tool-linux,tool-macos,tool-fedora,tool-arm64"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

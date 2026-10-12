@@ -91,8 +91,8 @@ var helpRegistry = []commandHelp{
 			"Packages whose backend cannot run on this host are skipped as\n" +
 			"\"not-applicable\", not failed. GUI packages (claude-desktop, espanso) are also\n" +
 			"not-applicable without a graphical session (SSH, TTY, container), even with\n" +
-			"--only. A name selects its exact <name>-arch/-debian/-linux/-macos/-fedora\n" +
-			"siblings too, so\n" +
+			"--only. A name selects its exact <name>-arch/-debian/-linux/-macos/-fedora/\n" +
+			"-arm64 siblings too, so\n" +
 			"claude-desktop picks the apt package on Debian/Ubuntu, the Homebrew cask on\n" +
 			"macOS, and a local RPM repacked from the verified official .deb on Fedora.\n" +
 			"Failures are collected non-fatally and the run\n" +

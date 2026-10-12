@@ -503,16 +503,17 @@ func validatePackageNames(m *manifest.Manifest, names []string) error {
 }
 
 // withPlatformSiblings adds the "<name>-arch" / "-debian" / "-linux" / "-macos" /
-// "-fedora" siblings of each name the manifest declares them for (exact suffix
-// match only, so "claude" never pulls in "claude-desktop"). A logical tool split
-// by backend shape into OS-gated entries (claude-desktop + -macos + -fedora,
-// herdr + herdr-macos) is then selected — or skipped — by its one user-facing
-// name; the OS gate keeps only the host's entry applicable. An explicit sibling
+// "-fedora" / "-arm64" siblings of each name the manifest declares them for
+// (exact suffix match only, so "claude" never pulls in "claude-desktop"). A
+// logical tool split by backend shape into OS- or arch-gated entries
+// (claude-desktop + -macos + -fedora, herdr + herdr-macos, obsidian +
+// obsidian-arm64) is then selected — or skipped — by its one user-facing name;
+// the OS/arch gates keep only the host's entry applicable. An explicit sibling
 // name expands to nothing further.
 func withPlatformSiblings(m *manifest.Manifest, names []string) []string {
 	out := append([]string(nil), names...)
 	for _, name := range names {
-		for _, suffix := range []string{"-arch", "-debian", "-linux", "-macos", "-fedora"} {
+		for _, suffix := range []string{"-arch", "-debian", "-linux", "-macos", "-fedora", "-arm64"} {
 			for _, pkg := range m.Packages {
 				if pkg.Name == name+suffix {
 					out = append(out, pkg.Name)

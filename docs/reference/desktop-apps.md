@@ -12,7 +12,7 @@ dotf install --update --only obsidian
 dotf install --remove --only obsidian
 ```
 
-Use repeated `--only` flags for multiple apps. Bare app names select their exact `-arch`, `-debian`, `-linux`, `-macos` and `-fedora` siblings. Explicit sibling names select that entry only.
+Use repeated `--only` flags for multiple apps. Bare app names select their exact `-arch`, `-debian`, `-linux`, `-macos`, `-fedora` and `-arm64` siblings. Explicit sibling names select that entry only.
 
 ## Sources
 
@@ -38,6 +38,8 @@ Use repeated `--only` flags for multiple apps. Bare app names select their exact
 | Beekeeper Studio | Checksum-pinned upstream RPM | Homebrew cask | AUR |
 | WinBoat | Checksum-pinned upstream RPM | Not supported | AUR |
 | WhatsApp | Excluded | Official cask (`whatsapp-macos`) | Excluded |
+
+On Linux arm64 (for example Fedora Asahi Remix), ChatGPT and Google Chrome use the same vendor repos (arch-templated), and Zed Preview, LM Studio, Obsidian, Beekeeper Studio and Teams for Linux use `-arm64` sibling entries pointing at upstream's arm64/aarch64 build. 1Password (arm64 repos carry only the CLI), LocalSend, Discord, Slack, Zoom and WinBoat publish no arm64 Linux package these routes can use and are not-applicable there.
 
 OBS Studio, GIMP, darktable, Kdenlive, Meld, Pinta, VLC, Qalculate, Fedora Media Writer and LibreOffice use distro packages on Linux and Homebrew on macOS where available. Fedora Pinta can lag upstream. VLC may need RPM Fusion on older Fedora releases.
 
