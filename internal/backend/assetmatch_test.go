@@ -2,6 +2,7 @@ package backend
 
 import (
 	"errors"
+	"slices"
 	"sort"
 	"testing"
 
@@ -295,6 +296,46 @@ func TestMatchAsset_ArchTokenTrap(t *testing.T) {
 	})
 }
 
+func TestMatchAsset_HyphenatedArch(t *testing.T) {
+	t.Parallel()
+
+	localSend := []string{"LocalSend-1.18.2-linux-arm-64.tar.gz", "LocalSend-1.18.2-linux-x86-64.tar.gz"}
+	tests := []struct {
+		name    string
+		host    platform.Info
+		assets  []string
+		want    string
+		wantErr bool
+	}{
+		{"arm-64 resolves on arm64", linuxARM64, localSend, "LocalSend-1.18.2-linux-arm-64.tar.gz", false},
+		{"x86-64 resolves on x86_64", linuxAMD64, localSend, "LocalSend-1.18.2-linux-x86-64.tar.gz", false},
+		{"arm-64 is not a 32-bit arm asset", platform.Info{OS: platform.OSDebian, Arch: platform.ArchARM},
+			localSend, "", true},
+		// Auto-detect has no author-written pattern to narrow the release, so a
+		// name carrying an independent foreign-arch token still fails closed.
+		{"independent foreign token still rejects", linuxAMD64,
+			[]string{"arm-gnu-toolchain-14-linux-x86_64-arm-none-eabi.tar.gz"}, "", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := matchAsset(tc.assets, tc.host, matchPrefs{})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("matchAsset() = %q, want an error", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("matchAsset() error = %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("matchAsset() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestMatchAsset_AppleTriple(t *testing.T) {
 	t.Parallel()
 
@@ -310,5 +351,34 @@ func TestMatchAsset_AppleTriple(t *testing.T) {
 	}
 	if got != "app-x86_64-apple-darwin.tar.gz" {
 		t.Errorf("matchAsset() = %q, want the apple-darwin asset", got)
+	}
+}
+
+func TestForeignArchTokens(t *testing.T) {
+	tests := []struct {
+		host        platform.Arch
+		wantForeign []string
+		wantHost    []string
+	}{
+		{platform.ArchX86_64, []string{"arm64", "aarch64", "arm", "armv7l", "armel", "i386", "i686", "riscv64", "s390x"}, []string{"x86_64", "x86-64", "amd64", "x64"}},
+		{platform.ArchARM64, []string{"x86_64", "x86-64", "amd64", "x64", "arm", "armv7l", "i386", "riscv64"}, []string{"arm64", "aarch64", "arm-64"}},
+		{platform.ArchARM, []string{"x86_64", "arm64", "aarch64", "i386", "riscv64"}, []string{"arm", "armv7", "armv7l", "armv6l", "armhf", "armel"}},
+		// An arch dotf has no canonical name for must not reject its own assets.
+		{platform.Arch("riscv64"), []string{"x86_64", "arm64", "arm", "i386", "s390x"}, []string{"riscv64"}},
+	}
+	for _, tc := range tests {
+		t.Run(string(tc.host), func(t *testing.T) {
+			got := foreignArchTokens(tc.host)
+			for _, token := range tc.wantForeign {
+				if !slices.Contains(got, token) {
+					t.Errorf("foreignArchTokens(%s) lacks %q: %v", tc.host, token, got)
+				}
+			}
+			for _, token := range tc.wantHost {
+				if slices.Contains(got, token) {
+					t.Errorf("foreignArchTokens(%s) contains host token %q: %v", tc.host, token, got)
+				}
+			}
+		})
 	}
 }

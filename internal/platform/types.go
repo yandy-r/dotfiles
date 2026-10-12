@@ -68,19 +68,20 @@ func (a Arch) ReleaseArch() string {
 
 // ReleaseArchAliases returns the set of architecture tokens a GitHub release
 // asset may use for this host's CPU, feeding the asset auto-detector. x86_64
-// covers {x86_64, amd64, x64}; arm64 covers {aarch64, arm64}; 32-bit arm covers
-// its common variants. An unrecognized arch passes through as a one-element set
-// carrying its raw value, mirroring ReleaseArch's default case. The matcher
-// compares whole, delimited tokens, so "arm" never disqualifies an "arm64"
-// asset.
+// covers {x86_64, x86-64, amd64, x64}; arm64 covers {aarch64, arm64, arm-64};
+// 32-bit arm covers its common variants. An unrecognized arch passes through as
+// a one-element set carrying its raw value, mirroring ReleaseArch's default
+// case. The matcher compares whole, delimited tokens, so "arm" never
+// disqualifies an "arm64" asset, and discounts a token nested inside a longer
+// one, so the "arm" in "arm-64" is not read as 32-bit arm.
 func (a Arch) ReleaseArchAliases() []string {
 	switch a {
 	case ArchX86_64:
-		return []string{"x86_64", "amd64", "x64"}
+		return []string{"x86_64", "x86-64", "amd64", "x64"}
 	case ArchARM64:
-		return []string{"aarch64", "arm64"}
+		return []string{"aarch64", "arm64", "arm-64"}
 	case ArchARM:
-		return []string{"arm", "armv7", "armv6", "armhf"}
+		return []string{"arm", "armv7", "armv7l", "armv6", "armv6l", "armhf", "armel"}
 	default:
 		return []string{string(a)}
 	}

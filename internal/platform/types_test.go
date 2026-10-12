@@ -66,9 +66,9 @@ func TestArch_ReleaseArchAliases(t *testing.T) {
 		arch Arch
 		want []string
 	}{
-		{ArchX86_64, []string{"x86_64", "amd64", "x64"}},
-		{ArchARM64, []string{"aarch64", "arm64"}},
-		{ArchARM, []string{"arm", "armv7", "armv6", "armhf"}},
+		{ArchX86_64, []string{"x86_64", "x86-64", "amd64", "x64"}},
+		{ArchARM64, []string{"aarch64", "arm64", "arm-64"}},
+		{ArchARM, []string{"arm", "armv7", "armv7l", "armv6", "armv6l", "armhf", "armel"}},
 		{Arch("riscv64"), []string{"riscv64"}},
 	}
 

@@ -62,14 +62,15 @@ func (e *AssetMatchError) Error() string {
 // OS-alias token AND a host arch-alias token, reject assets carrying a foreign
 // OS/arch token (whole delimited tokens only, so "arm" never disqualifies
 // "arm64") or a non-installable extension/sidecar, then tie-break survivors by
-// libc, archive-format rank, and name-closeness. Zero survivors yields
+// libc, archive-format rank, and name-closeness. Unlike the rolling glob route,
+// a foreign-arch token rejects even beside a host one: with no author-written
+// pattern narrowing the release, failing closed is the only safe answer for a
+// name that claims two CPU families. Zero survivors yields
 // *AssetMatchError{Kind:"none"}; a scoring tie yields *AssetMatchError{Kind:
 // "ambiguous"} listing the candidates.
 func matchAsset(assets []string, info platform.Info, prefs matchPrefs) (string, error) {
 	osAliases := info.OS.ReleaseOSAliases()
-	archAliases := info.Arch.ReleaseArchAliases()
 	foreignOS := foreignOSTokens(info.OS)
-	foreignArch := foreignArchTokens(info.Arch)
 	host := fmt.Sprintf("%s/%s", info.OS.ReleaseOS(), info.Arch)
 
 	var survivors []string
@@ -77,10 +78,10 @@ func matchAsset(assets []string, info platform.Info, prefs matchPrefs) (string, 
 		if notInstallable(asset, prefs.allowExts) || excluded(asset, prefs.exclude) {
 			continue
 		}
-		if !hasAnyToken(asset, osAliases) || !hasAnyToken(asset, archAliases) {
+		if !hasAnyToken(asset, osAliases) || hasAnyToken(asset, foreignOS) {
 			continue
 		}
-		if hasAnyToken(asset, foreignOS) || hasAnyToken(asset, foreignArch) {
+		if hostArch, foreignArch := archTokens(asset, info.Arch); !hostArch || foreignArch {
 			continue
 		}
 		survivors = append(survivors, asset)
@@ -104,6 +105,12 @@ var (
 	releaseOSExemplars   = []platform.OS{platform.OSMacOS, platform.OSLinux, platform.OSWindows}
 )
 
+// untargetedArchTokens are release-asset tokens for CPU families dotf has no
+// canonical arch for. They are foreign on every supported host; without them a
+// release missing its host asset could resolve to, say, an i386 or riscv64
+// build instead of failing closed.
+var untargetedArchTokens = []string{"i386", "i686", "ia32", "riscv64", "ppc64", "ppc64le", "s390x", "loong64"}
+
 // foreignOSTokens is the list of OS-alias tokens belonging to every release OS
 // other than the host's, used to reject cross-OS assets that happen to also
 // carry the host arch token.
@@ -119,11 +126,14 @@ func foreignOSTokens(host platform.OS) []string {
 	return out
 }
 
-// foreignArchTokens is the list of arch-alias tokens belonging to every canonical
-// arch other than the host's. Because tokens match on whole delimited
-// boundaries, the 32-bit "arm" family never leaks into (and so never rejects) an
-// "arm64" host.
+// foreignArchTokens is the list of arch tokens that mark an asset as built for a
+// CPU other than the host's: the aliases of every other canonical arch plus
+// untargetedArchTokens, minus the host's own aliases (so an unrecognized host
+// arch such as riscv64 never rejects its own assets). Because tokens match on
+// whole delimited boundaries, the 32-bit "arm" family never leaks into (and so
+// never rejects) an "arm64" host.
 func foreignArchTokens(host platform.Arch) []string {
+	hostAliases := host.ReleaseArchAliases()
 	var out []string
 	for _, a := range releaseArchExemplars {
 		if a == host {
@@ -131,7 +141,36 @@ func foreignArchTokens(host platform.Arch) []string {
 		}
 		out = append(out, a.ReleaseArchAliases()...)
 	}
+	for _, token := range untargetedArchTokens {
+		if !slices.Contains(hostAliases, token) {
+			out = append(out, token)
+		}
+	}
 	return out
+}
+
+// archTokens reports whether name carries a host-arch token and whether it
+// carries a foreign-arch one. A match nested inside a longer match from the
+// other side does not count, so the "arm" inside "arm-64" is neither a 32-bit
+// marker on an arm64 host nor a host marker on a 32-bit arm one.
+func archTokens(name string, host platform.Arch) (hasHost, hasForeign bool) {
+	hostSpans := allTokenSpans(name, host.ReleaseArchAliases())
+	foreignSpans := allTokenSpans(name, foreignArchTokens(host))
+	return anyUncovered(hostSpans, foreignSpans), anyUncovered(foreignSpans, hostSpans)
+}
+
+// anyUncovered reports whether any of spans lies outside every strictly longer
+// span in others.
+func anyUncovered(spans, others []tokenSpan) bool {
+	for _, s := range spans {
+		covered := slices.ContainsFunc(others, func(o tokenSpan) bool {
+			return o.start <= s.start && s.end <= o.end && o.end-o.start > s.end-s.start
+		})
+		if !covered {
+			return true
+		}
+	}
+	return false
 }
 
 // assetScore ranks a survivor for the tie-break: higher is better, compared
@@ -332,23 +371,42 @@ func hasAnyToken(name string, tokens []string) bool {
 // separator set, tolerates a separator INSIDE the token (e.g. the underscore in
 // "x86_64") while still refusing to let "arm" match inside "arm64".
 func containsToken(name, token string) bool {
+	return len(tokenSpans(name, token)) > 0
+}
+
+// tokenSpan is the [start, end) byte range of one whole-token match.
+type tokenSpan struct{ start, end int }
+
+// tokenSpans returns every whole-token occurrence of token in name, under
+// containsToken's boundary rule.
+func tokenSpans(name, token string) []tokenSpan {
 	lower := strings.ToLower(name)
 	tok := strings.ToLower(token)
 	if tok == "" {
-		return false
+		return nil
 	}
+	var spans []tokenSpan
 	for from := 0; ; {
 		idx := strings.Index(lower[from:], tok)
 		if idx < 0 {
-			return false
+			return spans
 		}
 		start := from + idx
 		end := start + len(tok)
 		if isBoundary(lower, start-1) && isBoundary(lower, end) {
-			return true
+			spans = append(spans, tokenSpan{start, end})
 		}
 		from = start + 1
 	}
+}
+
+// allTokenSpans collects tokenSpans for each of tokens.
+func allTokenSpans(name string, tokens []string) []tokenSpan {
+	var spans []tokenSpan
+	for _, t := range tokens {
+		spans = append(spans, tokenSpans(name, t)...)
+	}
+	return spans
 }
 
 // isBoundary reports whether position pos in s is a token boundary: a string
