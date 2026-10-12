@@ -214,11 +214,13 @@ replacing the old copy; remove touches only dotf-owned paths.
 Both `app-artifact` and `pkg-url` also take a rolling GitHub route: `repo` +
 `asset` with `class = "rolling"` and no `tag`. `asset` is then a glob (Go
 `filepath.Match`, not a `{{.Arch}}` template) matched against the asset names of
-the repo's latest stable release. `preview = true` selects the newest non-draft
-prerelease among the 20 most recent releases instead. Assets whose name carries
-a foreign-arch token (`arm64`/`aarch64` on an x86_64 host; `x86_64`/`amd64`/`x64`
-on an arm64 host; 32-bit `arm` variants on both) are skipped, so one glob
-resolves a multi-arch release. An asset with no arch token is never skipped, so
+the repo's latest stable release; validation rejects an empty, malformed or
+`{{`-bearing `asset` on this route. `preview = true` selects the newest non-draft
+prerelease among the 20 most recent releases instead, and is rejected anywhere
+else. Assets whose name carries a foreign-arch token (`arm64`/`aarch64`/`arm-64`
+on an x86_64 host; `x86_64`/`x86-64`/`amd64`/`x64` on an arm64 host; 32-bit `arm`
+variants on both) and no host-arch token are skipped, so one glob resolves a
+multi-arch release. An asset with no arch token is never skipped, so
 a release that leaves one arch unlabelled needs per-arch sibling entries with
 explicit globs. Exactly one asset must match, with an HTTPS download URL and a
 GitHub-reported `sha256:` digest, which is the checksum the download is
