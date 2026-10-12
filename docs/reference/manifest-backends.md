@@ -211,8 +211,23 @@ vendor URLs rely on HTTPS. ELF architecture, archive paths and desktop values
 are checked before activation. Install/update stages the full artifact before
 replacing the old copy; remove touches only dotf-owned paths.
 
+Both `app-artifact` and `pkg-url` also take a rolling GitHub route: `repo` +
+`asset` with `class = "rolling"` and no `tag`. `asset` is then a glob (Go
+`filepath.Match`, not a `{{.Arch}}` template) matched against the asset names of
+the repo's latest stable release. `preview = true` selects the newest non-draft
+prerelease among the 20 most recent releases instead. Assets whose name carries
+a foreign-arch token (`arm64`/`aarch64` on an x86_64 host; `x86_64`/`amd64`/`x64`
+on an arm64 host; 32-bit `arm` variants on both) are skipped, so one glob
+resolves a multi-arch release. An asset with no arch token is never skipped, so
+a release that leaves one arch unlabelled needs per-arch sibling entries with
+explicit globs. Exactly one asset must match, with an HTTPS download URL and a
+GitHub-reported `sha256:` digest, which is the checksum the download is
+verified against; anything else fails closed. No manifest checksum or
+`dotf lock` entry is involved.
+
 `pkg-url` installs an official downloaded RPM/DEB through dnf/apt. Declare
-`url` or GitHub coordinates, `format` and `pkg_name`. RPM signatures use
+`url` or GitHub coordinates (pinned `repo`/`tag`/`asset`, or the rolling route
+above), `format` and `pkg_name`. RPM signatures use
 `gpg_key_url` plus a full `gpg_fingerprint`; only that key is imported. Unsigned
 upstream packages require `allow_unsigned = true`, a `justification` and
 SHA256. Debian packages require SHA256. Package name, magic and architecture
