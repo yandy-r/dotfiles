@@ -2,6 +2,7 @@ package backend
 
 import (
 	"errors"
+	"slices"
 	"sort"
 	"testing"
 
@@ -310,5 +311,34 @@ func TestMatchAsset_AppleTriple(t *testing.T) {
 	}
 	if got != "app-x86_64-apple-darwin.tar.gz" {
 		t.Errorf("matchAsset() = %q, want the apple-darwin asset", got)
+	}
+}
+
+func TestForeignArchTokens(t *testing.T) {
+	tests := []struct {
+		host        platform.Arch
+		wantForeign []string
+		wantHost    []string
+	}{
+		{platform.ArchX86_64, []string{"arm64", "aarch64", "arm", "armv7l", "armel", "i386", "i686", "riscv64", "s390x"}, []string{"x86_64", "amd64", "x64"}},
+		{platform.ArchARM64, []string{"x86_64", "amd64", "x64", "arm", "armv7l", "i386", "riscv64"}, []string{"arm64", "aarch64"}},
+		{platform.ArchARM, []string{"x86_64", "arm64", "aarch64", "i386", "riscv64"}, []string{"arm", "armv7", "armv7l", "armv6l", "armhf", "armel"}},
+		// An arch dotf has no canonical name for must not reject its own assets.
+		{platform.Arch("riscv64"), []string{"x86_64", "arm64", "arm", "i386", "s390x"}, []string{"riscv64"}},
+	}
+	for _, tc := range tests {
+		t.Run(string(tc.host), func(t *testing.T) {
+			got := foreignArchTokens(tc.host)
+			for _, token := range tc.wantForeign {
+				if !slices.Contains(got, token) {
+					t.Errorf("foreignArchTokens(%s) lacks %q: %v", tc.host, token, got)
+				}
+			}
+			for _, token := range tc.wantHost {
+				if slices.Contains(got, token) {
+					t.Errorf("foreignArchTokens(%s) contains host token %q: %v", tc.host, token, got)
+				}
+			}
+		})
 	}
 }

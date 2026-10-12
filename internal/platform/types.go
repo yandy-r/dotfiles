@@ -80,7 +80,7 @@ func (a Arch) ReleaseArchAliases() []string {
 	case ArchARM64:
 		return []string{"aarch64", "arm64"}
 	case ArchARM:
-		return []string{"arm", "armv7", "armv6", "armhf"}
+		return []string{"arm", "armv7", "armv7l", "armv6", "armv6l", "armhf", "armel"}
 	default:
 		return []string{string(a)}
 	}

@@ -104,6 +104,12 @@ var (
 	releaseOSExemplars   = []platform.OS{platform.OSMacOS, platform.OSLinux, platform.OSWindows}
 )
 
+// untargetedArchTokens are release-asset tokens for CPU families dotf has no
+// canonical arch for. They are foreign on every supported host; without them a
+// release missing its host asset could resolve to, say, an i386 or riscv64
+// build instead of failing closed.
+var untargetedArchTokens = []string{"i386", "i686", "ia32", "riscv64", "ppc64", "ppc64le", "s390x", "loong64"}
+
 // foreignOSTokens is the list of OS-alias tokens belonging to every release OS
 // other than the host's, used to reject cross-OS assets that happen to also
 // carry the host arch token.
@@ -119,17 +125,25 @@ func foreignOSTokens(host platform.OS) []string {
 	return out
 }
 
-// foreignArchTokens is the list of arch-alias tokens belonging to every canonical
-// arch other than the host's. Because tokens match on whole delimited
-// boundaries, the 32-bit "arm" family never leaks into (and so never rejects) an
-// "arm64" host.
+// foreignArchTokens is the list of arch tokens that mark an asset as built for a
+// CPU other than the host's: the aliases of every other canonical arch plus
+// untargetedArchTokens, minus the host's own aliases (so an unrecognized host
+// arch such as riscv64 never rejects its own assets). Because tokens match on
+// whole delimited boundaries, the 32-bit "arm" family never leaks into (and so
+// never rejects) an "arm64" host.
 func foreignArchTokens(host platform.Arch) []string {
+	hostAliases := host.ReleaseArchAliases()
 	var out []string
 	for _, a := range releaseArchExemplars {
 		if a == host {
 			continue
 		}
 		out = append(out, a.ReleaseArchAliases()...)
+	}
+	for _, token := range untargetedArchTokens {
+		if !slices.Contains(hostAliases, token) {
+			out = append(out, token)
+		}
 	}
 	return out
 }

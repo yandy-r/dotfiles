@@ -88,3 +88,85 @@ func TestLatestReleaseArtifact(t *testing.T) {
 		})
 	}
 }
+
+// releaseJSON renders a one-release API body whose assets all carry a valid
+// digest and https URL, so only asset-name selection is under test.
+func releaseJSON(tag string, prerelease bool, names ...string) string {
+	assets := make([]string, len(names))
+	for i, name := range names {
+		assets[i] = asset(name, "sha256:"+testSum, "https://github.com/o/r/releases/download/"+tag+"/"+name)
+	}
+	pre := ""
+	if prerelease {
+		pre = `"prerelease":true,`
+	}
+	return `{"tag_name":"` + tag + `",` + pre + `"assets":[` + strings.Join(assets, ",") + `]}`
+}
+
+func TestLatestReleaseArtifact_ArchSelection(t *testing.T) {
+	obsidian := []string{"Obsidian-1.14.4-arm64.AppImage", "Obsidian-1.14.4.AppImage"}
+
+	tests := []struct {
+		name    string
+		host    platform.Info
+		assets  []string
+		pattern string
+		want    string
+		wantErr string
+	}{
+		{"x86_64 takes the untagged asset beside arm64", linuxX86, obsidian, "Obsidian-*.AppImage",
+			"Obsidian-1.14.4.AppImage", ""},
+		{"asset order does not matter", linuxX86, []string{obsidian[1], obsidian[0]}, "Obsidian-*.AppImage",
+			"Obsidian-1.14.4.AppImage", ""},
+		{"arm64 sibling glob takes the tagged asset", linuxARM64, obsidian, "Obsidian-*-arm64.AppImage",
+			"Obsidian-1.14.4-arm64.AppImage", ""},
+		{"arm64 host keeps the shared glob ambiguous", linuxARM64, obsidian, "Obsidian-*.AppImage",
+			"", "multiple assets"},
+		{"aarch64 spelling, any case", linuxX86, []string{"Tool-1-AARCH64.AppImage", "Tool-1.AppImage"}, "Tool-*.AppImage",
+			"Tool-1.AppImage", ""},
+		{"x86_64 spellings are foreign on arm64", linuxARM64,
+			[]string{"tool-1-x64.rpm", "tool-1.amd64.rpm", "tool-1.x86_64.rpm", "tool-1.aarch64.rpm"}, "tool-*.rpm",
+			"tool-1.aarch64.rpm", ""},
+		{"32-bit arm variants are foreign", linuxX86,
+			[]string{"tool-1-armv7l.AppImage", "tool-1-armv6l.AppImage", "tool-1-armel.AppImage", "tool-1.AppImage"}, "tool-*.AppImage",
+			"tool-1.AppImage", ""},
+		{"untargeted arches are foreign", linuxX86,
+			[]string{"tool-1-i386.AppImage", "tool-1-i686.AppImage", "tool-1-riscv64.AppImage", "tool-1-ppc64le.AppImage", "tool-1-s390x.AppImage", "tool-1.AppImage"},
+			"tool-*.AppImage", "tool-1.AppImage", ""},
+		{"foreign-only release fails closed", linuxX86,
+			[]string{"tool-1-arm64.AppImage", "tool-1-armv7l.AppImage", "tool-1-riscv64.AppImage"}, "tool-*.AppImage",
+			"", "no asset matches"},
+		{"two host assets stay ambiguous after the skip", linuxX86,
+			[]string{"tool-1-arm64.AppImage", "tool-1.AppImage", "tool-1-x86_64.AppImage"}, "tool-*.AppImage",
+			"", "multiple assets"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			stubLatest(t, releaseJSON("v1", false, tc.assets...))
+			art, err := latestReleaseArtifact("o/r", tc.pattern, false, tc.host)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("err = %v (asset %q), want containing %q", err, art.Asset, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if art.Asset != tc.want {
+				t.Errorf("asset = %q, want %q", art.Asset, tc.want)
+			}
+		})
+	}
+}
+
+func TestLatestReleaseArtifact_PreviewSkipsForeignArch(t *testing.T) {
+	stubLatest(t, "["+releaseJSON("v2-pre", true, "tool-2-arm64.AppImage", "tool-2.AppImage")+"]")
+	art, err := latestReleaseArtifact("o/r", "tool-*.AppImage", true, linuxX86)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if art.Asset != "tool-2.AppImage" || art.Tag != "v2-pre" {
+		t.Errorf("artifact = %s@%s, want tool-2.AppImage@v2-pre", art.Asset, art.Tag)
+	}
+}
