@@ -96,3 +96,4 @@ graphify-out/
 # espanso: machine-private snippets and `espanso install` packages
 espanso/match/local/
 espanso/match/packages/
+.claude/worktrees/
