@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -382,6 +383,10 @@ func packagesForInstall(m *manifest.Manifest, intents []string) []manifest.Packa
 //     passed-in intent-derived pkgs entirely — this is the "--only selects
 //     independent of --intent" contract. Otherwise the base set is pkgs.
 //   - Skip: any package whose Name is in skip is then removed from the base set.
+//   - Requires: for an install, the prerequisites of what survived the skip are
+//     added and ordered dependency-first. A prerequisite reached only through a
+//     skipped package is therefore not selected, while skipping a prerequisite
+//     of a surviving package fails closed.
 //
 // The result may be empty; an empty set is a valid "nothing to do" outcome, not
 // an error.
@@ -402,6 +407,14 @@ func filterPackagesForAction(m *manifest.Manifest, pkgs []manifest.Package, only
 	if len(only) > 0 {
 		base = packagesByName(m, only)
 	}
+
+	// Skip before expanding prerequisites, so one pulled in only by a skipped
+	// package does not outlive it.
+	excluded := make(map[string]bool)
+	for _, name := range skip {
+		excluded[name] = true
+	}
+	base = slices.DeleteFunc(slices.Clone(base), func(pkg manifest.Package) bool { return excluded[pkg.Name] })
 
 	// Expand explicit manifest prerequisites, not backend-specific guesses.
 	selected := make(map[string]bool)
@@ -428,10 +441,6 @@ func filterPackagesForAction(m *manifest.Manifest, pkgs []manifest.Package, only
 				base = append(base, pkg)
 			}
 		}
-	}
-	excluded := make(map[string]bool)
-	for _, name := range skip {
-		excluded[name] = true
 	}
 	var out []manifest.Package
 	byName := make(map[string]manifest.Package)

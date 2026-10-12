@@ -1052,6 +1052,44 @@ func TestFilterPackages_PlatformSiblings(t *testing.T) {
 	}
 }
 
+func TestFilterPackages_SkipDropsOrphanedPrerequisite(t *testing.T) {
+	m := &manifest.Manifest{Packages: []manifest.Package{
+		{Name: "runtime"},
+		{Name: "app", Requires: []string{"runtime"}},
+		{Name: "other-app", Requires: []string{"runtime"}},
+		{Name: "plain"},
+	}}
+	byName := func(names ...string) []manifest.Package { return packagesByName(m, names) }
+
+	tests := []struct {
+		name string
+		pkgs []manifest.Package
+		only []string
+		skip []string
+		want string
+	}{
+		{"only and skip the same package selects nothing", nil, []string{"app"}, []string{"app"}, ""},
+		{"prerequisite of a skipped intent package is dropped", byName("app", "plain"), nil, []string{"app"}, "plain"},
+		{"prerequisite shared with a kept package survives", nil, []string{"app", "other-app"}, []string{"app"}, "runtime,other-app"},
+		{"prerequisite selected in its own right survives", byName("runtime", "app"), nil, []string{"app"}, "runtime"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := filterPackages(m, tt.pkgs, tt.only, tt.skip)
+			if err != nil {
+				t.Fatalf("filterPackages() error = %v", err)
+			}
+			names := make([]string, len(got))
+			for i, pkg := range got {
+				names[i] = pkg.Name
+			}
+			if s := strings.Join(names, ","); s != tt.want {
+				t.Errorf("filterPackages(only=%v skip=%v) = %q, want %q", tt.only, tt.skip, s, tt.want)
+			}
+		})
+	}
+}
+
 func TestFilterPackages_PrerequisiteOrderAndSkip(t *testing.T) {
 	m, err := manifest.LoadFS(dotfiles.ManifestFS, "manifest/packages.toml")
 	if err != nil {
