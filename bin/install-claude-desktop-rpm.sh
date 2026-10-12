@@ -9,7 +9,7 @@
 # Trust chain, fail-closed at every step:
 #   key.asc fingerprint == ANTHROPIC_FPR
 #   gpgv VALIDSIG ANTHROPIC_FPR over InRelease (only the signed text is used)
-#   InRelease SHA256 -> Packages (binary-amd64) -> chosen .deb size + SHA256
+#   InRelease SHA256 -> Packages (binary-amd64|arm64) -> chosen .deb size + SHA256
 #
 # The .deb is unpacked with ar+tar (no-same-owner); its Debian maintainer scripts
 # (apt repo, AppArmor) are never run. The RPM keeps the vendor 4755 mode on
@@ -88,16 +88,30 @@ if [[ "$ACTION" == "remove" ]]; then
   exec sudo dnf remove -y claude-desktop
 fi
 
-# Fedora x86_64 only: the dependency map below uses Fedora package names and the
-# repo's amd64 build.
-if ! grep -Eq '^ID="?fedora"?$' /etc/os-release 2>/dev/null; then
-  log "not Fedora; Claude Desktop uses the apt repo on Debian/Ubuntu and is unavailable here"
-  exit 0
-fi
-[[ "$(uname -m)" == "x86_64" ]] || {
-  log "only x86_64 is supported (repo ships amd64/arm64 .deb; arm64 repack untested)"
-  exit 0
-}
+# Fedora and its remixes (ID or ID_LIKE fedora, e.g. fedora-asahi-remix, nobara)
+# only: the dependency map below uses Fedora package names and glibc >= 2.34.
+# Enterprise Linux rebuilds also list fedora in ID_LIKE but are rejected by ID.
+# The repo ships amd64 and arm64. Unsupported hosts fail (non-zero) so dotf
+# never reports a skipped install as ok; the manifest os/arch gates keep dotf
+# from running the script on non-redhat hosts and other arches at all.
+os_release=/etc/os-release
+[[ -r "$os_release" ]] || os_release=/usr/lib/os-release
+[[ -r "$os_release" ]] || die "cannot read /etc/os-release or /usr/lib/os-release"
+os_value() { tr -d '\r' <"$os_release" | sed -n "s/^$1=[\"']\{0,1\}\([^\"']*\)[\"']\{0,1\}\$/\1/p" | head -1; }
+os_id="$(os_value ID)"
+os_ids=" $os_id $(os_value ID_LIKE) "
+case "$os_id" in
+  rhel | centos | rocky | almalinux | ol | amzn | circle | eurolinux | navy | cloudlinux)
+    die "$os_id is Enterprise Linux, not Fedora; Claude Desktop's Fedora repack is unsupported here"
+    ;;
+esac
+[[ "$os_ids" == *" fedora "* ]] ||
+  die "not Fedora; Claude Desktop uses the apt repo on Debian/Ubuntu and is unavailable here"
+case "$(uname -m)" in
+  x86_64) DEB_ARCH="amd64" RPM_ARCH="x86_64" ;;
+  aarch64) DEB_ARCH="arm64" RPM_ARCH="aarch64" ;;
+  *) die "unsupported architecture $(uname -m) (repo ships amd64/arm64 only)" ;;
+esac
 
 if [[ "$ACTION" == "install" && -n "$(installed_version)" && "$BUILD_ONLY" == false ]]; then
   log "claude-desktop $(installed_version) already installed (use --update)"
@@ -153,9 +167,9 @@ until="$(sed -n 's/^Valid-Until: //p' "$WORK/Release" | head -1)"
 [[ "$(date -u -d "$until" +%s)" -gt "$(date -u +%s)" ]] || die "InRelease expired ($until); refusing stale metadata"
 
 # 3. Packages index hash from the signed SHA256 section.
-pkgs_sha="$(awk '/^SHA256:/{s=1;next} /^[^ ]/{s=0} s && $3=="main/binary-amd64/Packages"{print $1; exit}' "$WORK/Release")"
+pkgs_sha="$(awk -v p="main/binary-$DEB_ARCH/Packages" '/^SHA256:/{s=1;next} /^[^ ]/{s=0} s && $3==p{print $1; exit}' "$WORK/Release")"
 [[ -n "$pkgs_sha" ]] || die "Packages hash missing from InRelease"
-curl -fsSL "$REPO_URL/dists/stable/main/binary-amd64/Packages" -o "$WORK/Packages"
+curl -fsSL "$REPO_URL/dists/stable/main/binary-$DEB_ARCH/Packages" -o "$WORK/Packages"
 echo "$pkgs_sha  $WORK/Packages" | sha256sum -c --status || die "Packages hash mismatch"
 
 # 4. Pick the version (pinned or newest) and its .deb metadata.
@@ -166,7 +180,7 @@ read -r filename deb_sha size < <(awk -v v="$want" '
   /^$/{if(f&&s&&z){print f, s, z; exit} ok=0}
   END{if(f&&s&&z)print f, s, z}' "$WORK/Packages" | head -1)
 [[ -n "${filename:-}" ]] || die "version $want not found in the signed index"
-[[ "$filename" =~ ^pool/main/c/claude-desktop/[A-Za-z0-9._+~-]+_amd64\.deb$ ]] || die "unexpected Filename: $filename"
+[[ "$filename" =~ ^pool/main/c/claude-desktop/[A-Za-z0-9._+~-]+_${DEB_ARCH}\.deb$ ]] || die "unexpected Filename: $filename"
 
 current="$(installed_version)"
 if [[ "$ACTION" == "update" && -n "$current" && "$BUILD_ONLY" == false ]]; then
@@ -212,7 +226,7 @@ Release:        1.dotf%{?dist}
 Summary:        Claude Desktop (repacked from Anthropic's official .deb)
 License:        Proprietary
 URL:            https://claude.ai/download
-ExclusiveArch:  x86_64
+ExclusiveArch:  $RPM_ARCH
 AutoReqProv:    no
 Requires:       gtk3 libnotify nss xdg-utils at-spi2-core libdrm mesa-libgbm libxcb libsecret glib2 libXtst libuuid pipewire-libs xdg-desktop-portal alsa-lib glibc >= 2.34
 Recommends:     libappindicator-gtk3

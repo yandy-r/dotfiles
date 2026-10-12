@@ -725,7 +725,8 @@ names = { homebrew = "claude" }
 # Fedora has no official package: the script repacks the official .deb after
 # verifying key fingerprint -> signed InRelease -> Packages -> .deb SHA256, and
 # never runs its Debian maintainer scripts. Unsupported by Anthropic; the script
-# self-skips on non-Fedora redhat hosts and non-x86_64.
+# The os/arch gates report other hosts as not-applicable; the script itself
+# fails (never a silent ok) if run on a non-Fedora-derived host or another arch.
 [[package]]
 name = "claude-desktop-fedora"
 backend = "custom-script"
@@ -736,6 +737,7 @@ provides = ["claude-desktop"]
 actions = ["update", "remove"]
 class = "rolling"
 justification = "no official RPM exists; repacks the signature-verified official .deb into a local RPM"
+arch = ["x86_64", "arm64"]
 
 [[package]]
 name = "espanso"
