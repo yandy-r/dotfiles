@@ -12,6 +12,7 @@ match/prompts/release.yml      :release
 match/prompts/op-secrets.yml   :opsecrets
 match/prompts/project-init.yml :projinit
 match/prompts/linear-issue.yml :linissue
+match/prompts/env-setup.yml    :envsetup
 scripts/agent-prompt           renders the end-to-end workflow prompt
 scripts/check-prompt-length    checks every prompt fits the 4000-char limit
 scripts/profiles/<name>.conf   per-project values for agent-prompt
@@ -84,4 +85,5 @@ espanso reloads on save. Check a change with `espanso log` or `espanso match lis
 | `:projinit`  | `/goal` to initialize a project or update an existing one |
 | `:opsecrets` | `/goal` to back up secrets to a 1Password secure note     |
 | `:linissue`  | `/goal` to file an agent-ready Linear issue (no code)     |
+| `:envsetup`  | `/env-setup` for Cursor cloud agents (not `/goal`)        |
 | `:search`    | fuzzy search over all snippets (also `ALT+SPACE`)         |
