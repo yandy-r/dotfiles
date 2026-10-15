@@ -2,20 +2,24 @@
 # Check that every agent prompt fits the paste limit of agent CLIs
 # (Claude Code's /goal accepts at most 4000 characters).
 #
-# Renders agent-prompt for every profile, task, and skills combination, and
-# measures the static `replace: |` body of each match/prompts/*.yml (form
-# placeholders count at their literal length, which is longer than any value).
+# Renders agent-prompt for every profile (plus auto), task, target kind, and
+# skills combination, and measures the static `replace: |` body of each
+# match/prompts/*.yml (form placeholders count at their literal length, which
+# is longer than any value). Also checks that the :e2e form offers exactly
+# auto plus the profiles in scripts/profiles/.
 #
-#   check-prompt-length          # exit 1 if any prompt is over the limit
+#   check-prompt-length          # exit 1 if any check fails
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROMPTS_DIR="$SCRIPT_DIR/../match/prompts"
+E2E_MATCH="$PROMPTS_DIR/agent-e2e.yml"
 RENDER="$SCRIPT_DIR/agent-prompt"
 MAX_CHARS=4000
-# Long enough to stand in for a real project name or issue list.
-SAMPLE_TARGET="YAN-723, YAN-724 and YAN-725"
+# Long enough to stand in for a real issue list or project name.
+SAMPLE_ISSUES="YAN-723, YAN-724 and YAN-725"
+SAMPLE_PROJECT="Website and commerce -- Bugs"
 
 failures=0
 worst=0
@@ -30,23 +34,50 @@ check() {
 }
 
 check_renders() {
-  local profile task skills target out
+  local profile task skills target out name
   while IFS= read -r profile; do
-    for task in bugs features any project issues; do
-      for skills in yes no; do
-        target=""
-        [[ "$task" == project || "$task" == issues ]] && target="$SAMPLE_TARGET"
-        # agent-prompt enforces the limit itself; a refusal counts as a failure.
-        if ! out="$("$RENDER" --profile "$profile" --task "$task" --skills "$skills" --target "$target" 2>&1)"; then
-          [[ "$out" == *"-character limit"* ]] || continue # e.g. no default project for "any"
-          printf 'FAIL %s/%s/skills=%s: %s\n' "$profile" "$task" "$skills" "$out" >&2
-          failures=$((failures + 1))
-          continue
-        fi
-        check "$profile/$task/skills=$skills" "${#out}"
+    for task in bugs features any; do
+      for target in "" "$SAMPLE_PROJECT" "$SAMPLE_ISSUES"; do
+        for skills in yes no; do
+          name="$profile/$task/target=${target:-none}/skills=$skills"
+          # agent-prompt enforces the limit itself; any refusal is a failure.
+          if ! out="$("$RENDER" --profile "$profile" --task "$task" --skills "$skills" --target "$target" 2>&1)"; then
+            printf 'FAIL %s: %s\n' "$name" "$out" >&2
+            failures=$((failures + 1))
+            continue
+          fi
+          check "$name" "${#out}"
+        done
       done
     done
-  done < <("$RENDER" --list-profiles)
+  done < <(
+    echo auto
+    "$RENDER" --list-profiles
+  )
+}
+
+# The form's profile choices must be auto plus every profile file, so adding
+# or removing a profile can't silently leave the form behind.
+check_form_profiles() {
+  local want choices got
+  want="$(
+    echo auto
+    "$RENDER" --list-profiles | sort
+  )"
+  choices="$(awk '
+    /^ *profile:$/ { inprofile = 1; next }
+    inprofile && /^ *values:$/ { invalues = 1; next }
+    invalues && /^ *- / { sub(/^ *- */, ""); gsub(/["\047]/, ""); print; next }
+    invalues { exit }
+  ' "$E2E_MATCH")"
+  got="$(
+    head -n 1 <<<"$choices"
+    tail -n +2 <<<"$choices" | sort
+  )"
+  if [[ "$got" != "$want" ]]; then
+    printf 'FAIL %s: profile choices must be auto, then: %s\n' "${E2E_MATCH##*/}" "$("$RENDER" --list-profiles | sort | tr '\n' ' ')" >&2
+    failures=$((failures + 1))
+  fi
 }
 
 # Print the de-indented block scalar that follows `replace: |`.
@@ -69,8 +100,9 @@ check_static() {
 
 check_renders
 check_static
+check_form_profiles
 if ((failures > 0)); then
-  printf '%d prompt(s) over %d characters\n' "$failures" "$MAX_CHARS" >&2
+  printf '%d check(s) failed (prompt limit: %d characters)\n' "$failures" "$MAX_CHARS" >&2
   exit 1
 fi
 printf 'ok: every prompt fits in %d characters (longest: %d)\n' "$MAX_CHARS" "$worst"

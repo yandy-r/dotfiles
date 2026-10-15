@@ -1,11 +1,15 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/espanso/espanso/dev/schemas/match.schema.json
 #
 # :e2e - end-to-end agent workflow (Linear issue -> RELEASING.md -> PR -> merge
-# -> backport -> close). The form picks the project profile and task; the text
-# is rendered by scripts/agent-prompt from scripts/profiles/<profile>.conf.
+# -> backport -> close). The text is rendered by scripts/agent-prompt.
 #
-# Target: the Linear project for "project", issue IDs for "issues" (e.g.
-# "YAN-723 and YAN-724"); leave blank for bugs/features/any to use the profile.
+# Profile: "auto" works in any repo (the agent finds the Linear workspace,
+# team, and projects itself); a named profile pins them from
+# scripts/profiles/<name>.conf. Keep these choices in sync with that directory
+# (`npm run test:espanso` checks it).
+#
+# Target (optional) overrides the profile: issue IDs ("YAN-723, YAN-724") work
+# exactly those issues; anything else is a Linear project to pick from.
 
 matches:
   - trigger: ':e2e'
@@ -16,11 +20,12 @@ matches:
         params:
           layout: |
             Profile [[profile]]  Task [[task]]  Skill hints [[skills]]
-            Target (project or issue IDs) [[target]]
+            Target (optional: issue IDs or a Linear project) [[target]]
           fields:
             profile:
               type: choice
               values:
+                - auto
                 - tokenhop
                 - praxrr
                 - crosshook
@@ -28,15 +33,13 @@ matches:
                 - claude-plugins
                 - itcn-crm
                 - itcn-website
-              default: tokenhop
+              default: auto
             task:
               type: choice
               values:
                 - bugs
                 - features
                 - any
-                - project
-                - issues
               default: bugs
             skills:
               type: choice

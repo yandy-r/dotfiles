@@ -15,7 +15,7 @@ match/prompts/linear-issue.yml :linissue
 match/prompts/env-setup.yml    :envsetup
 scripts/agent-prompt           renders the end-to-end workflow prompt
 scripts/check-prompt-length    checks every prompt fits the 4000-char limit
-scripts/profiles/<name>.conf   per-project values for agent-prompt
+scripts/profiles/<name>.conf   optional pinned Linear names for agent-prompt
 match/local/                   machine-private snippets (git-ignored)
 match/packages/                `espanso install` packages (git-ignored)
 ```
@@ -24,23 +24,38 @@ match/packages/                `espanso install` packages (git-ignored)
 
 `:e2e` opens a form (profile, task, skill hints, target) and pastes the
 end-to-end Linear-to-merge workflow prompt. The text comes from
-`scripts/agent-prompt`, so one template covers every project:
+`scripts/agent-prompt`, so one template covers every repo.
 
-| Task       | Source of work                                         |
-| ---------- | ------------------------------------------------------ |
-| `bugs`     | the bugs project, or the pool with a bug focus         |
-| `features` | the features project, or the pool with a feature focus |
-| `any`      | the pool, or both the bugs and features projects       |
-| `project`  | the Linear project typed in Target                     |
-| `issues`   | the issue IDs typed in Target (`YAN-723 and YAN-724`)  |
+**Profile** says where the Linear names come from:
 
-Per-project values (workspace, issue prefix, release label, CodeRabbit,
-secrets) live in `scripts/profiles/*.conf`; see
-[scripts/profiles/README.md](scripts/profiles/README.md). The renderer also
-works outside espanso:
+- `auto` (default) works in any repo with nothing to maintain: the agent
+  finds the workspace, team, and projects from `RELEASING.md`/`AGENTS.md` or
+  the repo name, and reports which ones it used. Secrets and CodeRabbit rules
+  are phrased conditionally ("if present").
+- A named profile (`scripts/profiles/<name>.conf`) pins those names for repos
+  where they can't be inferred (shared workspaces, pooled projects). Profile
+  values are hints: if a project or label was renamed, the agent uses the
+  closest match and reports it instead of failing. See
+  [scripts/profiles/README.md](scripts/profiles/README.md).
+
+**Task** picks the kind of work; **Target** (optional) narrows it and always
+wins over the profile:
+
+| Target                     | Source of work                                                   |
+| -------------------------- | ---------------------------------------------------------------- |
+| empty                      | the profile's bugs/features project or pool, else the repo's own |
+| a Linear project name      | that project, ranked for the task (`bugs`, `features`, `any`)    |
+| issue IDs (`YAN-1, YAN-2`) | exactly those issues, resuming any work already in flight        |
+
+The prompt also makes the agent treat each issue's acceptance criteria as the
+spec (writing them first if missing), start bug fixes with a failing
+regression test, and stop and report when blocked rather than guess.
+
+The renderer also works outside espanso:
 
 ```bash
-~/.config/espanso/scripts/agent-prompt --profile tokenhop --task bugs | wl-copy
+~/.config/espanso/scripts/agent-prompt --task bugs | wl-copy
+~/.config/espanso/scripts/agent-prompt --profile tokenhop --target "YAN-723, YAN-724"
 ```
 
 ## Prompt length limit
@@ -48,17 +63,20 @@ works outside espanso:
 Agent CLIs cap pasted goals; Claude Code's `/goal` accepts at most 4000
 characters. Every prompt here stays under that, so it works pasted into any
 tool. `agent-prompt` refuses to render anything longer, and
-`npm run test:espanso` (`scripts/check-prompt-length`) renders every profile,
-task, and skills combination and measures each `match/prompts/*.yml` body. Run
-it after editing a prompt; keep new prompts terse (one rule per bullet, no
+`npm run test:espanso` (`scripts/check-prompt-length`) renders every profile
+(plus `auto`), task, target, and skills combination, measures each
+`match/prompts/*.yml` body, and checks that the `:e2e` profile choices match
+`scripts/profiles/`. Run it after editing a prompt or profile; keep new prompts terse (one rule per bullet, no
 repeated context).
 
 ## Extending
 
 - **New snippets:** add a `match/<topic>.yml` file. Every `*.yml` under `match/`
   is loaded automatically, including subdirectories.
-- **New project for `:e2e`:** add `scripts/profiles/<name>.conf` and add the
-  name to the `profile` choices in `match/prompts/agent-e2e.yml`.
+- **New project for `:e2e`:** usually nothing; `auto` covers it. Add
+  `scripts/profiles/<name>.conf` only when the agent can't infer the Linear
+  names from the repo, then add the name to the `profile` choices in
+  `match/prompts/agent-e2e.yml` (`npm run test:espanso` catches a mismatch).
 - **New prompts:** add `match/prompts/<name>.yml`. Use a `form` variable and
   `{{form.<field>}}` for simple fill-ins; for conditional text, render it with
   a script in `scripts/` called from a `shell` variable with
