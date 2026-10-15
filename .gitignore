@@ -96,4 +96,11 @@ graphify-out/
 # espanso: machine-private snippets and `espanso install` packages
 espanso/match/local/
 espanso/match/packages/
+
+# Agent-managed git worktrees (per-runtime repo-local roots, YAN-1111)
 .claude/worktrees/
+.opencode/worktrees/
+.codex/worktrees/
+.cursor/worktrees/
+.agents/worktrees/
+
