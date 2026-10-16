@@ -107,7 +107,7 @@ packages = ["mise", "rust", "lua"]
 [intents.ai]
 description = "AI coding assistants and CLIs"
 default = false
-packages = ["claude", "codex", "opencode", "fabric", "coderabbit", "playwright-cli", "github-mcp-server", "claude-desktop", "claude-desktop-macos", "claude-desktop-fedora"]
+packages = ["claude", "codex", "opencode", "omp", "fabric", "coderabbit", "playwright-cli", "github-mcp-server", "claude-desktop", "claude-desktop-macos", "claude-desktop-fedora"]
 
 [intents.desktop]
 description = "Desktop GUI apps (terminals, editors, media, virt); skipped without a graphical session"
@@ -1170,6 +1170,19 @@ installed_when = { path = "~/.local/state/dotf/opencode-v2" }
 actions = ["update", "remove"]
 class = "rolling"
 justification = "vendor installer tracks latest (OPENCODE_VERSION defaults to latest)"
+
+# oh-my-pi's official --binary installer uses a build-service API (not GitHub
+# release assets) and verifies the returned SHA256. script-url could install it,
+# but cannot express update/remove; the wrapper supplies those lifecycle actions
+# without introducing Bun or touching shell files/configuration.
+[[package]]
+name = "omp"
+backend = "custom-script"
+script = "bin/install-omp.sh"
+provides = ["omp"]
+actions = ["update", "remove"]
+class = "rolling"
+justification = "official checksum-verifying binary installer plus standalone update/remove lifecycle, unsupported by script-url"
 
 # fabric installs a binary whose name varies by platform: `fabric` via the
 # official installer / `go install .../cmd/fabric`, or `fabric-ai` via Homebrew

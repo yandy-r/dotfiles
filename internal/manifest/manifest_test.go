@@ -1076,6 +1076,7 @@ func TestEmbeddedManifest_RetainedCustomScriptSentinels(t *testing.T) {
 		"rust":             {"cargo", "rustc"},
 		"lua":              {"luarocks"},
 		"claude":           {"claude"},
+		"omp":              {"omp"},
 		"coderabbit":       {"coderabbit"},
 		"playwright-cli":   {"playwright-cli"},
 		"1password-cli":    {"op"},

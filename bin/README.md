@@ -12,7 +12,7 @@ repository. All scripts are designed to be cross-platform and follow consistent 
 | Cloud Tools      | `install-aws-tools.sh`, `install-azure-cli.sh`, `install-1password-cli.sh`           | Cloud CLI tools             |
 | DevOps           | `install-hashicorp-tools.sh`, `k8s-tools.sh`, `install-docker.sh`                    | Infrastructure tools        |
 | Modern CLI       | `install-modern-cli.sh`, `install-yazi.sh`, `install-espanso.sh`                     | Modern command-line tools   |
-| AI/Development   | `install-claude.sh`, `install-opencode.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-neovim.sh` | Development tools           |
+| AI/Development   | `install-claude.sh`, `install-opencode.sh`, `install-omp.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-neovim.sh` | Development tools           |
 | Utilities        | `cursor-export-secrets.sh`, `dc-manage.sh`, `cleanup-*.sh`, `markdown-tools.sh`      | System utilities            |
 | Style / Lint     | `style.sh`, `lint.sh`, `format.sh`                                                   | Multi-language lint/format  |
 
@@ -269,6 +269,66 @@ installs V2 with the official per-OS method.
 # Remove binaries but keep configuration and data
 ./bin/install-opencode.sh --uninstall
 ```
+
+#### install-omp.sh
+
+Install [oh-my-pi](https://omp.sh/) (`omp`) using the official checksum-verifying
+standalone binary installer on macOS/Linux (including WSL). No Bun runtime or shell
+file edits are needed. Included in dotf's opt-in `ai` intent.
+
+```bash
+dotf install --only omp
+dotf install --only omp --update
+dotf install --only omp --remove
+# Or install it with the rest of the AI tools:
+dotf apply --intent ai
+
+./bin/install-omp.sh                       # no-op when installed
+./bin/install-omp.sh --update
+./bin/install-omp.sh --force               # reinstall and approve prompts
+./bin/install-omp.sh --version 18.8.9 --force
+./bin/install-omp.sh --uninstall
+./bin/install-omp.sh --debugger-only        # ensure debugpy without reinstalling omp
+./bin/install-omp.sh --skip-debugger        # omit the optional debugger setup
+./bin/install-omp.sh --dry-run
+```
+
+The binary goes to `~/.local/bin/omp`; override with `PI_INSTALL_DIR` or `--dir`
+(an absolute path). `--version` / `OMP_VERSION` accepts release numbers with or
+without `v`. `--check` prints the installed version. Updates reinstall the selected
+release without deleting the old binary first. Uninstall removes only the standalone
+binary, preserving `~/.omp`, XDG configuration/data, credentials, and sessions.
+Existing Bun/Homebrew installs are left alone; update/remove those with their original
+package manager. Symlink targets are never overwritten or removed.
+
+Direct install/uninstall prompts require a TTY; set `NON_INTERACTIVE=true` for
+headless approval for the omp binary (dotf does this automatically). `--dry-run`
+performs no downloads or writes. After installation, run `omp` to configure your provider.
+
+Install/update (even when omp is already present) also checks for **debugpy**, the
+Python adapter used by omp's builtin debugger. Missing dependencies are explained
+and offered with a confirmation prompt. Headless runs automatically install them
+with a notice. Use `--debugger-only` to repair just the debugger on existing installs,
+including Bun/Homebrew omp installs; use `--skip-debugger` or
+`OMP_SKIP_DEBUGGER=true` to omit the optional check.
+
+The check imports `debugpy.adapter` using `python`, matching omp's default command.
+On Python3-only systems it falls back to `python3` and also sets up the unversioned
+command omp expects. Externally managed Python uses OS packages, with sudo when
+needed: Debian/Ubuntu installs `python3-debugpy` plus `python-is-python3` when
+`python` is missing; Fedora uses `python3-debugpy` and `python-unversioned-command`;
+Arch uses `python-debugpy`. Other interpreters use `python -m pip` (active virtualenv,
+writable site, or `--user`), and Python3-only installs offer a user-local
+`~/.local/bin/python` symlink if that directory is on PATH. Existing files are
+never overwritten. No `sudo pip` or `--break-system-packages` is used.
+
+Missing pip, unsupported OS package managers, or installation/verification failures
+produce actionable warnings; optional debugger failures do not undo a successful
+omp installation, while `--debugger-only` returns a failure status. `--check` reports
+debugger readiness without installing anything. Uninstall keeps debugpy because
+other tools may share it. This configures the **Python** debugger only; other
+languages need their own DAP adapters. A project virtualenv/custom DAP override
+may use a different interpreter and need its own debugpy installation.
 
 #### install-playwright-cli.sh
 
