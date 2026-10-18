@@ -1137,15 +1137,22 @@ actions = ["update", "remove"]
 class = "rolling"
 justification = "vendor installer tracks latest (CLAUDE_VERSION defaults to latest)"
 
-# codex ships the `codex` binary as the npm package @openai/codex, which is its
-# primary Linux install path; the native toolchain/npm backend replaces
-# bin/install-codex.sh. `names` maps the npm install identifier while `name`
-# (codex) doubles as the PATH probe. toolchain infers class = managed.
+# codex uses the official standalone installer (https://chatgpt.com/codex/install.sh)
+# via bin/install-codex.sh, not npm: the npm/pnpm package @openai/codex breaks
+# across Node version switches and shadowed global bins. The wrapper removes any
+# npm/pnpm/bun/Homebrew install before installing natively, and strips the PATH
+# block upstream writes into shell profiles (this repo manages PATH itself).
+#
+# The probe is the standalone release, not `provides = ["codex"]`: an npm-installed
+# codex on PATH would otherwise report converged and skip the migration.
 [[package]]
 name = "codex"
-backend = "toolchain"
-tool = "npm"
-names = { npm = "@openai/codex" }
+backend = "custom-script"
+script = "bin/install-codex.sh"
+installed_when = { path = "~/.codex/packages/standalone/current/bin/codex" }
+actions = ["update", "remove"]
+class = "rolling"
+justification = "official checksum-verifying standalone installer tracks latest; wrapper migrates npm/pnpm installs and adds update/remove"
 
 # OpenCode 2 replaces OpenCode 1 under the same `opencode` binary name, so there
 # is no side-by-side entry any more. The installer removes a V1 package install

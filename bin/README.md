@@ -12,7 +12,7 @@ repository. All scripts are designed to be cross-platform and follow consistent 
 | Cloud Tools      | `install-aws-tools.sh`, `install-azure-cli.sh`, `install-1password-cli.sh`           | Cloud CLI tools             |
 | DevOps           | `install-hashicorp-tools.sh`, `k8s-tools.sh`, `install-docker.sh`                    | Infrastructure tools        |
 | Modern CLI       | `install-modern-cli.sh`, `install-yazi.sh`, `install-espanso.sh`                     | Modern command-line tools   |
-| AI/Development   | `install-claude.sh`, `install-opencode.sh`, `install-omp.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-neovim.sh` | Development tools           |
+| AI/Development   | `install-claude.sh`, `install-codex.sh`, `install-opencode.sh`, `install-omp.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-neovim.sh` | Development tools           |
 | Utilities        | `cursor-export-secrets.sh`, `dc-manage.sh`, `cleanup-*.sh`, `markdown-tools.sh`      | System utilities            |
 | Style / Lint     | `style.sh`, `lint.sh`, `format.sh`                                                   | Multi-language lint/format  |
 
@@ -270,6 +270,33 @@ installs V2 with the official per-OS method.
 ./bin/install-opencode.sh --uninstall
 ```
 
+#### install-codex.sh
+
+Install the OpenAI [Codex CLI](https://learn.chatgpt.com/docs/codex/cli#getting-started) with the
+official checksum-verifying standalone installer (`https://chatgpt.com/codex/install.sh`) instead of
+npm. Any npm, pnpm, bun, or Homebrew install of `@openai/codex` is removed first; a distro package
+(e.g. Terra's `codex` RPM) is reported but left alone. Included in dotf's opt-in `ai` intent.
+
+```bash
+dotf install --only codex
+dotf install --only codex --update
+dotf install --only codex --remove
+
+./bin/install-codex.sh                       # no-op when installed natively (still migrates npm/pnpm)
+./bin/install-codex.sh --update
+./bin/install-codex.sh --force               # reinstall and approve prompts
+./bin/install-codex.sh --version 0.163.0 --update
+./bin/install-codex.sh --uninstall
+./bin/install-codex.sh --check
+./bin/install-codex.sh --dry-run
+NON_INTERACTIVE=true ./bin/install-codex.sh --update
+```
+
+The command is a symlink at `~/.local/bin/codex` (override with `CODEX_INSTALL_DIR` or `--dir`)
+into `~/.codex/packages/standalone`. The PATH block upstream appends to shell profiles is
+stripped, because this repo manages PATH. Uninstall removes only the symlink and the standalone
+packages; `~/.codex` configuration, auth, sessions, and skills are preserved.
+
 #### install-omp.sh
 
 Install [oh-my-pi](https://omp.sh/) (`omp`) using the official checksum-verifying
@@ -422,11 +449,11 @@ Windows build via `winget.exe`. Configuration is never touched by `--remove`.
 ./bin/install-espanso.sh --x11 --method appimage --dry-run
 ```
 
-> **Migrated to native `dotf` backends (Phase 3, #50):** `lefthook`, `codex`, and `turso` are no
-> longer provisioned by `bin/install-*.sh`. They ship in `manifest/packages.toml` — `lefthook` and
-> `codex` via the `toolchain`/npm backend, `turso` via the `github-release` backend — and are
-> installed by `dotf apply` / `dotf install`. Run `lefthook install` in the repo after provisioning
-> to wire `.git/hooks/pre-commit`, `pre-push`, and `commit-msg`.
+> **Migrated to native `dotf` backends (Phase 3, #50):** `lefthook` and `turso` are no longer
+> provisioned by `bin/install-*.sh`. They ship in `manifest/packages.toml` — `lefthook` via the
+> `toolchain`/npm backend, `turso` via the `github-release` backend — and are installed by
+> `dotf apply` / `dotf install`. Run `lefthook install` in the repo after provisioning to wire
+> `.git/hooks/pre-commit`, `pre-push`, and `commit-msg`.
 
 ### Utility Scripts
 

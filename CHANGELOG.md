@@ -11,6 +11,10 @@ This project adheres to [Conventional Commits](https://www.conventionalcommits.o
 - Install OpenCode 2 through `bin/install-opencode.sh`: remove an OpenCode 1 package
   install while preserving configuration and data, then install V2 with the official
   per-OS method. The side-by-side `opencode2` manifest package is retired.
+- Install Codex CLI through `bin/install-codex.sh` with the official standalone installer
+  instead of npm: npm/pnpm/bun/Homebrew installs are removed first, and the manifest
+  `codex` entry moves from `toolchain`/npm to this script (`--update`, `--force`,
+  `--uninstall`, `NON_INTERACTIVE`).
 
 ## [0.3.0] - 2026-09-16
 

@@ -877,11 +877,27 @@ func TestEmbeddedManifest_Phase3Migrations(t *testing.T) {
 		}
 	})
 
+	t.Run("codex uses native standalone installer", func(t *testing.T) {
+		p, ok := byName["codex"]
+		if !ok {
+			t.Fatal("codex package missing from embedded manifest")
+		}
+		if p.Backend != manifest.BackendCustomScript || p.Script != "bin/install-codex.sh" {
+			t.Fatalf("codex must use bin/install-codex.sh, got backend=%q script=%q", p.Backend, p.Script)
+		}
+		// A PATH probe would treat an npm-installed codex as converged and skip migration.
+		if p.InstalledWhen == nil || p.InstalledWhen.Path != "~/.codex/packages/standalone/current/bin/codex" {
+			t.Errorf("codex installed_when = %+v, want standalone release marker", p.InstalledWhen)
+		}
+		if !slices.Equal(p.Actions, []string{"update", "remove"}) {
+			t.Errorf("codex actions = %v, want [update remove]", p.Actions)
+		}
+	})
+
 	for _, tc := range []struct {
 		name        string
 		installName string
 	}{
-		{name: "codex", installName: "@openai/codex"},
 		{name: "vercel", installName: "vercel"},
 		{name: "railway", installName: "@railway/cli"},
 		{name: "stripe", installName: "@stripe/cli"},
@@ -939,7 +955,6 @@ func TestEmbeddedManifest_Phase3Migrations(t *testing.T) {
 	repoRoot := filepath.Join("..", "..")
 	for _, script := range []string{
 		"bin/install-turso.sh",
-		"bin/install-codex.sh",
 		"bin/install-lefthook.sh",
 	} {
 		t.Run("retired "+script, func(t *testing.T) {
