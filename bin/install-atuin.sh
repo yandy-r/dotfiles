@@ -345,11 +345,10 @@ update_atuin() {
     log "Attempting update via official installer..."
     mkdir -p "$HOME/.local/bin"
 
-    if ATUIN_INSTALL_DIR="$HOME/.local" \
-        SKIP_SHELL_INTEGRATION=1 \
+    if SKIP_SHELL_INTEGRATION=1 \
         NO_UPDATE_PROFILE=1 \
         FORCE_INSTALL="true" \
-        curl --proto '=https' --tlsv1.2 -LsSf https://setup.atuin.sh | sh; then
+        curl --proto '=https' --tlsv1.2 -LsSf https://setup.atuin.sh | sh -s -- --non-interactive; then
 
         local new_version
         new_version="$(atuin --version 2>/dev/null || echo "unknown")"
@@ -401,10 +400,9 @@ install_atuin() {
             # User confirmed, try official installer
             mkdir -p "$HOME/.local/bin"
 
-            if ATUIN_INSTALL_DIR="$HOME/.local" \
-                SKIP_SHELL_INTEGRATION=1 \
+            if SKIP_SHELL_INTEGRATION=1 \
                 NO_UPDATE_PROFILE=1 \
-                curl --proto '=https' --tlsv1.2 -LsSf https://setup.atuin.sh | sh; then
+                curl --proto '=https' --tlsv1.2 -LsSf https://setup.atuin.sh | sh -s -- --non-interactive; then
 
                 cleanup_shell_config_modifications "atuin"
                 log_success "atuin installed successfully via official installer"
@@ -418,10 +416,9 @@ install_atuin() {
         log "Installing atuin via official installer (force mode)..."
         mkdir -p "$HOME/.local/bin"
 
-        if ATUIN_INSTALL_DIR="$HOME/.local" \
-            SKIP_SHELL_INTEGRATION=1 \
+        if SKIP_SHELL_INTEGRATION=1 \
             NO_UPDATE_PROFILE=1 \
-            curl --proto '=https' --tlsv1.2 -LsSf https://setup.atuin.sh | sh; then
+            curl --proto '=https' --tlsv1.2 -LsSf https://setup.atuin.sh | sh -s -- --non-interactive; then
 
             cleanup_shell_config_modifications "atuin"
             log_success "atuin installed successfully via official installer"
