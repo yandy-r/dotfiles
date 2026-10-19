@@ -28,6 +28,8 @@ hosts=(
   xps
   m1plasma
   yrpls-mbp16
+  hstr-bosub
+  hstr-amsub
 )
 
 env_paths=(
@@ -70,26 +72,26 @@ groups=()
 list=0
 while getopts ndg:lh opt; do
   case "$opt" in
-    n) rsync_opts+=(--dry-run) ;;
-    d) rsync_opts+=(--delete) ;;
-    g)
-      case "$OPTARG" in
-        env | agents) groups+=("$OPTARG") ;;
-        *)
-          echo "unknown group: $OPTARG (expected env or agents)" >&2
-          exit 2
-          ;;
-      esac
-      ;;
-    l) list=1 ;;
-    h)
-      usage
-      exit 0
-      ;;
+  n) rsync_opts+=(--dry-run) ;;
+  d) rsync_opts+=(--delete) ;;
+  g)
+    case "$OPTARG" in
+    env | agents) groups+=("$OPTARG") ;;
     *)
-      usage >&2
+      echo "unknown group: $OPTARG (expected env or agents)" >&2
       exit 2
       ;;
+    esac
+    ;;
+  l) list=1 ;;
+  h)
+    usage
+    exit 0
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
   esac
 done
 shift $((OPTIND - 1))
@@ -99,8 +101,8 @@ shift $((OPTIND - 1))
 paths=()
 for g in "${groups[@]}"; do
   case "$g" in
-    env) paths+=("${env_paths[@]}") ;;
-    agents) paths+=("${agents_paths[@]}") ;;
+  env) paths+=("${env_paths[@]}") ;;
+  agents) paths+=("${agents_paths[@]}") ;;
   esac
 done
 
