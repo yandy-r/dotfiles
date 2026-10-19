@@ -169,6 +169,10 @@ install_package() {
   check_node
   log "Installing ${PACKAGE_NAME}@${PLAYWRIGHT_CLI_VERSION} globally"
   run npm install --global "${PACKAGE_NAME}@${PLAYWRIGHT_CLI_VERSION}"
+  # mise-managed node: new global bins get no shim until a reshim.
+  if command -v mise >/dev/null 2>&1; then
+    run mise reshim
+  fi
 }
 
 uninstall_package() {
