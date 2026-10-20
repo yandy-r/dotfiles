@@ -24,6 +24,12 @@ golangci-lint run ./...
 `golangci-lint` is pinned to **v2.12.2** in both Go workflows — install that exact version locally, because a newer
 release will surface findings CI does not have and an older one will miss findings CI does.
 
+`internal/backend/route_matrix_test.go` checks the real manifest offline. Each package family with two or more
+entries that `--only <name>` expands (`<name>` plus any `manifest.PlatformSiblingSuffixes` sibling) must
+have exactly one applicable route on every {debian, redhat, arch, macos} × {x86_64, arm64} host. A
+host with no route must be listed in `unsupportedRoutes` with a reason. A gate edit that adds,
+drops or collides a route fails the test until that list changes in the same diff.
+
 There is **no `npm test` script and no `npm run build` script** in `package.json`; do not prescribe them. The npm
 aliases that do exist are thin wrappers and are not identical to what CI runs:
 

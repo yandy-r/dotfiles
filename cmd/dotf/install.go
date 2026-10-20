@@ -511,8 +511,8 @@ func validatePackageNames(m *manifest.Manifest, names []string) error {
 	return nil
 }
 
-// withPlatformSiblings adds the "<name>-arch" / "-debian" / "-linux" / "-macos" /
-// "-fedora" / "-arm64" siblings of each name the manifest declares them for
+// withPlatformSiblings adds the manifest.PlatformSiblingSuffixes siblings of
+// each name the manifest declares
 // (exact suffix match only, so "claude" never pulls in "claude-desktop"). A
 // logical tool split by backend shape into OS- or arch-gated entries
 // (claude-desktop + -macos + -fedora, herdr + herdr-macos, obsidian +
@@ -522,7 +522,7 @@ func validatePackageNames(m *manifest.Manifest, names []string) error {
 func withPlatformSiblings(m *manifest.Manifest, names []string) []string {
 	out := append([]string(nil), names...)
 	for _, name := range names {
-		for _, suffix := range []string{"-arch", "-debian", "-linux", "-macos", "-fedora", "-arm64"} {
+		for _, suffix := range manifest.PlatformSiblingSuffixes {
 			for _, pkg := range m.Packages {
 				if pkg.Name == name+suffix {
 					out = append(out, pkg.Name)

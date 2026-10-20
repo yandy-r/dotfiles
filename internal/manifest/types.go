@@ -74,6 +74,13 @@ type Intent struct {
 	Packages []string `toml:"packages"`
 }
 
+// PlatformSiblingSuffixes are the name suffixes that split one logical tool
+// into OS- or arch-gated package entries ("<name>-macos", "<name>-arm64", …).
+// `dotf install --only <name>` expands a name with every declared sibling, and
+// the gates must leave exactly one of them applicable per host. The order sets
+// only the order in which expanded sibling names are emitted.
+var PlatformSiblingSuffixes = []string{"-arch", "-debian", "-linux", "-macos", "-fedora", "-arm64"}
+
 // Package is a single installable unit, data-only, superset of the fields
 // required across every supported backend (see Backend). Only the
 // fields relevant to a given Package.Backend are expected to be set;
