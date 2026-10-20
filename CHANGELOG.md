@@ -15,6 +15,9 @@ This project adheres to [Conventional Commits](https://www.conventionalcommits.o
   instead of npm: npm/pnpm/bun/Homebrew installs are removed first, and the manifest
   `codex` entry moves from `toolchain`/npm to this script (`--update`, `--force`,
   `--uninstall`, `NON_INTERACTIVE`).
+- Copy live private env directories and a fixed agent and editor file list to other
+  hosts with `bin/sync-configs.sh` (`-n`, `-d`, `-g`, `-l`). This replaces
+  `sync-agent-configs.sh` and `sync-private-env.sh`.
 
 ## [0.3.0] - 2026-09-16
 

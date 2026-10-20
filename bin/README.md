@@ -13,7 +13,7 @@ repository. All scripts are designed to be cross-platform and follow consistent 
 | DevOps           | `install-hashicorp-tools.sh`, `k8s-tools.sh`, `install-docker.sh`                    | Infrastructure tools        |
 | Modern CLI       | `install-modern-cli.sh`, `install-yazi.sh`, `install-espanso.sh`                     | Modern command-line tools   |
 | AI/Development   | `install-claude.sh`, `install-codex.sh`, `install-opencode.sh`, `install-omp.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-neovim.sh` | Development tools           |
-| Utilities        | `cursor-export-secrets.sh`, `dc-manage.sh`, `cleanup-*.sh`, `markdown-tools.sh`      | System utilities            |
+| Utilities        | `sync-configs.sh`, `cursor-export-secrets.sh`, `dc-manage.sh`, `cleanup-*.sh`, `markdown-tools.sh` | System utilities |
 | Style / Lint     | `style.sh`, `lint.sh`, `format.sh`                                                   | Multi-language lint/format  |
 
 ## Key Scripts
@@ -576,6 +576,71 @@ Cursor IDE provider). Requires `sqlite3` and `jq`.
 with mode 600; the default parent directory is created/hardened to mode 700. Custom `--output`
 parents must already be user-owned and private; symlink parents and symlink/directory output
 paths are refused.
+
+#### sync-configs.sh
+
+`sync-configs.sh` copies live config from this host to other hosts in parallel. The copy covers private env directories and a fixed list of agent and editor files. Use it to move in-progress local config between machines during testing. Skills, agents, commands, plugins, and MCP servers stay in their own repo. This script replaces `sync-agent-configs.sh` and `sync-private-env.sh`.
+
+```bash
+# Print usage
+./bin/sync-configs.sh -h
+
+# List paths on this host that would be sent (no SSH)
+./bin/sync-configs.sh -l
+
+# Show the rsync plan for the default groups
+./bin/sync-configs.sh -n
+
+# Copy both groups to the built-in host list
+./bin/sync-configs.sh
+
+# Copy only the env group, and delete remote files that are missing locally
+./bin/sync-configs.sh -g env -d
+
+# Copy only the agents group to one host
+./bin/sync-configs.sh -g agents <host>
+```
+
+**Options:**
+
+- `-n` adds `rsync --dry-run`.
+- `-d` adds `rsync --delete`. This only affects synced directories, which is the `env` group.
+- `-g` is repeatable. The group is `env` or `agents`. With no `-g`, both groups are sent. An unknown group exits 2.
+- `-l` prints the paths that would be sent, then exits. It does not open SSH.
+- `-h` prints the usage text and exits 0.
+- Host names on the command line replace the built-in host list. The script skips the current machine (`hostname -s`).
+
+**What is copied:**
+
+`env`:
+
+- `.config/env`
+- `.config/environment.d`
+
+`agents`:
+
+- `.claude/settings.json`
+- `.claude/CLAUDE.md`
+- `.codex/config.toml`
+- `.config/opencode/opencode.json`
+- `.config/opencode/opencode-mem.jsonc`
+- `.config/opencode/tui.jsonc`
+- `.config/opencode/cli.json`
+- `.gemini/antigravity-cli/settings.json`
+- `.gemini/GEMINI.md`
+- `.omp/agent/config.yml`
+- `.omp/agent/models.yml`
+- `.omp/agent/AGENTS.md`
+- `.omp/agent/SYSTEM.md`
+- `.omp/agent/APPEND_SYSTEM.md`
+- `.cursor/cli-config.json`
+- `.config/zed/settings.json`
+
+Paths are relative to `$HOME`. A missing path or a symlink is skipped. If every path is skipped, the script prints `nothing to sync` and exits 1.
+
+Each remaining host gets one `rsync -azR --no-implied-dirs` over SSH (`BatchMode=yes`, connect timeout 5 seconds). A host that succeeds prints `ok    <host> (N changed)`. If any host fails, the script prints `FAIL` and exits 1. An interrupt exits 130.
+
+The agents list leaves out sessions, history, databases, caches, logs, auth files, and `settings.local.json`. The `env` directories can still hold private values. The copy is one-way. This host overwrites those paths on the other hosts.
 
 ### Style / Lint Orchestrator
 
