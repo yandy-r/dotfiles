@@ -22,7 +22,6 @@
 set -uo pipefail
 
 hosts=(
-  ubdevsrv
   ubsrv
   g7
   xps
