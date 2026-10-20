@@ -30,7 +30,7 @@ matches:
                 - praxrr
                 - crosshook
                 - opencode-goal-plugin
-                - ystack
+                - yrstack
                 - itcn-crm
                 - itcn-website
               default: auto
