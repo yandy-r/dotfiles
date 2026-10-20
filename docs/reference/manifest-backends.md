@@ -26,11 +26,27 @@ Try these in order; the first that fits is the right one:
      trusted; a mismatch aborts before any `sudo` step.
    - `dnf_repo` — Fedora/RHEL, in exactly one of three modes:
      - `repofile = "<https url>"` (+ `id`) — the vendor publishes a ready-made `.repo`;
-       **prefer this.** It is installed verbatim at `/etc/yum.repos.d/<id>.repo`.
+       **prefer this.** It is installed verbatim at `/etc/yum.repos.d/<id>.repo`, below
+       dotf's ownership marker line.
      - `baseurl = "…"` (+ `id`, optional `gpgkey`) — no vendor `.repo` exists; dotf renders
        the repo body. `baseurl`/`gpgkey` template `{{.ReleaseVer}}` (os-release `VERSION_ID`)
-       and `{{.Arch}}`.
+       and `{{.Arch}}`. Optional `repo_gpgcheck = true` (requires `gpgkey`) adds
+       `repo_gpgcheck=1`, so dnf also verifies the signed repository metadata
+       (`repodata/repomd.xml.asc`); set it only when the vendor publishes that signature,
+       or dnf refuses the repo.
      - `copr = "owner/project"` — the tool exists only in COPR (see below).
+
+     Both file modes write `/etc/yum.repos.d/<id>.repo` with a first line
+     `# Managed by dotf (repo backend); …` marking it dotf-owned. On later runs dotf
+     rewrites the file only when it is missing, starts with that marker, or (for a
+     `baseurl` entry with `repo_gpgcheck = true`) is byte-identical to the unmarked body an
+     older dotf rendered for it. Any other existing file (e.g. one a vendor package
+     installed) is left untouched — `repofile` is not even fetched — and the package is
+     still installed from it. When that file has a section named exactly `[<id>]`, both
+     install and update (`dnf install` / `dnf upgrade`) add `--enablerepo=<id>`, so a
+     section shipped with `enabled=0` (as Fedora Workstation's `google-chrome.repo` is)
+     still works. Other sections are never enabled. Delete the marker line to keep a
+     hand-edited file. A failure to read the existing file aborts the install or update.
 
    A host whose package manager matches no sub-table reports `applicable=false` — it is
    silent, not an error. `apt-repo` is the deprecated alias of this backend; do not use it

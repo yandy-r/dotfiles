@@ -447,6 +447,11 @@ type DNFRepo struct {
 	// Optional: an empty key renders gpgcheck=0. Supports the same placeholders
 	// as BaseURL.
 	GPGKey string `toml:"gpgkey"`
+
+	// RepoGPGCheck renders repo_gpgcheck=1 so dnf also verifies the signature
+	// on the repository metadata (repodata/repomd.xml.asc), for the explicit
+	// mode. Requires GPGKey; set it only for vendors that sign their metadata.
+	RepoGPGCheck bool `toml:"repo_gpgcheck"`
 }
 
 // Font describes one font family for the "font" backend. The repo's terminal

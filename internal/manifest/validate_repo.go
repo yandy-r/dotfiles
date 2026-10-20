@@ -100,6 +100,15 @@ func validateDNFRepo(p Package) []error {
 		errs = append(errs, validateDNFRepoID(p)...)
 	}
 
+	if d.RepoGPGCheck {
+		switch {
+		case d.BaseURL == "" || d.COPR != "" || d.RepoFile != "":
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: "repo backend dnf_repo repo_gpgcheck applies only to baseurl mode"})
+		case d.GPGKey == "":
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: "repo backend dnf_repo repo_gpgcheck requires gpgkey"})
+		}
+	}
+
 	for _, u := range []struct{ value, field string }{
 		{d.RepoFile, "repofile"},
 		{d.BaseURL, "baseurl"},

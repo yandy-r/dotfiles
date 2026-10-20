@@ -2,6 +2,7 @@ package backend
 
 import (
 	"errors"
+	"os"
 	"strings"
 	"testing"
 
@@ -146,7 +147,9 @@ func TestRepoBackend_Install_ExactArgv(t *testing.T) {
 				tt.stub(r)
 			}
 
-			if err := newRepoBackend(r).Install(tt.pkg, tt.info); err != nil {
+			b := newRepoBackend(r)
+			b.readFile = readNotExist
+			if err := b.Install(tt.pkg, tt.info); err != nil {
 				t.Fatalf("Install() error = %v", err)
 			}
 
@@ -273,7 +276,8 @@ func TestRepoBackend_Install_KeyFingerprint(t *testing.T) {
 }
 
 // TestRepoBackend_UpdateRemove_Argv: once the repo is configured, update/remove
-// are plain package-manager ops (no repo setup, no key/curl), gated like Install.
+// are plain package-manager ops (no repo setup, no key/curl), gated like
+// Install. A dnf update against a kept non-dotf repo file enables its section.
 func TestRepoBackend_UpdateRemove_Argv(t *testing.T) {
 	t.Parallel()
 
@@ -285,27 +289,36 @@ func TestRepoBackend_UpdateRemove_Argv(t *testing.T) {
 	}
 	apt := platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrAPT}
 	dnf := platform.Info{OS: platform.OSRedHat, PkgMgr: platform.PkgMgrDNF}
+	update := func(b *repoBackend, i platform.Info) error { return b.Update(pkg, i) }
+	remove := func(b *repoBackend, i platform.Info) error { return b.Remove(pkg, i) }
+	disabled := func(string) ([]byte, error) { return []byte("[docker-ce]\nenabled=0\n"), nil }
+	owned := func(string) ([]byte, error) { return []byte(dnfRepoMarker + "\n[docker-ce]\nenabled=1\n"), nil }
 
 	tests := []struct {
-		name string
-		info platform.Info
-		op   func(b *repoBackend, info platform.Info) error
-		want []string
+		name     string
+		info     platform.Info
+		readFile func(string) ([]byte, error)
+		op       func(b *repoBackend, info platform.Info) error
+		want     []string
 	}{
-		{"apt update", apt, func(b *repoBackend, i platform.Info) error { return b.Update(pkg, i) },
+		{"apt update", apt, readNotExist, update,
 			[]string{"env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "--only-upgrade", "-y", "docker-ce-apt"}},
-		{"apt remove", apt, func(b *repoBackend, i platform.Info) error { return b.Remove(pkg, i) },
+		{"apt remove", apt, readNotExist, remove,
 			[]string{"env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "remove", "-y", "docker-ce-apt"}},
-		{"dnf update", dnf, func(b *repoBackend, i platform.Info) error { return b.Update(pkg, i) },
-			[]string{"dnf", "upgrade", "-y", "docker-ce-dnf"}},
-		{"dnf remove", dnf, func(b *repoBackend, i platform.Info) error { return b.Remove(pkg, i) },
-			[]string{"dnf", "remove", "-y", "docker-ce-dnf"}},
+		{"dnf update", dnf, readNotExist, update, []string{"dnf", "upgrade", "-y", "docker-ce-dnf"}},
+		{"dnf update dotf-owned repo file", dnf, owned, update, []string{"dnf", "upgrade", "-y", "docker-ce-dnf"}},
+		{"dnf update kept disabled repo section", dnf, disabled, update,
+			[]string{"dnf", "upgrade", "--enablerepo=docker-ce", "-y", "docker-ce-dnf"}},
+		{"dnf remove", dnf, disabled, remove, []string{"dnf", "remove", "-y", "docker-ce-dnf"}},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			r := exec.NewFake()
-			if err := tt.op(newRepoBackend(r), tt.info); err != nil {
+			b := newRepoBackend(r)
+			b.readFile = tt.readFile
+			if err := tt.op(b, tt.info); err != nil {
 				t.Fatalf("error = %v", err)
 			}
 			calls := r.CallsSnapshot()
@@ -328,5 +341,139 @@ func TestRepoBackend_UpdateRemove_Argv(t *testing.T) {
 	}
 	if len(r.CallsSnapshot()) != 0 {
 		t.Errorf("unsupported host ran commands: %v", r.CallsSnapshot())
+	}
+}
+
+// readNotExist is the readFile seam for a host with no existing repo file.
+func readNotExist(string) ([]byte, error) { return nil, os.ErrNotExist }
+
+// installCapture records the staged temp file's content when the backend
+// runs `sudo install -m 644 <tmp> <dest>`, before the deferred cleanup
+// removes it.
+type installCapture struct {
+	*exec.Fake
+	written map[string]string
+}
+
+func (c installCapture) Run(name string, args ...string) error {
+	if name == "sudo" && len(args) == 5 && args[0] == "install" {
+		body, err := os.ReadFile(args[3])
+		if err != nil {
+			return err
+		}
+		c.written[args[4]] = string(body)
+	}
+	return c.Fake.Run(name, args...)
+}
+
+// TestRepoBackend_Install_DNFExistingRepoFile pins the ownership rule for
+// /etc/yum.repos.d/<id>.repo: dotf writes a missing file and refreshes one it
+// owns (marker first line, or the exact legacy body it used to render), but
+// leaves any other existing file untouched and still installs the package.
+func TestRepoBackend_Install_DNFExistingRepoFile(t *testing.T) {
+	t.Parallel()
+
+	const (
+		dest       = "/etc/yum.repos.d/vendor.repo"
+		repoFile   = "https://vendor.example/vendor.repo"
+		baseURL    = "https://vendor.example/rpm"
+		gpgKey     = "https://vendor.example/key.asc"
+		vendorBody = "[vendor]\nname=Vendor\nbaseurl=https://vendor.example/rpm\ngpgcheck=1\nrepo_gpgcheck=1\n"
+		legacyBody = "[vendor]\nname=vendor\nbaseurl=" + baseURL + "\nenabled=1\ngpgcheck=1\ngpgkey=" + gpgKey + "\n"
+	)
+	existing := func(body string) func(string) ([]byte, error) {
+		return func(string) ([]byte, error) { return []byte(body), nil }
+	}
+	baseRepo := func(repoGPG bool) *manifest.DNFRepo {
+		return &manifest.DNFRepo{ID: "vendor", BaseURL: baseURL, GPGKey: gpgKey, RepoGPGCheck: repoGPG}
+	}
+	renderedBase := func(repoGPG bool) string {
+		extra := ""
+		if repoGPG {
+			extra = "repo_gpgcheck=1\n"
+		}
+		return dnfRepoMarker + "\n[vendor]\nname=vendor\nbaseurl=" + baseURL +
+			"\nenabled=1\ngpgcheck=1\n" + extra + "gpgkey=" + gpgKey + "\n"
+	}
+
+	tests := []struct {
+		name       string
+		repo       *manifest.DNFRepo
+		readFile   func(string) ([]byte, error)
+		wantErr    bool
+		wantCurl   bool
+		wantWrite  string // expected dest content; "" = dest must not be written
+		wantEnable bool   // dnf install carries --enablerepo=vendor
+	}{
+		{"baseurl missing file is written", baseRepo(false), readNotExist, false, false, renderedBase(false), false},
+		{"baseurl repo_gpgcheck rendered", baseRepo(true), readNotExist, false, false, renderedBase(true), false},
+		{"baseurl marker-owned file refreshed", baseRepo(true), existing(dnfRepoMarker + "\n[vendor]\nbaseurl=old\n"), false, false, renderedBase(true), false},
+		{"baseurl legacy dotf body migrated when repo_gpgcheck changes it", baseRepo(true), existing(legacyBody), false, false, renderedBase(true), false},
+		{"baseurl legacy-equal body without repo_gpgcheck preserved", baseRepo(false), existing(legacyBody), false, false, "", true},
+		{"baseurl foreign disabled section preserved and enabled", baseRepo(true), existing("[vendor]\nname=Vendor\nbaseurl=" + baseURL + "\nenabled=0\n"), false, false, "", true},
+		{"baseurl read error fails closed", baseRepo(false), func(string) ([]byte, error) { return nil, os.ErrPermission }, true, false, "", false},
+		{"repofile missing file written with marker", &manifest.DNFRepo{ID: "vendor", RepoFile: repoFile}, readNotExist, false, true, dnfRepoMarker + "\n" + vendorBody, false},
+		{"repofile marker-owned file refreshed", &manifest.DNFRepo{ID: "vendor", RepoFile: repoFile}, existing(dnfRepoMarker + "\nold\n"), false, true, dnfRepoMarker + "\n" + vendorBody, false},
+		{"repofile foreign file preserved without fetch", &manifest.DNFRepo{ID: "vendor", RepoFile: repoFile}, existing(vendorBody), false, false, "", true},
+		{"repofile foreign file with other section ids not enabled", &manifest.DNFRepo{ID: "vendor", RepoFile: repoFile}, existing("[vendor-stable]\nenabled=1\n [vendor ]\n"), false, false, "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := exec.NewFake()
+			f.AddCommand("curl", []string{"-fsSL", repoFile}, []byte(vendorBody), nil)
+			c := installCapture{Fake: f, written: map[string]string{}}
+			b := newRepoBackend(c)
+			// Reads after a write see the written file, as on a real host.
+			b.readFile = func(path string) ([]byte, error) {
+				if body, ok := c.written[path]; ok {
+					return []byte(body), nil
+				}
+				return tt.readFile(path)
+			}
+
+			pkg := manifest.Package{
+				Name: "vendor-app", Backend: manifest.BackendRepo,
+				Names: map[string]string{"dnf": "vendor-app"}, DNFRepo: tt.repo,
+			}
+			err := b.Install(pkg, platform.Info{OS: platform.OSRedHat, PkgMgr: platform.PkgMgrDNF, Arch: platform.ArchX86_64})
+			calls := f.CallsSnapshot()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("Install() error = nil, want read error")
+				}
+				if len(calls) != 0 {
+					t.Fatalf("Install() ran commands after a read error: %v", calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Install() error = %v", err)
+			}
+
+			got, wrote := c.written[dest]
+			switch {
+			case tt.wantWrite == "" && wrote:
+				t.Errorf("existing %s overwritten with %q, want it preserved", dest, got)
+			case tt.wantWrite != "" && got != tt.wantWrite:
+				t.Errorf("%s content = %q, want %q", dest, got, tt.wantWrite)
+			}
+			curled := false
+			for _, call := range calls {
+				if call.Name == "curl" {
+					curled = true
+				}
+			}
+			if curled != tt.wantCurl {
+				t.Errorf("curl fetched = %v, want %v: %v", curled, tt.wantCurl, calls)
+			}
+			want := []string{"install"}
+			if tt.wantEnable {
+				want = append(want, "--enablerepo=vendor")
+			}
+			assertSudoCall(t, calls[len(calls)-1], "dnf", append(want, "-y", "vendor-app")...)
+		})
 	}
 }

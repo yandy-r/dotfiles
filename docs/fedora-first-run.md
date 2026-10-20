@@ -204,6 +204,10 @@ That tarball, plus the `$HOME/.config/dotfiles_backup_<epoch>` directory, is the
       sudo dnf install -y docker-ce
       ```
 
+      If `/etc/yum.repos.d/docker-ce.repo` already exists and was not written by `dotf` (its first line is not the
+      `# Managed by dotf` marker), the `curl` and `sudo install` steps are skipped and the existing file is kept as-is.
+      Its sections (`docker-ce-stable`, …) are not named `docker-ce`, so dotf does not add `--enablerepo`; they must
+      already be enabled.
       `sudo install` (rather than a `mv` from `/tmp`) is deliberate — the file is created at the destination and so
       inherits the correct SELinux type label, where a move would carry `tmp_t` across and leave dnf unable to read
       it. Re-run `getenforce` afterwards, and confirm the label with `command ls -Z /etc/yum.repos.d/docker-ce.repo`

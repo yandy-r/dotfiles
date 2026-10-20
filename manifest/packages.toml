@@ -841,6 +841,7 @@ sources_path = "/etc/apt/sources.list.d/1password.list"
 id = "1password"
 baseurl = "https://downloads.1password.com/linux/rpm/stable/x86_64"
 gpgkey = "https://downloads.1password.com/linux/keys/1password.asc"
+repo_gpgcheck = true
 
 [[package]]
 name = "1password"
@@ -875,6 +876,7 @@ sources_path = "/etc/apt/sources.list.d/vscode.list"
 id = "vscode"
 baseurl = "https://packages.microsoft.com/yumrepos/vscode"
 gpgkey = "https://packages.microsoft.com/keys/microsoft.asc"
+repo_gpgcheck = true
 
 [[package]]
 name = "code-insiders-macos"
@@ -903,6 +905,7 @@ sources_path = "/etc/apt/sources.list.d/cursor.list"
 id = "cursor"
 baseurl = "https://downloads.cursor.com/yumrepo/"
 gpgkey = "https://downloads.cursor.com/keys/anysphere.asc"
+repo_gpgcheck = true
 
 [[package]]
 name = "cursor-macos"
@@ -933,6 +936,7 @@ sources_path = "/etc/apt/sources.list.d/chatgpt.list"
 id = "chatgpt"
 baseurl = "https://persistent.oaistatic.com/codex-app-prod/linux/rpm/$basearch"
 gpgkey = "https://persistent.oaistatic.com/codex-app-prod/linux/repository-signing-key.gpg"
+repo_gpgcheck = true
 
 [[package]]
 name = "chatgpt-macos"
@@ -1614,7 +1618,7 @@ backend = "repo"
 os = "redhat"
 requires_desktop = true
 names = { dnf = "grok-bot" }
-dnf_repo = { id = "grok-bot", baseurl = "https://downloads.cursor.com/yumrepo/grok-bot/", gpgkey = "https://downloads.cursor.com/keys/anysphere.asc" }
+dnf_repo = { id = "grok-bot", baseurl = "https://downloads.cursor.com/yumrepo/grok-bot/", gpgkey = "https://downloads.cursor.com/keys/anysphere.asc", repo_gpgcheck = true }
 
 [[package]]
 name = "grok-bot-macos"
@@ -1661,7 +1665,7 @@ os = "linux"
 requires_desktop = true
 names = { apt = "google-chrome-stable", dnf = "google-chrome-stable" }
 apt_repo = { key_url = "https://dl.google.com/linux/linux_signing_key.pub", key_fingerprint = "EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796", keyring = "/usr/share/keyrings/google-chrome.gpg", repo_line = "deb [arch={{.Arch}} signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb stable main", sources_path = "/etc/apt/sources.list.d/google-chrome.list" }
-dnf_repo = { id = "google-chrome", baseurl = "https://dl.google.com/linux/chrome/rpm/stable/$basearch", gpgkey = "https://dl.google.com/linux/linux_signing_key.pub" }
+dnf_repo = { id = "google-chrome", baseurl = "https://dl.google.com/linux/chrome/rpm/stable/$basearch", gpgkey = "https://dl.google.com/linux/linux_signing_key.pub", repo_gpgcheck = true }
 
 [[package]]
 name = "google-chrome-macos"

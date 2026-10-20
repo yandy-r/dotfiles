@@ -41,9 +41,14 @@ func (e *MissingPackageNameError) Error() string {
 // no matching sub-table reports not-applicable rather than failing.
 type repoBackend struct {
 	r exec.Runner
+
+	// readFile reads an existing /etc/yum.repos.d/<id>.repo before the dnf file
+	// modes write it. It is os.ReadFile in production; tests inject a fake so
+	// they never read the real /etc.
+	readFile func(string) ([]byte, error)
 }
 
-func newRepoBackend(r exec.Runner) *repoBackend { return &repoBackend{r: r} }
+func newRepoBackend(r exec.Runner) *repoBackend { return &repoBackend{r: r, readFile: os.ReadFile} }
 
 // newAptRepoBackend constructs the repo backend under its deprecated apt-repo
 // alias, retained one release so existing manifests keep working.
@@ -101,9 +106,25 @@ func (b *repoBackend) Install(pkg manifest.Package, info platform.Info) error {
 }
 
 // Update upgrades an already-configured repo package via the host package
-// manager. The repo itself is not (re)configured.
+// manager. The repo itself is not (re)configured, but on dnf a kept
+// non-dotf repo file's [<id>] section is enabled for the upgrade, as on
+// install (see dnfEnableRepoArgs).
 func (b *repoBackend) Update(pkg manifest.Package, info platform.Info) error {
-	return b.lifecycle(pkg, info, upgradeArgv)
+	if info.PkgMgr != platform.PkgMgrDNF || pkg.DNFRepo == nil {
+		return b.lifecycle(pkg, info, upgradeArgv)
+	}
+	enable, err := b.dnfEnableRepoArgs(pkg.DNFRepo)
+	if err != nil {
+		return err
+	}
+	return b.lifecycle(pkg, info, func(mgr platform.PkgMgr, name string) ([]string, error) {
+		argv, err := upgradeArgv(mgr, name)
+		if err != nil || len(enable) == 0 {
+			return argv, err
+		}
+		// argv is sudo dnf upgrade …; the flag goes right after the verb.
+		return append(append(append([]string{}, argv[:3]...), enable...), argv[3:]...), nil
+	})
 }
 
 // Remove uninstalls the package via the host package manager; the configured

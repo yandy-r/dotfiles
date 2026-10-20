@@ -902,6 +902,42 @@ key_fingerprint = "` + tt.fp + `"
 	}
 }
 
+// TestValidate_DNFRepoGPGCheck covers dnf_repo.repo_gpgcheck: accepted only in
+// baseurl mode with a gpgkey, since it is rendered into the dotf-built body
+// and dnf needs the key to verify the metadata signature.
+func TestValidate_DNFRepoGPGCheck(t *testing.T) {
+	tests := []struct {
+		name    string
+		repo    string
+		wantErr string
+	}{
+		{name: "baseurl with gpgkey", repo: "id = \"t\"\nbaseurl = \"https://example.com/rpm\"\ngpgkey = \"https://example.com/key.asc\"\n"},
+		{name: "baseurl without gpgkey", repo: "id = \"t\"\nbaseurl = \"https://example.com/rpm\"\n", wantErr: "repo_gpgcheck requires gpgkey"},
+		{name: "repofile mode", repo: "id = \"t\"\nrepofile = \"https://example.com/t.repo\"\n", wantErr: "repo_gpgcheck applies only to baseurl mode"},
+		{name: "copr mode", repo: "copr = \"owner/project\"\n", wantErr: "repo_gpgcheck applies only to baseurl mode"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := "[[package]]\nname = \"tool\"\nbackend = \"repo\"\n[package.dnf_repo]\nrepo_gpgcheck = true\n" + tt.repo
+			_, err := manifest.Parse(strings.NewReader(data))
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Parse() error = %v, want nil", err)
+				}
+				return
+			}
+			var valErr *manifest.ValidationError
+			if !errors.As(err, &valErr) {
+				t.Fatalf("Parse() error = %v, want *manifest.ValidationError", err)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("Parse() error = %q, want substring %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
 // TestValidate_SSHServer covers the optional [sysconfig] ssh_server enum:
 // on/off/empty are accepted, unknown values fail with *ValidationError, and
 // ssh_server decodes under DisallowUnknownFields (schema field, not strict
