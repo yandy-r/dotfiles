@@ -1,7 +1,10 @@
 package symlink
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -43,8 +46,11 @@ const (
 	ActionBackup
 	// ActionRemove removes a real file/dir at Dest (recursive for dirs).
 	ActionRemove
-	// ActionCopy is the Zed exception: unlink a legacy symlink, then copy
-	// Src -> Dest (overwrite, 0644).
+	// ActionCopy is the Zed exception: copy Src -> Dest (overwrite, 0644),
+	// first unlinking a legacy symlink at Dest. Plan emits it only when Dest
+	// is missing, a symlink, or differs from Src; an identical Dest is an
+	// ActionSkip, and a differing real file is preceded by an ActionBackup
+	// when backups are on.
 	ActionCopy
 	// ActionSkip is a no-op: the source is missing or Dest is already correct.
 	ActionSkip
@@ -73,17 +79,22 @@ type Plan struct {
 	// creates it only when the plan contains an ActionBackup, switching to a
 	// _N-suffixed sibling (and updating this field) if the dir already exists.
 	BackupDir string
+	// rootReal is the symlink-resolved repo root Plan checked containment
+	// against; Apply re-checks it before each mutation (empty disables it).
+	rootReal string
 }
 
-// ValidationResult is one post-apply lstat check over a managed dest.
+// ValidationResult is one post-apply check over a managed dest.
 type ValidationResult struct {
 	// Dest is the $HOME-relative destination that was checked.
 	Dest string
-	// Valid is true when Dest exists and is a symlink (a dangling symlink is
-	// still Valid, matching Ansible).
+	// Valid is true when Dest is a symlink that resolves, a dangling one whose
+	// source is also missing (dotf cannot fix it; Plan skips it), or a path
+	// that already is its source through a symlinked parent dir.
 	Valid bool
-	// Broken is true when Dest exists but is not a symlink — a real file where
-	// a symlink was expected (the validation fail condition).
+	// Broken is true when Dest is a real file where a symlink was expected,
+	// or a dangling or looping symlink whose source exists (the validation
+	// fail condition).
 	Broken bool
 }
 
@@ -109,8 +120,19 @@ type Engine struct {
 }
 
 // NewEngine constructs an Engine rooted at repoRoot (the dotfiles source tree)
-// linking into home ($HOME).
+// linking into home ($HOME). repoRoot is made absolute (and cleaned) so link
+// targets resolve from $HOME regardless of the caller's working directory; it
+// is deliberately not symlink-resolved, so targets keep the user's spelling
+// and existing links stay "already correct". An empty repoRoot stays empty
+// (Abs would turn it into the working directory), so Plan still fails with a
+// MissingSourceTreeError. If the working directory cannot be determined,
+// repoRoot is kept as given.
 func NewEngine(repoRoot, home string) *Engine {
+	if repoRoot != "" {
+		if abs, err := filepath.Abs(repoRoot); err == nil {
+			repoRoot = abs
+		}
+	}
 	return &Engine{repoRoot: repoRoot, home: home}
 }
 
@@ -154,8 +176,26 @@ func (e *UnsafeDestError) Error() string {
 	return fmt.Sprintf("symlink: unsafe dest %q must be relative to $HOME and free of ..", e.Dest)
 }
 
+// DestInRepoError is returned by Plan when a dest, resolved through any
+// symlinked parent directories, lands inside the dotfiles repo without being
+// that spec's own source. Acting on it would back up, remove, or overwrite a
+// tracked repo file, so Plan refuses before anything is mutated.
+type DestInRepoError struct {
+	// Dest is the $HOME-relative dest from the LinkSpec.
+	Dest string
+	// Resolved is the dest's real location inside the repo.
+	Resolved string
+}
+
+// Error implements the error interface.
+func (e *DestInRepoError) Error() string {
+	return fmt.Sprintf("symlink: dest %q resolves inside the dotfiles repo (%s); refusing to modify repo files",
+		e.Dest, e.Resolved)
+}
+
 // BrokenLinkError is returned by Validate when one or more managed dests are
-// real files where a symlink was expected (exists && !islnk).
+// not valid symlinks to their source: a real file where a symlink was
+// expected, or a dangling or looping symlink whose source exists.
 type BrokenLinkError struct {
 	// Dests lists the $HOME-relative dests that failed validation.
 	Dests []string
@@ -163,16 +203,22 @@ type BrokenLinkError struct {
 
 // Error implements the error interface.
 func (e *BrokenLinkError) Error() string {
-	return fmt.Sprintf("symlink: %d dest(s) are real files where a symlink was expected: %s",
+	return fmt.Sprintf("symlink: %d dest(s) are not valid symlinks to their source: %s",
 		len(e.Dests), strings.Join(e.Dests, ", "))
 }
 
 // Plan stats sources and dests and computes the ordered set of Actions without
 // touching the filesystem. It hard-fails if the repo root is missing, enforces
 // the Linux-desktop safety gate, rejects unsafe dests, and applies OS/flag
-// faceting. It is pure/read-only and safe to call in dry-run.
+// faceting. A dest reached through a symlinked parent that already is its
+// source is skipped; one that lands elsewhere inside the repo fails with a
+// DestInRepoError. It is pure/read-only and safe to call in dry-run.
 func (e *Engine) Plan(specs []LinkSpec, info platform.Info, opts Options) (*Plan, error) {
 	if _, err := os.Stat(e.repoRoot); err != nil {
+		return nil, &MissingSourceTreeError{Root: e.repoRoot}
+	}
+	rootReal, err := filepath.EvalSymlinks(e.repoRoot)
+	if err != nil {
 		return nil, &MissingSourceTreeError{Root: e.repoRoot}
 	}
 
@@ -196,22 +242,49 @@ func (e *Engine) Plan(specs []LinkSpec, info platform.Info, opts Options) (*Plan
 		srcAbs := filepath.Join(e.repoRoot, spec.Src)
 		destAbs := filepath.Join(e.home, spec.Dest)
 
-		if _, err := os.Stat(srcAbs); err != nil {
+		srcReal, err := filepath.EvalSymlinks(srcAbs)
+		if err != nil {
 			skips = append(skips, newAction(spec, ActionSkip, srcAbs, destAbs, "source missing"))
 			continue
 		}
 
-		if spec.Copy {
-			copies = append(copies, newAction(spec, ActionCopy, srcAbs, destAbs, "copy"))
-			continue
+		// A symlinked parent dir can make the dest an alias of a repo path.
+		if destLoc, ok := resolvedLocation(destAbs); ok {
+			if destLoc == srcReal {
+				skips = append(skips, newAction(spec, ActionSkip, srcAbs, destAbs, "already correct"))
+				continue
+			}
+			if within(rootReal, destLoc) {
+				return nil, &DestInRepoError{Dest: spec.Dest, Resolved: destLoc}
+			}
 		}
 
 		fi, err := os.Lstat(destAbs)
+		if spec.Copy {
+			switch {
+			case err != nil:
+				copies = append(copies, newAction(spec, ActionCopy, srcAbs, destAbs, "create"))
+			case fi.Mode()&os.ModeSymlink != 0:
+				copies = append(copies, newAction(spec, ActionCopy, srcAbs, destAbs, "replace legacy symlink"))
+			case fi.Mode().IsRegular() && sameContents(srcAbs, destAbs):
+				skips = append(skips, newAction(spec, ActionSkip, srcAbs, destAbs, "already correct"))
+			case fi.Mode().IsRegular():
+				if opts.Backup {
+					backups = append(backups, newAction(spec, ActionBackup, srcAbs, destAbs, "backup real file"))
+				}
+				copies = append(copies, newAction(spec, ActionCopy, srcAbs, destAbs, "overwrite"))
+			default:
+				// Directories and other non-regular files: Apply fails loudly.
+				copies = append(copies, newAction(spec, ActionCopy, srcAbs, destAbs, "overwrite"))
+			}
+			continue
+		}
+
 		switch {
 		case err != nil:
 			links = append(links, newAction(spec, ActionLink, srcAbs, destAbs, "create"))
 		case fi.Mode()&os.ModeSymlink != 0:
-			if target, rerr := os.Readlink(destAbs); rerr == nil && target == srcAbs {
+			if linksTo(destAbs, srcAbs, srcReal) {
 				skips = append(skips, newAction(spec, ActionSkip, srcAbs, destAbs, "already correct"))
 			} else {
 				links = append(links, newAction(spec, ActionLink, srcAbs, destAbs, "repoint"))
@@ -232,7 +305,70 @@ func (e *Engine) Plan(specs []LinkSpec, info platform.Info, opts Options) (*Plan
 	ordered = append(ordered, copies...)
 	ordered = append(ordered, skips...)
 
-	return &Plan{Actions: ordered, BackupDir: backupDir}, nil
+	return &Plan{Actions: ordered, BackupDir: backupDir, rootReal: rootReal}, nil
+}
+
+// resolvedLocation returns destAbs's real location with its ancestor dirs
+// symlink-resolved but its own final component left unfollowed. Missing
+// ancestors are tolerated: it resolves the nearest existing ancestor and
+// re-joins the missing components, so a symlinked ancestor into the repo
+// (e.g. ~/.config -> $REPO/cfg with ~/.config/zed absent) is still seen as
+// inside the repo. ok is false only on a real resolution error (not ENOENT),
+// such as a symlink loop, a permission failure, or a dangling symlink
+// ancestor (which exists, so it is not walked past; writes through it fail).
+func resolvedLocation(destAbs string) (string, bool) {
+	dir := filepath.Dir(destAbs)
+	rest := filepath.Base(destAbs)
+	for {
+		resolved, err := filepath.EvalSymlinks(dir)
+		if err == nil {
+			return filepath.Join(resolved, rest), true
+		}
+		parent := filepath.Dir(dir)
+		if !errors.Is(err, fs.ErrNotExist) || parent == dir {
+			return "", false
+		}
+		if _, lerr := os.Lstat(dir); lerr == nil {
+			return "", false
+		}
+		rest = filepath.Join(filepath.Base(dir), rest)
+		dir = parent
+	}
+}
+
+// within reports whether p is root itself or lies under it. Both paths must be
+// absolute and clean.
+func within(root, p string) bool {
+	rel, err := filepath.Rel(root, p)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// linksTo reports whether the symlink at destAbs already points at the
+// source: its target is spelled exactly srcAbs, or it resolves to srcReal.
+func linksTo(destAbs, srcAbs, srcReal string) bool {
+	if target, err := os.Readlink(destAbs); err == nil && target == srcAbs {
+		return true
+	}
+	resolved, err := filepath.EvalSymlinks(destAbs)
+	return err == nil && resolved == srcReal
+}
+
+// sameContents reports whether the files at a and b hold identical bytes. Any
+// read error reports false, so a dest that cannot be compared is treated as
+// differing (backed up and overwritten) rather than skipped.
+func sameContents(a, b string) bool {
+	ab, err := os.ReadFile(a)
+	if err != nil {
+		return false
+	}
+	bb, err := os.ReadFile(b)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(ab, bb)
 }
 
 // newAction builds an Action with resolved absolute paths and a reason.

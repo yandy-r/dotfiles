@@ -21,7 +21,8 @@ import (
 // used ONLY to feed platform.Detect; all filesystem work is direct os.* calls
 // inside internal/symlink. It writes machine-greppable data to stdout and
 // diagnostics to stderr, returning exit code 1 when post-apply validation
-// finds a broken link (a real file where a symlink was expected).
+// finds a broken link (a real file where a symlink was expected, or a dangling
+// or looping link whose source exists).
 //
 // There is deliberately no --manifest flag: the engine is driven by the static
 // DefaultTable (ported 1:1 from playbooks/vars/symlinks.yml), not m.Symlinks

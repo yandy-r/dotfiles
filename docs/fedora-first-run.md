@@ -86,17 +86,11 @@ same second gets a `_1`, `_2`, … suffix instead of reusing it. `dotf setup` sy
 gets its own directory, each named on its own stderr line. `--backup` is
 still accepted as the explicit spelling of the default; `--no-backup` opts out and deletes real files with no copy.
 
-Read the `link.backup=` line of the dry run: every destination on `link.remove=` must also appear there. The one
-entry the backup does **not** cover is `.config/zed/settings.json` — the copy exception, which is overwritten in
-place rather than replaced by a link. Save it by hand first if it holds local edits:
+Read the `link.backup=` line of the dry run: every destination on `link.remove=` must also appear there. The
+`.config/zed/settings.json` copy exception is covered too: an identical file is skipped, and a differing one is backed
+up (with backups on) before the repo copy overwrites it, so it appears on `link.backup=` and `link.copy=`.
 
-```bash
-if [ -e "$HOME/.config/zed/settings.json" ]; then
-  cp -p "$HOME/.config/zed/settings.json" "$HOME/zed-settings-preflight-$(date +%Y%m%d%H%M).json"
-fi
-```
-
-That copy, plus the `$HOME/.config/dotfiles_backup_<epoch>` directory, is the rollback. **Never** `--snapper`.
+That `$HOME/.config/dotfiles_backup_<epoch>` directory is the rollback. **Never** `--snapper`.
 
 ## Ordered checklist
 

@@ -199,9 +199,10 @@ var helpRegistry = []commandHelp{
 			"~/.config/dotfiles_backup_<epoch> (named on stderr when used); --no-backup\n" +
 			"opts out, and --backup is accepted as the explicit spelling of the default\n" +
 			"(--backup=false does NOT disable backups; use --no-backup).\n" +
-			"After applying, links are validated; a real file where a symlink was expected\n" +
-			"exits 1. The opt-in desktop set is the Hyprland/wlroots stack and is not what\n" +
-			"a KDE/Plasma host wants (that is dotf plasma).",
+			"After applying, links are validated; a real file where a symlink was expected,\n" +
+			"or a dangling link whose source exists, exits 1. The opt-in desktop set is the\n" +
+			"Hyprland/wlroots stack and is not what a KDE/Plasma host wants\n" +
+			"(that is dotf plasma).",
 		examples: []string{
 			"dotf link --dry-run",
 			"dotf link",

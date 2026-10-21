@@ -11,29 +11,49 @@ import (
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name       string
-		setup      func(t *testing.T, home string)
+		setup      func(t *testing.T, repoRoot, home string)
 		wantValid  bool
 		wantBroken bool
 		wantErr    bool
 	}{
 		{
 			name: "correct-symlink",
-			setup: func(t *testing.T, home string) {
+			setup: func(t *testing.T, _, home string) {
 				writeFile(t, filepath.Join(home, "target"), []byte("x"))
 				mkSymlink(t, filepath.Join(home, "target"), filepath.Join(home, ".bashrc"))
 			},
 			wantValid: true,
 		},
 		{
-			name: "dangling-symlink-passes",
-			setup: func(t *testing.T, home string) {
+			// dotf cannot fix a link whose source is gone (Plan skips it), so
+			// it is not flagged.
+			name: "dangling-symlink-source-missing-not-flagged",
+			setup: func(t *testing.T, _, home string) {
 				mkSymlink(t, filepath.Join(home, "gone"), filepath.Join(home, ".bashrc"))
 			},
 			wantValid: true,
 		},
 		{
+			name: "dangling-symlink-source-present-broken",
+			setup: func(t *testing.T, repoRoot, home string) {
+				writeFile(t, filepath.Join(repoRoot, "bash/bashrc"), []byte("rc"))
+				mkSymlink(t, filepath.Join(home, "gone"), filepath.Join(home, ".bashrc"))
+			},
+			wantBroken: true,
+			wantErr:    true,
+		},
+		{
+			name: "symlink-loop-source-present-broken",
+			setup: func(t *testing.T, repoRoot, home string) {
+				writeFile(t, filepath.Join(repoRoot, "bash/bashrc"), []byte("rc"))
+				mkSymlink(t, filepath.Join(home, ".bashrc"), filepath.Join(home, ".bashrc"))
+			},
+			wantBroken: true,
+			wantErr:    true,
+		},
+		{
 			name: "real-file-broken",
-			setup: func(t *testing.T, home string) {
+			setup: func(t *testing.T, _, home string) {
 				writeFile(t, filepath.Join(home, ".bashrc"), []byte("real"))
 			},
 			wantBroken: true,
@@ -41,16 +61,23 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name:  "missing-dest",
-			setup: func(_ *testing.T, _ string) {},
+			setup: func(_ *testing.T, _, _ string) {},
+		},
+		{
+			name: "missing-dest-source-present",
+			setup: func(t *testing.T, repoRoot, _ string) {
+				writeFile(t, filepath.Join(repoRoot, "bash/bashrc"), []byte("rc"))
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
 			home := t.TempDir()
-			tt.setup(t, home)
+			tt.setup(t, repoRoot, home)
 
-			eng := NewEngine(t.TempDir(), home)
+			eng := NewEngine(repoRoot, home)
 			specs := []LinkSpec{{Src: "bash/bashrc", Dest: ".bashrc", Facet: FacetAll}}
 			results, err := eng.Validate(specs, platform.Info{OS: platform.OSDebian}, Options{})
 
@@ -68,6 +95,9 @@ func TestValidate(t *testing.T) {
 			gotErr := errors.As(err, &broken)
 			if gotErr != tt.wantErr {
 				t.Errorf("BrokenLinkError present = %t, want %t (err=%v)", gotErr, tt.wantErr, err)
+			}
+			if gotErr && (len(broken.Dests) != 1 || broken.Dests[0] != ".bashrc") {
+				t.Errorf("BrokenLinkError.Dests = %v, want [.bashrc]", broken.Dests)
 			}
 		})
 	}

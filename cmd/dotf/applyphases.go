@@ -207,8 +207,8 @@ func applyPackages(ctx context.Context, engine *backend.Engine, pkgs []manifest.
 // applySymlinks plans, applies, and validates the static symlink table into
 // $HOME. It records a single "symlinks" outcome: a Plan or Apply error, else the
 // post-apply validation error (a *BrokenLinkError when a real file sits where a
-// symlink was expected — the not-converged signal that flips the exit to 1), or
-// nil when clean.
+// symlink was expected, or a dangling/looping link whose source exists — the
+// not-converged signal that flips the exit to 1), or nil when clean.
 func applySymlinks(se *symlink.Engine, specs []symlink.LinkSpec, info platform.Info, opts symlink.Options, coll *failure.Collector) *symlink.Report {
 	plan, err := se.Plan(specs, info, opts)
 	if err != nil {

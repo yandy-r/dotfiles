@@ -46,7 +46,7 @@ func (e *Engine) Apply(plan *Plan, opts Options) (*Report, error) {
 	}
 
 	for _, act := range plan.Actions {
-		if err := e.applyAction(act, plan.BackupDir); err != nil {
+		if err := e.applyAction(act, plan.BackupDir, plan.rootReal); err != nil {
 			return report, err
 		}
 		if act.Kind != ActionSkip {
@@ -91,10 +91,21 @@ func (p *Plan) HasBackups() bool {
 	return false
 }
 
-// applyAction executes a single planned action against the filesystem.
-func (e *Engine) applyAction(act Action, backupDir string) error {
+// applyAction executes a single planned action against the filesystem. Before
+// any mutating step it re-checks that the paths it writes or removes do not
+// resolve inside the repo (rootReal), closing the window in which a dest's
+// parent could be swapped for a symlink into the repo after Plan ran.
+func (e *Engine) applyAction(act Action, backupDir, rootReal string) error {
+	if act.Kind != ActionSkip {
+		if err := guardOutsideRepo(act.Spec.Dest, act.DestAbs, rootReal); err != nil {
+			return err
+		}
+	}
 	switch act.Kind {
 	case ActionBackup:
+		if err := guardOutsideRepo(act.Spec.Dest, filepath.Join(backupDir, act.Spec.Dest), rootReal); err != nil {
+			return err
+		}
 		return e.doBackup(act, backupDir)
 	case ActionRemove:
 		if err := os.RemoveAll(act.DestAbs); err != nil {
@@ -112,14 +123,29 @@ func (e *Engine) applyAction(act Action, backupDir string) error {
 	}
 }
 
+// guardOutsideRepo returns a DestInRepoError when path, with its parent dirs
+// symlink-resolved, lies inside rootReal. Plan already skips a dest that is its
+// own source, so any planned mutation that now lands in the repo is refused.
+// An empty rootReal (a Plan not built by Engine.Plan) disables the check.
+func guardOutsideRepo(dest, path, rootReal string) error {
+	if rootReal == "" {
+		return nil
+	}
+	if loc, ok := resolvedLocation(path); ok && within(rootReal, loc) {
+		return &DestInRepoError{Dest: dest, Resolved: loc}
+	}
+	return nil
+}
+
 // doBackup copies the real file OR directory tree at act.DestAbs into the
 // backup dir, preserving its $HOME-relative path and permission bits. It runs
 // before any Remove so the original bytes are still present (ActionRemove is
 // recursive for dirs).
 //
-// ActionBackup is only ever planned from symlink.go's default: Lstat arm, which
-// is reached only when the dest is neither missing nor a symlink, so DestAbs is
-// never a symlink and os.Stat following links is not a hazard here.
+// ActionBackup is planned only for a dest Plan's Lstat saw as neither missing
+// nor a symlink: the link default: arm, or a differing regular file at a Copy
+// dest. DestAbs is therefore never a symlink and os.Stat following links is
+// not a hazard here.
 func (e *Engine) doBackup(act Action, backupDir string) error {
 	info, err := os.Stat(act.DestAbs)
 	if err != nil {
@@ -157,7 +183,9 @@ func (e *Engine) doLink(act Action) error {
 }
 
 // doCopy implements the Zed exception: unlink a legacy symlink at the dest,
-// then copy Src -> Dest (overwrite, 0644).
+// then copy Src -> Dest (overwrite, 0644). Plan schedules it only for a dest
+// that is missing, a symlink, or differing; a differing real file has already
+// been saved by the Backup phase when backups are on.
 func (e *Engine) doCopy(act Action) error {
 	if fi, err := os.Lstat(act.DestAbs); err == nil && fi.Mode()&os.ModeSymlink != 0 {
 		if err := os.Remove(act.DestAbs); err != nil {

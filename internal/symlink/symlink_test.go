@@ -2,6 +2,7 @@ package symlink
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -367,6 +368,295 @@ func TestPlan_BackupDir_Deterministic(t *testing.T) {
 	wantPrefix := filepath.Join(home, ".config", "dotfiles_backup_")
 	if len(plan.BackupDir) <= len(wantPrefix) || plan.BackupDir[:len(wantPrefix)] != wantPrefix {
 		t.Errorf("BackupDir = %q, want prefix %q", plan.BackupDir, wantPrefix)
+	}
+}
+
+// TestNewEngine_EmptyRoot_MissingSourceTree: an empty repo root must not be
+// absolutized to the working directory; Plan still reports the missing tree.
+func TestNewEngine_EmptyRoot_MissingSourceTree(t *testing.T) {
+	cwd := t.TempDir()
+	writeFile(t, filepath.Join(cwd, "bash/bashrc"), []byte("rc"))
+	t.Chdir(cwd)
+
+	eng := NewEngine("", t.TempDir())
+	plan, err := eng.Plan(onlyBashSpec(), platform.Info{OS: platform.OSDebian}, Options{})
+	var missing *MissingSourceTreeError
+	if !errors.As(err, &missing) {
+		t.Fatalf("Plan() = %+v, %v; want MissingSourceTreeError", plan, err)
+	}
+	if missing.Root != "" {
+		t.Errorf("MissingSourceTreeError.Root = %q, want empty", missing.Root)
+	}
+}
+
+// TestPlan_SymlinkedRepoRoot: the engine is given an alias (symlink) of the
+// real repo, as with macOS /var -> /private/var. Links spelled through either
+// path are recognised, and containment is judged against the resolved root.
+func TestPlan_SymlinkedRepoRoot(t *testing.T) {
+	keymap := LinkSpec{Src: "zed/keymap.json", Dest: ".config/zed/keymap.json", Facet: FacetAll}
+	tests := []struct {
+		name       string
+		spec       LinkSpec
+		setup      func(t *testing.T, realRepo, aliasRepo, home string)
+		wantInRepo bool
+	}{
+		{
+			name: "link-via-alias-already-correct",
+			spec: onlyBashSpec()[0],
+			setup: func(t *testing.T, _, aliasRepo, home string) {
+				mkSymlink(t, filepath.Join(aliasRepo, "bash/bashrc"), filepath.Join(home, ".bashrc"))
+			},
+		},
+		{
+			name: "parent-to-real-repo-source-skipped",
+			spec: keymap,
+			setup: func(t *testing.T, realRepo, _, home string) {
+				mkSymlink(t, filepath.Join(realRepo, "zed"), filepath.Join(home, ".config/zed"))
+			},
+		},
+		{
+			name: "parent-to-other-real-repo-dir-refused",
+			spec: keymap,
+			setup: func(t *testing.T, realRepo, _, home string) {
+				writeFile(t, filepath.Join(realRepo, "other/keymap.json"), []byte("other"))
+				mkSymlink(t, filepath.Join(realRepo, "other"), filepath.Join(home, ".config/zed"))
+			},
+			wantInRepo: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			base := t.TempDir()
+			realRepo := filepath.Join(base, "real")
+			aliasRepo := filepath.Join(base, "alias")
+			home := t.TempDir()
+			writeFile(t, filepath.Join(realRepo, tt.spec.Src), []byte("repo bytes"))
+			mkSymlink(t, realRepo, aliasRepo)
+			tt.setup(t, realRepo, aliasRepo, home)
+
+			eng := NewEngine(aliasRepo, home)
+			plan, err := eng.Plan([]LinkSpec{tt.spec}, platform.Info{OS: platform.OSDebian}, Options{Backup: true})
+			if tt.wantInRepo {
+				var inRepo *DestInRepoError
+				if !errors.As(err, &inRepo) {
+					t.Fatalf("Plan() error = %v, want DestInRepoError", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Plan() error = %v, want nil", err)
+			}
+			if len(plan.Actions) != 1 || plan.Actions[0].Kind != ActionSkip || plan.Actions[0].Reason != "already correct" {
+				t.Fatalf("Plan().Actions = %+v, want one ActionSkip \"already correct\"", plan.Actions)
+			}
+		})
+	}
+}
+
+// TestPlan_SymlinkedAncestorIntoRepo_MissingParent_Refused: with
+// ~/.config -> $REPO/cfg and ~/.config/zed absent, the dest still resolves
+// inside the repo. Plan must refuse before anything (including the missing
+// parent dir) is created in the repo.
+func TestPlan_SymlinkedAncestorIntoRepo_MissingParent_Refused(t *testing.T) {
+	repoRoot := t.TempDir()
+	home := t.TempDir()
+	writeFile(t, filepath.Join(repoRoot, "zed/keymap.json"), []byte("repo keymap"))
+	cfg := filepath.Join(repoRoot, "cfg")
+	if err := os.MkdirAll(cfg, 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q) error = %v", cfg, err)
+	}
+	mkSymlink(t, cfg, filepath.Join(home, ".config"))
+
+	eng := NewEngine(repoRoot, home)
+	specs := []LinkSpec{{Src: "zed/keymap.json", Dest: ".config/zed/keymap.json", Facet: FacetAll}}
+	plan, err := eng.Plan(specs, platform.Info{OS: platform.OSDebian}, Options{Backup: true})
+	var inRepo *DestInRepoError
+	if !errors.As(err, &inRepo) {
+		t.Fatalf("Plan() = %+v, %v; want DestInRepoError", plan, err)
+	}
+	if want := filepath.Join(cfg, "zed/keymap.json"); inRepo.Resolved != want {
+		t.Errorf("DestInRepoError.Resolved = %q, want %q", inRepo.Resolved, want)
+	}
+	entries, err := os.ReadDir(cfg)
+	if err != nil {
+		t.Fatalf("ReadDir(%q) error = %v", cfg, err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("repo cfg/ gained entries %v, want none", entries)
+	}
+}
+
+// TestPlan_DestViaSymlinkedParentIsSource: when a dest's parent dir is a
+// symlink into the repo, the dest already IS the source. Plan must emit only
+// a Skip, never a backup/remove/link/copy that would clobber the repo file.
+func TestPlan_DestViaSymlinkedParentIsSource(t *testing.T) {
+	tests := []struct {
+		name string
+		spec LinkSpec
+	}{
+		{name: "link", spec: LinkSpec{Src: "zed/keymap.json", Dest: ".config/zed/keymap.json", Facet: FacetAll}},
+		{name: "copy", spec: LinkSpec{Src: "zed/settings.json", Dest: ".config/zed/settings.json", Copy: true, Facet: FacetAll}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			home := t.TempDir()
+			writeFile(t, filepath.Join(repoRoot, tt.spec.Src), []byte("repo bytes"))
+			mkSymlink(t, filepath.Join(repoRoot, "zed"), filepath.Join(home, ".config/zed"))
+
+			eng := NewEngine(repoRoot, home)
+			plan, err := eng.Plan([]LinkSpec{tt.spec}, platform.Info{OS: platform.OSDebian}, Options{Backup: true})
+			if err != nil {
+				t.Fatalf("Plan() error = %v, want nil", err)
+			}
+			if len(plan.Actions) != 1 || plan.Actions[0].Kind != ActionSkip {
+				t.Fatalf("Plan().Actions = %+v, want exactly one ActionSkip", plan.Actions)
+			}
+			if plan.Actions[0].Reason != "already correct" {
+				t.Errorf("reason = %q, want %q", plan.Actions[0].Reason, "already correct")
+			}
+		})
+	}
+}
+
+// TestPlan_DestResolvesInsideRepo_Refused: a dest whose symlinked parent lands
+// inside the repo at a path that is not its own source would modify a tracked
+// repo file, so Plan refuses with a DestInRepoError.
+func TestPlan_DestResolvesInsideRepo_Refused(t *testing.T) {
+	tests := []struct {
+		name string
+		spec LinkSpec
+	}{
+		{name: "link", spec: LinkSpec{Src: "zed/keymap.json", Dest: ".config/zed/keymap.json", Facet: FacetAll}},
+		{name: "copy", spec: LinkSpec{Src: "zed/settings.json", Dest: ".config/zed/settings.json", Copy: true, Facet: FacetAll}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			home := t.TempDir()
+			writeFile(t, filepath.Join(repoRoot, tt.spec.Src), []byte("repo bytes"))
+			other := filepath.Join(repoRoot, "other")
+			writeFile(t, filepath.Join(other, filepath.Base(tt.spec.Dest)), []byte("other repo file"))
+			mkSymlink(t, other, filepath.Join(home, ".config/zed"))
+
+			eng := NewEngine(repoRoot, home)
+			plan, err := eng.Plan([]LinkSpec{tt.spec}, platform.Info{OS: platform.OSDebian}, Options{Backup: true})
+			var inRepo *DestInRepoError
+			if !errors.As(err, &inRepo) {
+				t.Fatalf("Plan() error = %v, want DestInRepoError", err)
+			}
+			if plan != nil {
+				t.Errorf("Plan() = %+v, want nil on dest inside repo", plan)
+			}
+			if inRepo.Dest != tt.spec.Dest {
+				t.Errorf("DestInRepoError.Dest = %q, want %q", inRepo.Dest, tt.spec.Dest)
+			}
+		})
+	}
+}
+
+// TestPlan_EquivalentTarget_AlreadyCorrect: a symlink whose target is spelled
+// differently but resolves to the source is already correct, not a repoint.
+func TestPlan_EquivalentTarget_AlreadyCorrect(t *testing.T) {
+	repoRoot := t.TempDir()
+	home := t.TempDir()
+	writeFile(t, filepath.Join(repoRoot, "bash/bashrc"), []byte("rc"))
+	mkSymlink(t, repoRoot+"/bash/../bash/bashrc", filepath.Join(home, ".bashrc"))
+
+	eng := NewEngine(repoRoot, home)
+	plan, err := eng.Plan(onlyBashSpec(), platform.Info{OS: platform.OSDebian}, Options{})
+	if err != nil {
+		t.Fatalf("Plan() error = %v, want nil", err)
+	}
+	if _, ok := planActionFor(plan, ".bashrc", ActionSkip); !ok {
+		t.Errorf("Plan().Actions = %+v, want ActionSkip for equivalent target", plan.Actions)
+	}
+}
+
+// TestPlan_CopyEntry covers classification of the Zed copy exception.
+func TestPlan_CopyEntry(t *testing.T) {
+	const dest = ".config/zed/settings.json"
+	srcBytes := []byte(`{"theme":"repo"}`)
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T, repoRoot, home string)
+		backup    bool
+		wantKinds []ActionKind
+		wantCopy  string
+	}{
+		{
+			name:      "missing",
+			setup:     func(_ *testing.T, _, _ string) {},
+			backup:    true,
+			wantKinds: []ActionKind{ActionCopy},
+			wantCopy:  "create",
+		},
+		{
+			name: "identical",
+			setup: func(t *testing.T, _, home string) {
+				writeFile(t, filepath.Join(home, dest), srcBytes)
+			},
+			backup:    true,
+			wantKinds: []ActionKind{ActionSkip},
+		},
+		{
+			name: "differing-backup-on",
+			setup: func(t *testing.T, _, home string) {
+				writeFile(t, filepath.Join(home, dest), []byte(`{"theme":"user"}`))
+			},
+			backup:    true,
+			wantKinds: []ActionKind{ActionBackup, ActionCopy},
+			wantCopy:  "overwrite",
+		},
+		{
+			name: "differing-backup-off",
+			setup: func(t *testing.T, _, home string) {
+				writeFile(t, filepath.Join(home, dest), []byte(`{"theme":"user"}`))
+			},
+			wantKinds: []ActionKind{ActionCopy},
+			wantCopy:  "overwrite",
+		},
+		{
+			name: "legacy-symlink",
+			setup: func(t *testing.T, repoRoot, home string) {
+				mkSymlink(t, filepath.Join(repoRoot, "zed/settings.json"), filepath.Join(home, dest))
+			},
+			backup:    true,
+			wantKinds: []ActionKind{ActionCopy},
+			wantCopy:  "replace legacy symlink",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			home := t.TempDir()
+			writeFile(t, filepath.Join(repoRoot, "zed/settings.json"), srcBytes)
+			tt.setup(t, repoRoot, home)
+
+			eng := NewEngine(repoRoot, home)
+			specs := []LinkSpec{{Src: "zed/settings.json", Dest: dest, Copy: true, Facet: FacetAll}}
+			plan, err := eng.Plan(specs, platform.Info{OS: platform.OSDebian}, Options{Backup: tt.backup})
+			if err != nil {
+				t.Fatalf("Plan() error = %v, want nil", err)
+			}
+			if len(plan.Actions) != len(tt.wantKinds) {
+				t.Fatalf("Plan().Actions = %+v, want kinds %v", plan.Actions, tt.wantKinds)
+			}
+			for i, k := range tt.wantKinds {
+				if plan.Actions[i].Kind != k {
+					t.Errorf("Actions[%d].Kind = %d, want %d", i, plan.Actions[i].Kind, k)
+				}
+			}
+			if tt.wantCopy != "" {
+				act, ok := planActionFor(plan, dest, ActionCopy)
+				if !ok {
+					t.Fatal("expected ActionCopy")
+				}
+				if act.Reason != tt.wantCopy {
+					t.Errorf("copy reason = %q, want %q", act.Reason, tt.wantCopy)
+				}
+			}
+		})
 	}
 }
 

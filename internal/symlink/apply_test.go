@@ -2,6 +2,7 @@ package symlink
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -484,6 +485,177 @@ func TestApply_Zed_CopyNotSymlink(t *testing.T) {
 			t.Error("legacy zed settings symlink was not migrated to a regular file")
 		}
 	})
+}
+
+// TestApply_SymlinkedParentIntoRepo_RepoFileUntouched reproduces YAN-1328:
+// with ~/.config/zed -> $REPO/zed, a full apply must leave the repo's keymap
+// and settings as regular files with their original bytes, and Validate must
+// agree with Plan that the dest is already correct (no BrokenLinkError).
+func TestApply_SymlinkedParentIntoRepo_RepoFileUntouched(t *testing.T) {
+	repoRoot := t.TempDir()
+	home := t.TempDir()
+	buildFullSourceTree(t, repoRoot)
+	mkSymlink(t, filepath.Join(repoRoot, "zed"), filepath.Join(home, ".config/zed"))
+
+	planApply(t, repoRoot, home, DefaultTable(), platform.Info{OS: platform.OSDebian}, Options{Backup: true})
+
+	for _, src := range []string{"zed/keymap.json", "zed/settings.json"} {
+		p := filepath.Join(repoRoot, src)
+		if isSymlink(t, p) {
+			t.Errorf("repo file %s became a symlink", src)
+			continue
+		}
+		got, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("ReadFile(%q) error = %v", p, err)
+		}
+		if want := "content of " + src; string(got) != want {
+			t.Errorf("repo file %s = %q, want %q", src, got, want)
+		}
+	}
+
+	eng := NewEngine(repoRoot, home)
+	results, err := eng.Validate(DefaultTable(), platform.Info{OS: platform.OSDebian}, Options{})
+	if err != nil {
+		t.Fatalf("Validate() error = %v, want nil (dest already is its source)", err)
+	}
+	for _, r := range results {
+		if r.Dest == ".config/zed/keymap.json" && (!r.Valid || r.Broken) {
+			t.Errorf("keymap.json result = %+v, want Valid and not Broken", r)
+		}
+	}
+}
+
+// TestApply_ParentSwappedAfterPlan_Refused exercises Apply's containment
+// re-check: ~/.config/zed is a real (empty) dir at Plan time, then swapped for
+// a symlink to a different repo dir before Apply. Apply must refuse with a
+// DestInRepoError and leave the repo file byte-identical.
+func TestApply_ParentSwappedAfterPlan_Refused(t *testing.T) {
+	repoRoot := t.TempDir()
+	home := t.TempDir()
+	writeFile(t, filepath.Join(repoRoot, "zed/keymap.json"), []byte("repo keymap"))
+	otherKeymap := filepath.Join(repoRoot, "other/keymap.json")
+	otherBytes := []byte("other repo keymap")
+	writeFile(t, otherKeymap, otherBytes)
+	zedDir := filepath.Join(home, ".config/zed")
+	if err := os.MkdirAll(zedDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q) error = %v", zedDir, err)
+	}
+
+	specs := []LinkSpec{{Src: "zed/keymap.json", Dest: ".config/zed/keymap.json", Facet: FacetAll}}
+	opts := Options{Backup: true}
+	eng := NewEngine(repoRoot, home)
+	plan, err := eng.Plan(specs, platform.Info{OS: platform.OSDebian}, opts)
+	if err != nil {
+		t.Fatalf("Plan() error = %v, want nil", err)
+	}
+
+	if err := os.Remove(zedDir); err != nil {
+		t.Fatalf("Remove(%q) error = %v", zedDir, err)
+	}
+	mkSymlink(t, filepath.Join(repoRoot, "other"), zedDir)
+
+	_, err = eng.Apply(plan, opts)
+	var inRepo *DestInRepoError
+	if !errors.As(err, &inRepo) {
+		t.Fatalf("Apply() error = %v, want DestInRepoError", err)
+	}
+	if isSymlink(t, otherKeymap) {
+		t.Fatal("repo file other/keymap.json became a symlink")
+	}
+	got, err := os.ReadFile(otherKeymap)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", otherKeymap, err)
+	}
+	if !bytes.Equal(got, otherBytes) {
+		t.Errorf("other/keymap.json = %q, want %q", got, otherBytes)
+	}
+}
+
+// TestApply_ZedCopy_BackupAndIdempotence covers YAN-1327/YAN-1369: a differing
+// user settings file is backed up before overwrite, and a converged rerun
+// reports zero applied actions.
+func TestApply_ZedCopy_BackupAndIdempotence(t *testing.T) {
+	const dest = ".config/zed/settings.json"
+	specs := []LinkSpec{{Src: "zed/settings.json", Dest: dest, Copy: true, Facet: FacetAll}}
+	info := platform.Info{OS: platform.OSDebian}
+	srcBytes := []byte(`{"theme":"repo"}`)
+	userBytes := []byte(`{"theme":"user"}`)
+
+	tests := []struct {
+		name       string
+		existing   []byte
+		backup     bool
+		wantBackup bool
+	}{
+		{name: "missing", backup: true},
+		{name: "identical", existing: srcBytes, backup: true},
+		{name: "differing-backup-on", existing: userBytes, backup: true, wantBackup: true},
+		{name: "differing-backup-off", existing: userBytes},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			home := t.TempDir()
+			writeFile(t, filepath.Join(repoRoot, "zed/settings.json"), srcBytes)
+			if tt.existing != nil {
+				writeFile(t, filepath.Join(home, dest), tt.existing)
+			}
+			opts := Options{Backup: tt.backup}
+
+			report := planApply(t, repoRoot, home, specs, info, opts)
+			got, err := os.ReadFile(filepath.Join(home, dest))
+			if err != nil {
+				t.Fatalf("ReadFile(dest) error = %v", err)
+			}
+			if !bytes.Equal(got, srcBytes) {
+				t.Errorf("dest = %q, want source bytes %q", got, srcBytes)
+			}
+
+			if tt.wantBackup {
+				if report.BackupDir == "" {
+					t.Fatal("report.BackupDir empty, want a backup of the differing file")
+				}
+				saved, err := os.ReadFile(filepath.Join(report.BackupDir, dest))
+				if err != nil {
+					t.Fatalf("ReadFile(backup) error = %v", err)
+				}
+				if !bytes.Equal(saved, tt.existing) {
+					t.Errorf("backup = %q, want old bytes %q", saved, tt.existing)
+				}
+			} else if report.BackupDir != "" {
+				t.Errorf("report.BackupDir = %q, want none", report.BackupDir)
+			}
+
+			second := planApply(t, repoRoot, home, specs, info, opts)
+			if len(second.Applied) != 0 {
+				t.Errorf("second run Applied = %+v, want none (idempotent)", second.Applied)
+			}
+		})
+	}
+}
+
+// TestApply_RelativeRepoRoot_AbsoluteLinks reproduces YAN-1329: a relative
+// repo root must still produce absolute link targets that resolve from $HOME.
+func TestApply_RelativeRepoRoot_AbsoluteLinks(t *testing.T) {
+	base := t.TempDir()
+	home := t.TempDir()
+	writeFile(t, filepath.Join(base, "repo/bash/bashrc"), []byte("rc"))
+	t.Chdir(base)
+
+	planApply(t, "repo", home, onlyBashSpec(), platform.Info{OS: platform.OSDebian}, Options{})
+
+	dest := filepath.Join(home, ".bashrc")
+	target, err := os.Readlink(dest)
+	if err != nil {
+		t.Fatalf("Readlink(%q) error = %v", dest, err)
+	}
+	if !filepath.IsAbs(target) {
+		t.Errorf("link target = %q, want absolute", target)
+	}
+	if _, err := os.Stat(dest); err != nil {
+		t.Errorf("Stat(%q) error = %v, want link to resolve", dest, err)
+	}
 }
 
 func TestApply_PermissionDenied_Graceful(t *testing.T) {

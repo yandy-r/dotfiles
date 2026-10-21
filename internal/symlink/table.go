@@ -5,8 +5,9 @@
 // replacement, dry-run, post-run validation, broken-link handling, and the Zed
 // copy exception — as a Plan/Apply/Validate engine driven by a static, typed
 // link table (DefaultTable). Unlike the playbook, every real file or directory
-// a link replaces is backed up first unless Options.Backup is false (the Zed
-// settings copy overwrites in place and is not backed up).
+// a link replaces is backed up first unless Options.Backup is false; the Zed
+// settings copy is skipped when identical, and a differing file is backed up
+// before it is overwritten.
 // Because every managed destination lives under $HOME, the engine uses pure
 // os.* calls and needs no privilege escalation.
 //

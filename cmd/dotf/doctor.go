@@ -281,8 +281,9 @@ func checkSymlinks(repoRoot, home string, info platform.Info) []doctorCheck {
 }
 
 // symlinkBrokenCheck runs post-plan validation and maps a *BrokenLinkError (real
-// files where symlinks are expected) to a fail listing the offending dests. Any
-// other validation error is also a fail; a clean validation is ok.
+// files where symlinks are expected, or dangling links whose source exists) to a
+// fail listing the offending dests. Any other validation error is also a fail; a
+// clean validation is ok.
 func symlinkBrokenCheck(eng *symlink.Engine, specs []symlink.LinkSpec, info platform.Info, opts symlink.Options) doctorCheck {
 	_, err := eng.Validate(specs, info, opts)
 	if err == nil {
@@ -292,7 +293,7 @@ func symlinkBrokenCheck(eng *symlink.Engine, specs []symlink.LinkSpec, info plat
 	if errors.As(err, &ble) {
 		return doctorCheck{
 			Category: "symlinks", Name: "broken", Status: checkFail,
-			Detail: fmt.Sprintf("%d real file(s) where a symlink is expected: %s",
+			Detail: fmt.Sprintf("%d dest(s) not a valid symlink to their source: %s",
 				len(ble.Dests), strings.Join(ble.Dests, ", ")),
 			Remedy: "run `dotf link` (real files are backed up first)",
 		}
@@ -304,10 +305,11 @@ func symlinkBrokenCheck(eng *symlink.Engine, specs []symlink.LinkSpec, info plat
 }
 
 // symlinkPendingCheck collects the plan's create/repoint actions — links that
-// are declared but not yet present — which Validate (a real-file-blocker check)
-// deliberately does not flag. Each pending action becomes an item carrying the
-// operation and the $HOME-relative dest (plus repo-relative src), the same
-// Spec.Dest/Spec.Src vocabulary `dotf link` prints. Any pending link is an
+// are declared but not yet present or point elsewhere — which Validate (a check
+// for real-file blockers and dangling/looping links whose source exists) does
+// not flag for missing dests or wrong-target links. Each pending action becomes
+// an item carrying the operation and the $HOME-relative dest (plus repo-relative
+// src), the same Spec.Dest/Spec.Src vocabulary `dotf link` prints. Any pending link is an
 // advisory warn; the plan's phase-stable action order is preserved.
 func symlinkPendingCheck(plan *symlink.Plan) doctorCheck {
 	var items []doctorItem
