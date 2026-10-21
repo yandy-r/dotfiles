@@ -133,7 +133,7 @@ func runApply(args []string, stdout, stderr io.Writer, r exec.Runner) (code int)
 	// gate resolved (headless intents or the guided selection) before the package
 	// phase runs. --only selects independent of --intent; --skip excludes after.
 	// An unknown package name is a usage error (exit 2), matching validateIntents.
-	pkgs, err = filterPackages(m, pkgs, opts.Only, opts.Skip)
+	pkgs, err = filterPackagesForHost(m, pkgs, opts.Only, opts.Skip, info)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "%s: %v\n", progName, err)
 		return 2

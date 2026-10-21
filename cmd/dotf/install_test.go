@@ -1112,6 +1112,141 @@ func TestFilterPackages_SkipDropsOrphanedPrerequisite(t *testing.T) {
 	}
 }
 
+// TestFilterPackagesForHost_RequiresOnlyFromApplicable covers YAN-1070: a
+// platform sibling the host cannot run (an arm64-gated entry on x86_64, a
+// desktop-gated entry on a headless host) must not pull in its prerequisite,
+// nor fail closed when that prerequisite is skipped. On a host where the
+// sibling applies, the prerequisite is still ordered first and skipping it
+// still fails closed. The host-independent filterPackages (dotf lock) keeps
+// expanding every prerequisite.
+func TestFilterPackagesForHost_RequiresOnlyFromApplicable(t *testing.T) {
+	m := &manifest.Manifest{Packages: []manifest.Package{
+		{Name: "runtime"},
+		{Name: "gui-runtime"},
+		{Name: "app"},
+		{Name: "app-arm64", Arch: []string{"arm64"}, Requires: []string{"runtime"}},
+		{Name: "app-macos", OS: "macos", Requires: []string{"runtime"}},
+		{Name: "app-linux", OS: "linux", RequiresDesktop: true, Requires: []string{"gui-runtime"}},
+	}}
+	amd64 := platform.Info{OS: platform.OSDebian, Arch: platform.ArchX86_64}
+	arm64 := platform.Info{OS: platform.OSDebian, Arch: platform.ArchARM64}
+	desktop := platform.Info{OS: platform.OSDebian, Arch: platform.ArchX86_64, Desktop: true}
+
+	tests := []struct {
+		name    string
+		info    platform.Info
+		only    []string
+		skip    []string
+		want    string
+		wantErr string
+	}{
+		{"non-applicable siblings pull in no prerequisite", amd64, []string{"app"}, nil, "app,app-arm64,app-macos,app-linux", ""},
+		{"skipping a non-applicable sibling's prerequisite succeeds", amd64, []string{"app"}, []string{"runtime"}, "app,app-arm64,app-macos,app-linux", ""},
+		{"applicable sibling orders its prerequisite first", arm64, []string{"app"}, nil, "runtime,app,app-arm64,app-macos,app-linux", ""},
+		{"skipping an applicable sibling's prerequisite fails closed", arm64, []string{"app"}, []string{"runtime"}, "", `required package "runtime" excluded or missing`},
+		{"headless host: desktop sibling pulls in no prerequisite", amd64, []string{"app"}, []string{"gui-runtime"}, "app,app-arm64,app-macos,app-linux", ""},
+		{"desktop host: desktop sibling orders its prerequisite first", desktop, []string{"app"}, nil, "gui-runtime,app,app-arm64,app-macos,app-linux", ""},
+		{"desktop host: skipping the desktop sibling's prerequisite fails closed", desktop, []string{"app"}, []string{"gui-runtime"}, "", `required package "gui-runtime" excluded or missing`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := filterPackagesForHost(m, nil, tt.only, tt.skip, tt.info)
+			if tt.wantErr != "" {
+				if err == nil || err.Error() != tt.wantErr {
+					t.Fatalf("filterPackagesForHost() err = %v, want %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("filterPackagesForHost() err = %v, want nil", err)
+			}
+			names := make([]string, len(got))
+			for i, pkg := range got {
+				names[i] = pkg.Name
+			}
+			if s := strings.Join(names, ","); s != tt.want {
+				t.Errorf("filterPackagesForHost(only=%v skip=%v) = %q, want %q", tt.only, tt.skip, s, tt.want)
+			}
+		})
+	}
+
+	// The host-independent lock path still follows every prerequisite.
+	got, err := filterPackages(m, nil, []string{"app"}, nil)
+	if err != nil {
+		t.Fatalf("filterPackages() err = %v", err)
+	}
+	names := make([]string, len(got))
+	for i, pkg := range got {
+		names[i] = pkg.Name
+	}
+	if s, want := strings.Join(names, ","), "runtime,gui-runtime,app,app-arm64,app-macos,app-linux"; s != want {
+		t.Errorf("filterPackages(--only app) = %q, want %q", s, want)
+	}
+}
+
+// testUnreachableSiblingManifest has a tool whose only prerequisite-bearing
+// entry is a platform sibling (the "-macos" suffix makes --only tool select it)
+// gated to os = "windows", which no test host matches.
+const testUnreachableSiblingManifest = `
+[[package]]
+name = "tool-runtime"
+backend = "custom-script"
+script = "bin/install-tool-runtime.sh"
+class = "rolling"
+justification = "test prerequisite"
+
+[[package]]
+name = "tool"
+backend = "custom-script"
+script = "bin/install-tool.sh"
+class = "rolling"
+justification = "test tool"
+
+[[package]]
+name = "tool-macos"
+backend = "custom-script"
+os = "windows"
+requires = ["tool-runtime"]
+script = "bin/install-tool-win.sh"
+class = "rolling"
+justification = "test sibling gated off every test host"
+`
+
+// TestRunInstall_DryRunSkipsPrerequisiteOfNonApplicableSibling wires the
+// YAN-1070 rule through runInstall: --skip of a prerequisite needed only by a
+// sibling the host can never run succeeds and leaves it out of the plan.
+func TestRunInstall_DryRunSkipsPrerequisiteOfNonApplicableSibling(t *testing.T) {
+	manifestPath := writeTestManifest(t, testUnreachableSiblingManifest)
+
+	var stdout, stderr bytes.Buffer
+	code := runInstall([]string{"--manifest", manifestPath, "--dry-run", "--only", "tool", "--skip", "tool-runtime"}, &stdout, &stderr, exec.NewFake())
+
+	if code != 0 {
+		t.Fatalf("runInstall() code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	if out := stdout.String(); !strings.Contains(out, "packages=tool,tool-macos\n") || strings.Contains(out, "tool-runtime") {
+		t.Errorf("stdout = %q, want packages=tool,tool-macos without tool-runtime", out)
+	}
+}
+
+// TestRunApply_DryRunSkipsPrerequisiteOfNonApplicableSibling is the apply
+// --dry-run counterpart: applyDryRun filters with the host-aware rule too.
+func TestRunApply_DryRunSkipsPrerequisiteOfNonApplicableSibling(t *testing.T) {
+	t.Setenv("DOTFILES_ROOT", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	manifestPath := writeTestManifest(t, testUnreachableSiblingManifest)
+
+	var stdout, stderr bytes.Buffer
+	code := runApply([]string{"--manifest", manifestPath, "--dry-run", "--headless", "--only", "tool", "--skip", "tool-runtime"}, &stdout, &stderr, newApplyFake(t))
+
+	if code != 0 {
+		t.Fatalf("runApply() code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	if out := stdout.String(); !strings.Contains(out, "packages=tool\n") || strings.Contains(out, "tool-runtime") {
+		t.Errorf("stdout = %q, want packages=tool without tool-runtime", out)
+	}
+}
+
 func TestFilterPackages_PrerequisiteOrderAndSkip(t *testing.T) {
 	m, err := manifest.LoadFS(dotfiles.ManifestFS, "manifest/packages.toml")
 	if err != nil {

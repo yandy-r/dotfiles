@@ -103,7 +103,7 @@ func runInstall(args []string, stdout, stderr io.Writer, r exec.Runner) (code in
 	// --only. Package-level narrowing is applied to both the dry-run and the real
 	// install, so the two never disagree.
 	only := append(append([]string{}, o.only...), names...)
-	pkgs, err = filterPackagesForAction(m, pkgs, only, o.skip, action)
+	pkgs, err = filterPackagesForAction(m, pkgs, only, o.skip, action, hostApplies(info))
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "%s: %v\n", progName, err)
 		return 2
@@ -383,18 +383,48 @@ func packagesForInstall(m *manifest.Manifest, intents []string) []manifest.Packa
 //     passed-in intent-derived pkgs entirely — this is the "--only selects
 //     independent of --intent" contract. Otherwise the base set is pkgs.
 //   - Skip: any package whose Name is in skip is then removed from the base set.
-//   - Requires: for an install, the prerequisites of what survived the skip are
-//     added and ordered dependency-first. A prerequisite reached only through a
-//     skipped package is therefore not selected, while skipping a prerequisite
-//     of a surviving package fails closed.
+//   - Requires: the prerequisites of what survived the skip are added and
+//     ordered dependency-first. A prerequisite reached only through a skipped
+//     package is therefore not selected, while skipping a prerequisite of a
+//     surviving package fails closed.
 //
 // The result may be empty; an empty set is a valid "nothing to do" outcome, not
 // an error.
+//
+// filterPackages is the host-independent form: every selected package counts as
+// applicable, so dotf lock pins every prerequisite regardless of the current
+// host.
 func filterPackages(m *manifest.Manifest, pkgs []manifest.Package, only, skip []string) ([]manifest.Package, error) {
-	return filterPackagesForAction(m, pkgs, only, skip, backend.ActionInstall)
+	return filterPackagesForAction(m, pkgs, only, skip, backend.ActionInstall, nil)
 }
 
-func filterPackagesForAction(m *manifest.Manifest, pkgs []manifest.Package, only, skip []string, action backend.Action) ([]manifest.Package, error) {
+// filterPackagesForHost is the host-aware install-action filter used by dotf
+// apply and apply --dry-run: Requires are followed only from packages whose
+// static host gates (backend.HostAllows) admit info. The backend/package-manager
+// check is deliberately not used — apply re-detects the package manager after
+// filtering. dotf install calls filterPackagesForAction with hostApplies
+// directly, because it carries its own action (install/update/remove).
+func filterPackagesForHost(m *manifest.Manifest, pkgs []manifest.Package, only, skip []string, info platform.Info) ([]manifest.Package, error) {
+	return filterPackagesForAction(m, pkgs, only, skip, backend.ActionInstall, hostApplies(info))
+}
+
+// hostApplies returns the filterPackagesForAction applicability predicate for
+// info.
+func hostApplies(info platform.Info) func(manifest.Package) bool {
+	return func(pkg manifest.Package) bool { return backend.HostAllows(pkg, info) }
+}
+
+// filterPackagesForAction implements the filterPackages semantics for action.
+// Requires are expanded and ordered only for backend.ActionInstall; other
+// actions return the validated, selected, skipped set unexpanded.
+//
+// applies decides whose Requires are followed. A nil applies treats every
+// package as applicable. Otherwise a selected package it rejects (e.g. an
+// arm64-gated platform sibling on x86_64) stays in the result — it reports as
+// not-applicable later — but its Requires are neither expanded nor visited:
+// it pulls in no prerequisite, does not fail closed on an excluded or missing
+// one, and is not checked for prerequisite cycles through it.
+func filterPackagesForAction(m *manifest.Manifest, pkgs []manifest.Package, only, skip []string, action backend.Action, applies func(manifest.Package) bool) ([]manifest.Package, error) {
 	if err := validatePackageNames(m, only); err != nil {
 		return nil, err
 	}
@@ -416,7 +446,9 @@ func filterPackagesForAction(m *manifest.Manifest, pkgs []manifest.Package, only
 	}
 	base = slices.DeleteFunc(slices.Clone(base), func(pkg manifest.Package) bool { return excluded[pkg.Name] })
 
-	// Expand explicit manifest prerequisites, not backend-specific guesses.
+	// Expand explicit manifest prerequisites, not backend-specific guesses, and
+	// only from packages that apply to this host.
+	followsRequires := func(pkg manifest.Package) bool { return applies == nil || applies(pkg) }
 	selected := make(map[string]bool)
 	for _, pkg := range base {
 		selected[pkg.Name] = true
@@ -424,7 +456,7 @@ func filterPackagesForAction(m *manifest.Manifest, pkgs []manifest.Package, only
 	for changed := action == backend.ActionInstall; changed; {
 		changed = false
 		for _, pkg := range m.Packages {
-			if selected[pkg.Name] {
+			if selected[pkg.Name] && followsRequires(pkg) {
 				for _, dep := range pkg.Requires {
 					if !selected[dep] {
 						selected[dep] = true
@@ -453,7 +485,10 @@ func filterPackagesForAction(m *manifest.Manifest, pkgs []manifest.Package, only
 	if action != backend.ActionInstall {
 		return out, nil
 	}
-	// Stable dependency-first order; cycles and omitted prerequisites fail closed.
+	// Stable dependency-first order; cycles and omitted prerequisites of an
+	// applicable package fail closed. A non-applicable package is emitted
+	// without visiting its Requires, so a cycle that passes through it is not
+	// detected here (it can never be installed on this host anyway).
 	var ordered []manifest.Package
 	state := make(map[string]int)
 	var visit func(string) error
@@ -467,6 +502,11 @@ func filterPackagesForAction(m *manifest.Manifest, pkgs []manifest.Package, only
 		pkg, ok := byName[name]
 		if !ok {
 			return fmt.Errorf("required package %q excluded or missing", name)
+		}
+		if !followsRequires(pkg) {
+			state[name] = 2
+			ordered = append(ordered, pkg)
+			return nil
 		}
 		state[name] = 1
 		for _, dep := range pkg.Requires {

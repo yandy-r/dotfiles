@@ -410,7 +410,7 @@ func applyDryRun(stdout, stderr io.Writer, r exec.Runner, m *manifest.Manifest, 
 	// Honor package-level --only/--skip in the preview so a dry-run reflects the
 	// exact set a real apply would install. An unknown package name is a usage
 	// error (exit 2), matching the real-apply path in runApply.
-	pkgs, ferr := filterPackages(m, pkgs, opts.Only, opts.Skip)
+	pkgs, ferr := filterPackagesForHost(m, pkgs, opts.Only, opts.Skip, info)
 	if ferr != nil {
 		_, _ = fmt.Fprintf(stderr, "%s: %v\n", progName, ferr)
 		return 2

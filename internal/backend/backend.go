@@ -55,7 +55,7 @@ func (e *Engine) Install(pkg manifest.Package, info platform.Info) error {
 	if !ok {
 		return &UnknownBackendError{Backend: pkg.Backend}
 	}
-	if !gateAllows(pkg, info) {
+	if !HostAllows(pkg, info) {
 		return nil
 	}
 	return b.Install(pkg, info)
@@ -73,15 +73,18 @@ func (e *Engine) Installed(pkg manifest.Package, info platform.Info) (bool, erro
 	if !ok {
 		return false, &UnknownBackendError{Backend: pkg.Backend}
 	}
-	if !gateAllows(pkg, info) {
+	if !HostAllows(pkg, info) {
 		return false, nil
 	}
 	return b.Installed(pkg, info)
 }
 
-// gateAllows combines the package's OS gate with its requires_desktop gate;
-// every Engine entry point (Applicable/Installed/Install/Update/Remove) uses it.
-func gateAllows(pkg manifest.Package, info platform.Info) bool {
+// HostAllows reports whether pkg's static host gates — OS, arch, and
+// requires_desktop — admit the host described by info. It is pure (runs no
+// commands) and ignores backend/package-manager applicability; every Engine
+// entry point (Applicable/Installed/Install/Update/Remove) uses it, and package
+// selection uses it to decide whose prerequisites to follow.
+func HostAllows(pkg manifest.Package, info platform.Info) bool {
 	return osGateAllows(pkg.OS, info.OS) && (len(pkg.Arch) == 0 || slices.Contains(pkg.Arch, string(info.Arch))) && (!pkg.RequiresDesktop || info.Desktop)
 }
 
@@ -164,7 +167,7 @@ func (e *Engine) Applicable(pkg manifest.Package, info platform.Info) (bool, err
 	if !ok {
 		return false, &UnknownBackendError{Backend: pkg.Backend}
 	}
-	if !gateAllows(pkg, info) {
+	if !HostAllows(pkg, info) {
 		return false, nil
 	}
 	if pg, ok := b.(packageGated); ok && !pg.applicableFor(pkg, info) {
