@@ -853,8 +853,8 @@ os = "wsl"`, wantErr: `os "wsl" must be one of`},
 	}
 }
 
-// TestValidate_KeyFingerprint covers the optional apt_repo.key_fingerprint:
-// a 40-hex value (either case) or empty is accepted; anything else fails.
+// TestValidate_KeyFingerprint covers the required apt_repo.key_fingerprint:
+// a 40-hex value (either case) is accepted; empty or anything else fails.
 func TestValidate_KeyFingerprint(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -863,7 +863,7 @@ func TestValidate_KeyFingerprint(t *testing.T) {
 	}{
 		{name: "40 hex upper", fp: "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE"},
 		{name: "40 hex lower", fp: "31ddde24ddfab679f42d7bd2baa929ff1a7ecace"},
-		{name: "empty", fp: ""},
+		{name: "empty", fp: "", wantErr: "requires apt_repo.key_fingerprint"},
 		{name: "garbage", fp: "not-a-fingerprint", wantErr: "key_fingerprint"},
 		{name: "too short", fp: "31DDDE24", wantErr: "key_fingerprint"},
 		{name: "non-hex 40", fp: strings.Repeat("Z", 40), wantErr: "key_fingerprint"},

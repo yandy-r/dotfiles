@@ -43,7 +43,7 @@ names = { cargo = "bat" }
 name = "docker-ce"
 backend = "apt-repo"
 names = { apt = "docker-ce" }
-apt_repo = { key_url = "https://download.docker.com/linux/ubuntu/gpg", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb [arch={{.Arch}} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{.Codename}} stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
+apt_repo = { key_url = "https://download.docker.com/linux/ubuntu/gpg", key_fingerprint = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb [arch={{.Arch}} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{.Codename}} stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
 
 # --- script-url -------------------------------------------------------------
 [[package]]

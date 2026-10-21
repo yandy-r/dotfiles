@@ -408,7 +408,7 @@ names = { pacman = "git", apt = "git", dnf = "git", zypper = "git", homebrew = "
 name = "docker-ce"
 backend = "apt-repo"
 names = { apt = "docker-ce" }
-apt_repo = { key_url = "https://example.com/gpg", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb https://example.com stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
+apt_repo = { key_url = "https://example.com/gpg", key_fingerprint = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb https://example.com stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
 
 [[package]]
 name = "lutris"
@@ -431,7 +431,7 @@ names = { pacman = "git", apt = "git", dnf = "git", zypper = "git", homebrew = "
 name = "docker-ce"
 backend = "apt-repo"
 names = { apt = "docker-ce" }
-apt_repo = { key_url = "https://example.com/gpg", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb https://example.com stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
+apt_repo = { key_url = "https://example.com/gpg", key_fingerprint = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb https://example.com stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
 `
 
 func writeManifestFile(t *testing.T, content string) string {

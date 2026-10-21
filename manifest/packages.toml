@@ -617,7 +617,7 @@ names = { dnf = "lutris" }
 name = "docker-ce"
 backend = "repo"
 names = { apt = "docker-ce", dnf = "docker-ce" }
-apt_repo = { key_url = "https://download.docker.com/linux/ubuntu/gpg", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb [arch={{.Arch}} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{.Codename}} stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
+apt_repo = { key_url = "https://download.docker.com/linux/ubuntu/gpg", key_fingerprint = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb [arch={{.Arch}} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{.Codename}} stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
 dnf_repo = { id = "docker-ce", repofile = "https://download.docker.com/linux/fedora/docker-ce.repo" }
 
 # --- script-url: downloads and executes an install script over HTTPS --------
@@ -710,8 +710,8 @@ class = "managed"
 justification = "installed via the host package manager (brew/apt/dnf), which owns versioning"
 
 # Claude Desktop: official Linux beta uses Anthropic's apt repo on Debian/Ubuntu
-# (amd64/arm64); no official Arch/Fedora package is wired. The backend dearmors
-# the key, hence a .gpg keyring. https://support.claude.com/en/articles/10065433
+# (amd64/arm64); no official Arch/Fedora package is wired. The backend writes
+# only the pinned key as a binary keyring (hence .gpg). https://support.claude.com/en/articles/10065433
 [[package]]
 name = "claude-desktop"
 backend = "repo"
@@ -778,6 +778,7 @@ names = { apt = "wezterm", dnf = "wezterm" }
 
 [package.apt_repo]
 key_url = "https://apt.fury.io/wez/gpg.key"
+key_fingerprint = "0CA603116C960BAFB2BF310BD7BA31CF90C4B319"
 keyring = "/usr/share/keyrings/wezterm-fury.gpg"
 repo_line = "deb [signed-by=/usr/share/keyrings/wezterm-fury.gpg] https://apt.fury.io/wez/ * *"
 sources_path = "/etc/apt/sources.list.d/wezterm.list"
@@ -869,6 +870,7 @@ names = { apt = "code-insiders", dnf = "code-insiders" }
 
 [package.apt_repo]
 key_url = "https://packages.microsoft.com/keys/microsoft.asc"
+key_fingerprint = "BC528686B50D79E339D3721CEB3E94ADBE1229CF"
 keyring = "/usr/share/keyrings/microsoft.gpg"
 repo_line = "deb [arch={{.Arch}} signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main"
 sources_path = "/etc/apt/sources.list.d/vscode.list"

@@ -40,9 +40,9 @@ func validateRepo(p Package) []error {
 	return errs
 }
 
-// validateAptRepo checks the apt_repo sub-table: all four fields are required,
-// because the Debian-family install path imports the key, writes the sources
-// entry, and needs the signed-by keyring path in both.
+// validateAptRepo checks the apt_repo sub-table: all five fields are required,
+// because the Debian-family install path pins the key by fingerprint, writes
+// the sources entry, and needs the signed-by keyring path in both.
 func validateAptRepo(p Package) []error {
 	var errs []error
 
@@ -58,7 +58,10 @@ func validateAptRepo(p Package) []error {
 	if p.AptRepo.SourcesPath == "" {
 		errs = append(errs, &ValidationError{Package: p.Name, Msg: "apt-repo backend requires apt_repo.sources_path"})
 	}
-	if fp := p.AptRepo.KeyFingerprint; fp != "" && !keyFingerprintPattern.MatchString(fp) {
+	switch fp := p.AptRepo.KeyFingerprint; {
+	case fp == "":
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: "apt-repo backend requires apt_repo.key_fingerprint"})
+	case !keyFingerprintPattern.MatchString(fp):
 		errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("apt_repo.key_fingerprint %q is not a 40-char hex OpenPGP fingerprint", fp)})
 	}
 

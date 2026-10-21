@@ -398,13 +398,14 @@ type AptRepo struct {
 	// KeyURL is the HTTPS URL of the repository's GPG key.
 	KeyURL string `toml:"key_url"`
 
-	// KeyFingerprint is the OPTIONAL 40-hex OpenPGP fingerprint of the
-	// repository's signing key. When set, the fetched key's fingerprint is
-	// verified against it (case-insensitive) before the key is trusted; a
-	// mismatch aborts the install before any privileged command runs.
+	// KeyFingerprint is the REQUIRED 40-hex OpenPGP fingerprint of the
+	// repository's primary signing key. The fetched key file must list it as
+	// a primary key (case-insensitive) or the install aborts before any
+	// privileged command runs; only that key (with its subkeys) is written to
+	// Keyring.
 	KeyFingerprint string `toml:"key_fingerprint"`
 
-	// Keyring is the destination path for the dearmored GPG keyring file.
+	// Keyring is the destination path for the binary signed-by keyring file.
 	Keyring string `toml:"keyring"`
 
 	// RepoLine is the full deb [signed-by=…] line written to SourcesPath.

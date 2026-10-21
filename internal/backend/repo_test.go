@@ -3,6 +3,7 @@ package backend
 import (
 	"errors"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -119,21 +120,24 @@ func TestRepoBackend_Install_ExactArgv(t *testing.T) {
 					Keyring:     dockerKeyring,
 					RepoLine:    dockerRepoLine,
 					SourcesPath: dockerSourcesPath,
+
+					KeyFingerprint: dockerKeyFingerprint,
 				},
 			},
 			info: platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrAPT, Codename: "noble", Arch: platform.ArchX86_64},
 			stub: func(r *exec.Fake) {
 				r.AddCommand("curl", []string{"-fsSL", dockerKeyURL}, []byte("-----BEGIN PGP PUBLIC KEY BLOCK-----\n"), nil)
 			},
-			wantCalls: 6,
+			wantCalls: 10,
 			assert: func(t *testing.T, calls []exec.FakeCall, _ platform.Info) {
 				t.Helper()
 				assertCall(t, calls[0], "curl", "-fsSL", dockerKeyURL)
-				assertSudoCall(t, calls[1], "install", "-d", "-m", "0755", "/etc/apt/keyrings")
-				assertSudoGpgDearmor(t, calls[2], dockerKeyring)
-				assertSudoInstallSources(t, calls[3], dockerSourcesPath)
-				assertSudoCall(t, calls[4], "apt-get", "update")
-				assertSudoCall(t, calls[5], "apt-get", "install", "-y", "docker-ce")
+				assertAptKeyPinning(t, calls[1:5], dockerKeyFingerprint)
+				assertSudoCall(t, calls[5], "install", "-d", "-m", "0755", "/etc/apt/keyrings")
+				assertSudoInstallKeyring(t, calls[6], dockerKeyring)
+				assertSudoInstallSources(t, calls[7], dockerSourcesPath)
+				assertSudoCall(t, calls[8], "apt-get", "update")
+				assertSudoCall(t, calls[9], "apt-get", "install", "-y", "docker-ce")
 			},
 		},
 	}
@@ -142,9 +146,9 @@ func TestRepoBackend_Install_ExactArgv(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			r := exec.NewFake()
+			r := pinnedKeyFake(dockerKeyFingerprint)
 			if tt.stub != nil {
-				tt.stub(r)
+				tt.stub(r.Fake)
 			}
 
 			b := newRepoBackend(r)
@@ -216,60 +220,141 @@ func TestRepoBackend_Install_NotApplicable(t *testing.T) {
 	}
 }
 
-// gpgFake answers `gpg --show-keys` with gpgOut whatever the temp key path is.
+// gpgFake answers the apt key-pinning gpg calls whatever the temp homedir and
+// key paths are: `--show-keys` returns listing, `--export` returns exported.
+// Every call is recorded on the embedded Fake with its real argv, and each
+// `sudo install -m <mode> <tmp> <dest>` captures the staged file's content
+// into written before the backend's deferred cleanup removes it.
 type gpgFake struct {
 	*exec.Fake
-	gpgOut string
+	listing  string
+	exported string
+	written  map[string]string
+}
+
+func newGPGFake(listing, exported string) gpgFake {
+	return gpgFake{Fake: exec.NewFake(), listing: listing, exported: exported, written: map[string]string{}}
 }
 
 func (g gpgFake) Output(name string, args ...string) ([]byte, error) {
-	if name == "gpg" {
-		_, _ = g.Fake.Output("true") // record the probe; result ignored
-		return []byte(g.gpgOut), nil
+	if name != "gpg" {
+		return g.Fake.Output(name, args...)
 	}
-	return g.Fake.Output(name, args...)
+	_ = g.Fake.Run(name, args...) // record the real argv; the result is ours
+	switch {
+	case slices.Contains(args, "--show-keys"):
+		return []byte(g.listing), nil
+	case slices.Contains(args, "--export"):
+		return []byte(g.exported), nil
+	default:
+		return nil, errors.New("gpgFake: unexpected gpg output call")
+	}
 }
 
-// TestRepoBackend_Install_KeyFingerprint: a pinned key whose fingerprint
-// mismatches aborts before any sudo command; a match proceeds.
+func (g gpgFake) Run(name string, args ...string) error {
+	if name == "sudo" && len(args) == 5 && args[0] == "install" && args[1] == "-m" {
+		body, err := os.ReadFile(args[3])
+		if err != nil {
+			return err
+		}
+		g.written[args[4]] = string(body)
+	}
+	return g.Fake.Run(name, args...)
+}
+
+// gpgListing renders `gpg --show-keys --with-colons` records: one pub/fpr pair
+// per primary key, each followed by a sub/fpr pair for its subkey.
+func gpgListing(keys ...[2]string) string {
+	var b strings.Builder
+	for _, k := range keys {
+		b.WriteString("pub:-:4096:1:" + k[0][24:] + ":::::\nfpr:::::::::" + k[0] + ":\n")
+		b.WriteString("sub:-:4096:1:" + k[1][24:] + ":::::\nfpr:::::::::" + k[1] + ":\n")
+	}
+	return b.String()
+}
+
+// TestRepoBackend_Install_KeyFingerprint pins the apt key-pinning contract: the
+// pinned fingerprint must be a primary key in the downloaded file (checked
+// before any sudo), and only that key, exported from a throwaway homedir, is
+// written to the signed-by keyring — never the raw downloaded file.
 func TestRepoBackend_Install_KeyFingerprint(t *testing.T) {
 	t.Parallel()
-	const fp = "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE"
-	pkg := manifest.Package{
-		Name: "claude-desktop", Backend: manifest.BackendRepo,
-		Names: map[string]string{"apt": "claude-desktop"},
-		AptRepo: &manifest.AptRepo{
-			KeyURL: "https://k", Keyring: "/usr/share/keyrings/c.gpg",
-			RepoLine: "deb https://r stable main", SourcesPath: "/etc/apt/sources.list.d/c.list",
-			KeyFingerprint: fp,
-		},
-	}
+	const (
+		fp       = "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE"
+		fpSub    = "0123456789ABCDEF0123456789ABCDEF01234567"
+		extra    = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+		extraSub = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+		keyring  = "/usr/share/keyrings/c.gpg"
+		exported = "\x99pinned-key-binary"
+	)
 	info := platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrAPT, Arch: platform.ArchX86_64}
 
 	for _, tc := range []struct {
-		name, out string
-		ok        bool
+		name, pin, listing, exported string
+		ok                           bool
 	}{
-		{"match lowercase", "pub:-:4096:1:BAA929FF1A7ECACE:::::\nfpr:::::::::" + strings.ToLower(fp) + ":\n", true},
-		{"mismatch", "fpr:::::::::" + strings.Repeat("A", 40) + ":\n", false},
-		{"no fpr record", "pub:-:4096\n", false},
+		{"match lowercase", fp, "pub:-:4096:1:BAA929FF1A7ECACE:::::\nfpr:::::::::" + strings.ToLower(fp) + ":\n", exported, true},
+		{"extra primary key: export selects only the pinned fingerprint", fp, gpgListing([2]string{fp, fpSub}, [2]string{extra, extraSub}), exported, true},
+		{"pinned key second in file", fp, gpgListing([2]string{extra, extraSub}, [2]string{fp, fpSub}), exported, true},
+		{"mismatch", fp, gpgListing([2]string{extra, extraSub}), exported, false},
+		{"pinned only as a subkey", fpSub, gpgListing([2]string{extra, fpSub}), exported, false},
+		{"no fpr record", fp, "pub:-:4096\n", exported, false},
+		{"empty export", fp, gpgListing([2]string{fp, fpSub}), "", false},
+		{"no pin declared", "", gpgListing([2]string{fp, fpSub}), exported, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			f := exec.NewFake()
-			f.AddCommand("curl", []string{"-fsSL", "https://k"}, []byte("key"), nil)
-			err := newRepoBackend(gpgFake{f, tc.out}).Install(pkg, info)
+			pkg := manifest.Package{
+				Name: "claude-desktop", Backend: manifest.BackendRepo,
+				Names: map[string]string{"apt": "claude-desktop"},
+				AptRepo: &manifest.AptRepo{
+					KeyURL: "https://k", Keyring: keyring,
+					RepoLine: "deb https://r stable main", SourcesPath: "/etc/apt/sources.list.d/c.list",
+					KeyFingerprint: tc.pin,
+				},
+			}
+			g := newGPGFake(tc.listing, tc.exported)
+			g.AddCommand("curl", []string{"-fsSL", "https://k"}, []byte("key"), nil)
+			err := newRepoBackend(g).Install(pkg, info)
+			calls := g.CallsSnapshot()
 			sudo := 0
-			for _, c := range f.CallsSnapshot() {
+			for _, c := range calls {
+				if slices.Contains(c.Args, "--dearmor") {
+					t.Fatalf("raw downloaded key dearmored into the keyring: %v", c)
+				}
 				if c.Name == "sudo" {
 					sudo++
 				}
 			}
-			if tc.ok && (err != nil || sudo == 0) {
-				t.Fatalf("Install() = %v, sudo calls %d; want success", err, sudo)
+			if !tc.ok {
+				if err == nil || sudo != 0 {
+					t.Fatalf("Install() = %v, sudo calls %d; want error before any sudo", err, sudo)
+				}
+				return
 			}
-			if !tc.ok && (err == nil || sudo != 0) {
-				t.Fatalf("Install() = %v, sudo calls %d; want error before any sudo", err, sudo)
+			if err != nil {
+				t.Fatalf("Install() error = %v", err)
+			}
+			if got := g.written[keyring]; got != tc.exported {
+				t.Fatalf("keyring %s content = %q, want only the exported pinned key %q", keyring, got, tc.exported)
+			}
+			exports := 0
+			for _, c := range calls {
+				if c.Name != "gpg" {
+					continue
+				}
+				if !slices.Contains(c.Args, "--homedir") {
+					t.Errorf("gpg call %v outside a throwaway --homedir", c.Args)
+				}
+				if slices.Contains(c.Args, "--export") {
+					exports++
+					if c.Args[len(c.Args)-1] != tc.pin || slices.Contains(c.Args, "--armor") {
+						t.Errorf("gpg export args = %v, want binary export of %s only", c.Args, tc.pin)
+					}
+				}
+			}
+			if exports != 1 {
+				t.Errorf("gpg --export calls = %d, want 1", exports)
 			}
 		})
 	}

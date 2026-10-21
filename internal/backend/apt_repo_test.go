@@ -2,6 +2,8 @@ package backend
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -21,7 +23,7 @@ func TestAptRepoBackend_Install_KeyringSourcesUpdateInstallSequence(t *testing.T
 		aptName     = "docker-ce"
 	)
 
-	r := exec.NewFake()
+	r := pinnedKeyFake(dockerKeyFingerprint)
 	r.AddCommand("curl", []string{"-fsSL", keyURL}, []byte("-----BEGIN PGP PUBLIC KEY BLOCK-----\n"), nil)
 
 	b := newAptRepoBackend(r)
@@ -34,6 +36,8 @@ func TestAptRepoBackend_Install_KeyringSourcesUpdateInstallSequence(t *testing.T
 			Keyring:     keyring,
 			RepoLine:    repoLine,
 			SourcesPath: sourcesPath,
+
+			KeyFingerprint: dockerKeyFingerprint,
 		},
 	}
 	info := platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrAPT}
@@ -43,16 +47,20 @@ func TestAptRepoBackend_Install_KeyringSourcesUpdateInstallSequence(t *testing.T
 	}
 
 	calls := r.CallsSnapshot()
-	if len(calls) < 6 {
-		t.Fatalf("CallsSnapshot() len = %d, want at least 6", len(calls))
+	if len(calls) != 10 {
+		t.Fatalf("CallsSnapshot() len = %d, want 10: %v", len(calls), calls)
 	}
 
 	assertCall(t, calls[0], "curl", "-fsSL", keyURL)
-	assertSudoCall(t, calls[1], "install", "-d", "-m", "0755", "/etc/apt/keyrings")
-	assertSudoGpgDearmor(t, calls[2], keyring)
-	assertSudoInstallSources(t, calls[3], sourcesPath)
-	assertSudoCall(t, calls[4], "apt-get", "update")
-	assertSudoCall(t, calls[5], "apt-get", "install", "-y", aptName)
+	assertAptKeyPinning(t, calls[1:5], dockerKeyFingerprint)
+	assertSudoCall(t, calls[5], "install", "-d", "-m", "0755", "/etc/apt/keyrings")
+	assertSudoInstallKeyring(t, calls[6], keyring)
+	assertSudoInstallSources(t, calls[7], sourcesPath)
+	assertSudoCall(t, calls[8], "apt-get", "update")
+	assertSudoCall(t, calls[9], "apt-get", "install", "-y", aptName)
+	if got := r.written[keyring]; got != pinnedKeyExport {
+		t.Errorf("keyring content = %q, want the exported pinned key %q", got, pinnedKeyExport)
+	}
 }
 
 func TestAptRepoBackend_Install_RerunConverges(t *testing.T) {
@@ -66,7 +74,7 @@ func TestAptRepoBackend_Install_RerunConverges(t *testing.T) {
 		aptName     = "docker-ce"
 	)
 
-	r := exec.NewFake()
+	r := pinnedKeyFake(dockerKeyFingerprint)
 	r.AddCommand("curl", []string{"-fsSL", keyURL}, []byte("-----BEGIN PGP PUBLIC KEY BLOCK-----\n"), nil)
 
 	b := newAptRepoBackend(r)
@@ -79,6 +87,8 @@ func TestAptRepoBackend_Install_RerunConverges(t *testing.T) {
 			Keyring:     keyring,
 			RepoLine:    repoLine,
 			SourcesPath: sourcesPath,
+
+			KeyFingerprint: dockerKeyFingerprint,
 		},
 	}
 	info := platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrAPT}
@@ -91,18 +101,19 @@ func TestAptRepoBackend_Install_RerunConverges(t *testing.T) {
 	}
 
 	calls := r.CallsSnapshot()
-	if len(calls) != 12 {
-		t.Fatalf("CallsSnapshot() len = %d, want 12 (two identical 6-step runs)", len(calls))
+	if len(calls) != 20 {
+		t.Fatalf("CallsSnapshot() len = %d, want 20 (two identical 10-step runs)", len(calls))
 	}
 
-	for run := 0; run < 2; run++ {
-		base := run * 6
+	for run := range 2 {
+		base := run * 10
 		assertCall(t, calls[base], "curl", "-fsSL", keyURL)
-		assertSudoCall(t, calls[base+1], "install", "-d", "-m", "0755", "/etc/apt/keyrings")
-		assertSudoGpgDearmor(t, calls[base+2], keyring)
-		assertSudoInstallSources(t, calls[base+3], sourcesPath)
-		assertSudoCall(t, calls[base+4], "apt-get", "update")
-		assertSudoCall(t, calls[base+5], "apt-get", "install", "-y", aptName)
+		assertAptKeyPinning(t, calls[base+1:base+5], dockerKeyFingerprint)
+		assertSudoCall(t, calls[base+5], "install", "-d", "-m", "0755", "/etc/apt/keyrings")
+		assertSudoInstallKeyring(t, calls[base+6], keyring)
+		assertSudoInstallSources(t, calls[base+7], sourcesPath)
+		assertSudoCall(t, calls[base+8], "apt-get", "update")
+		assertSudoCall(t, calls[base+9], "apt-get", "install", "-y", aptName)
 	}
 }
 
@@ -299,7 +310,7 @@ func TestAptRepoBackend_Install_TemplatedCodename(t *testing.T) {
 		aptName     = "docker-ce"
 	)
 
-	r := exec.NewFake()
+	r := pinnedKeyFake(dockerKeyFingerprint)
 	r.AddCommand("curl", []string{"-fsSL", keyURL}, []byte("-----BEGIN PGP PUBLIC KEY BLOCK-----\n"), nil)
 
 	b := newAptRepoBackend(r)
@@ -312,6 +323,8 @@ func TestAptRepoBackend_Install_TemplatedCodename(t *testing.T) {
 			Keyring:     keyring,
 			RepoLine:    repoLine,
 			SourcesPath: sourcesPath,
+
+			KeyFingerprint: dockerKeyFingerprint,
 		},
 	}
 	info := platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrAPT, Codename: "noble", Arch: platform.ArchX86_64}
@@ -332,7 +345,7 @@ func TestAptRepoBackend_Install_MissingCodename_Errors(t *testing.T) {
 		aptName     = "docker-ce"
 	)
 
-	r := exec.NewFake()
+	r := pinnedKeyFake(dockerKeyFingerprint)
 	r.AddCommand("curl", []string{"-fsSL", keyURL}, []byte("-----BEGIN PGP PUBLIC KEY BLOCK-----\n"), nil)
 
 	b := newAptRepoBackend(r)
@@ -345,6 +358,8 @@ func TestAptRepoBackend_Install_MissingCodename_Errors(t *testing.T) {
 			Keyring:     keyring,
 			RepoLine:    repoLine,
 			SourcesPath: sourcesPath,
+
+			KeyFingerprint: dockerKeyFingerprint,
 		},
 	}
 	// Codename empty: the {{.Codename}} placeholder cannot be rendered.
@@ -380,20 +395,46 @@ func assertSudoCall(t *testing.T, call exec.FakeCall, cmd string, args ...string
 	assertCall(t, call, "sudo", wantArgs...)
 }
 
-func assertSudoGpgDearmor(t *testing.T, call exec.FakeCall, keyring string) {
+// dockerKeyFingerprint is the Docker apt signing key's primary fingerprint.
+const dockerKeyFingerprint = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
+
+// pinnedKeyExport stands in for the binary `gpg --export <fp>` output.
+const pinnedKeyExport = "\x99pinned-key-binary"
+
+// pinnedKeyFake is a gpgFake whose downloaded key lists fp as its only primary
+// key and whose export returns pinnedKeyExport.
+func pinnedKeyFake(fp string) gpgFake {
+	return newGPGFake(gpgListing([2]string{fp, strings.Repeat("C", 40)}), pinnedKeyExport)
+}
+
+// assertAptKeyPinning checks the four gpg steps that select the pinned key in
+// a throwaway homedir: list, import, binary export of fp, agent teardown.
+func assertAptKeyPinning(t *testing.T, calls []exec.FakeCall, fp string) {
 	t.Helper()
-	if call.Name != "sudo" {
-		t.Fatalf("call name = %q, want sudo", call.Name)
+	if len(calls) != 4 || len(calls[0].Args) != 7 {
+		t.Fatalf("key pinning calls = %v, want gpg show-keys/import/export + gpgconf", calls)
 	}
-	if len(call.Args) != 7 {
-		t.Fatalf("sudo gpg args = %v, want 7 elements", call.Args)
+	home, key := calls[0].Args[1], calls[0].Args[6]
+	if home == "" || key == "" || home == key {
+		t.Fatalf("gpg homedir %q / key file %q: want distinct non-empty paths", home, key)
 	}
-	if call.Args[0] != "gpg" || call.Args[1] != "--batch" || call.Args[2] != "--yes" ||
-		call.Args[3] != "--dearmor" || call.Args[4] != "-o" || call.Args[5] != keyring {
-		t.Fatalf("sudo gpg args = %v, want gpg --batch --yes --dearmor -o %q <tempfile>", call.Args, keyring)
+	if want := filepath.Join(os.TempDir(), "dotf-apt-key-"); !strings.HasPrefix(key, want) {
+		t.Fatalf("gpg key file = %q, want the downloaded key under %q*", key, want)
 	}
-	if call.Args[6] == "" {
-		t.Fatal("sudo gpg temp key path is empty")
+	assertCall(t, calls[0], "gpg", "--homedir", home, "--batch", "--no-autostart", "--show-keys", "--with-colons", key)
+	assertCall(t, calls[1], "gpg", "--homedir", home, "--batch", "--import", key)
+	assertCall(t, calls[2], "gpg", "--homedir", home, "--batch", "--export", fp)
+	assertCall(t, calls[3], "gpgconf", "--homedir", home, "--kill", "all")
+}
+
+func assertSudoInstallKeyring(t *testing.T, call exec.FakeCall, keyring string) {
+	t.Helper()
+	if call.Name != "sudo" || len(call.Args) != 5 ||
+		call.Args[0] != "install" || call.Args[1] != "-m" || call.Args[2] != "0644" || call.Args[4] != keyring {
+		t.Fatalf("sudo install keyring = %v, want sudo install -m 0644 <exported> %q", call, keyring)
+	}
+	if call.Args[3] == "" {
+		t.Fatal("sudo install exported key path is empty")
 	}
 }
 

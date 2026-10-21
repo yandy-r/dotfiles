@@ -21,9 +21,10 @@ Try these in order; the first that fits is the right one:
    add the sub-table(s) for the families you support and the backend dispatches on
    the host's package manager:
    - `apt_repo` — Debian/Ubuntu: GPG key + `sources.list` line, then a normal install.
-     `repo_line` templates `{{.Codename}}` and `{{.Arch}}` from the host. Optional
-     `key_fingerprint` (40 hex) is checked with `gpg --show-keys` before any key is
-     trusted; a mismatch aborts before any `sudo` step.
+     `repo_line` templates `{{.Codename}}` and `{{.Arch}}` from the host. Required
+     `key_fingerprint` (40 hex) must name a primary key in the fetched key file,
+     checked with `gpg --show-keys` before any `sudo` step; only that key (with its
+     subkeys) is exported into the `signed-by` keyring.
    - `dnf_repo` — Fedora/RHEL, in exactly one of three modes:
      - `repofile = "<https url>"` (+ `id`) — the vendor publishes a ready-made `.repo`;
        **prefer this.** It is installed verbatim at `/etc/yum.repos.d/<id>.repo`, below
@@ -100,7 +101,7 @@ dnf_exclude = ["kf6-kmime*"]
 name = "docker-ce"
 backend = "repo"
 names = { apt = "docker-ce", dnf = "docker-ce" }
-apt_repo = { key_url = "…/gpg", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb [arch={{.Arch}} signed-by=/etc/apt/keyrings/docker.gpg] …/ubuntu {{.Codename}} stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
+apt_repo = { key_url = "…/gpg", key_fingerprint = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb [arch={{.Arch}} signed-by=/etc/apt/keyrings/docker.gpg] …/ubuntu {{.Codename}} stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
 dnf_repo = { id = "docker-ce", repofile = "https://download.docker.com/linux/fedora/docker-ce.repo" }
 
 # 4. toolchain — a cargo/npm-installed tool

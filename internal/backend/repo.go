@@ -158,6 +158,9 @@ func (b *repoBackend) installAPT(pkg manifest.Package, info platform.Info) error
 	if repo == nil {
 		return fmt.Errorf("backend: package %q missing apt_repo configuration", pkg.Name)
 	}
+	if repo.KeyFingerprint == "" {
+		return fmt.Errorf("backend: package %q apt_repo.key_fingerprint is required", pkg.Name)
+	}
 
 	keyData, err := b.r.Output("curl", "-fsSL", repo.KeyURL)
 	if err != nil {
@@ -170,31 +173,19 @@ func (b *repoBackend) installAPT(pkg manifest.Package, info platform.Info) error
 	}
 	defer func() { _ = os.Remove(keyFile) }()
 
-	if repo.KeyFingerprint != "" {
-		out, err := b.r.Output("gpg", "--show-keys", "--with-colons", keyFile)
-		if err != nil {
-			return fmt.Errorf("read apt repo key fingerprint: %w", err)
-		}
-		fingerprint := ""
-		for _, line := range strings.Split(string(out), "\n") {
-			fields := strings.Split(line, ":")
-			if len(fields) > 9 && fields[0] == "fpr" {
-				fingerprint = fields[9]
-				break
-			}
-		}
-		if !strings.EqualFold(fingerprint, repo.KeyFingerprint) {
-			return fmt.Errorf("apt repo key fingerprint mismatch: expected %s, got %q", repo.KeyFingerprint, fingerprint)
-		}
+	pinned, err := b.exportPinnedAptKey(keyFile, repo.KeyFingerprint)
+	if err != nil {
+		return err
 	}
+	defer func() { _ = os.Remove(pinned) }()
 
 	keyringDir := filepath.Dir(repo.Keyring)
 	if err := b.r.Run("sudo", "install", "-d", "-m", "0755", keyringDir); err != nil {
 		return fmt.Errorf("create apt keyring directory %q: %w", keyringDir, err)
 	}
 
-	if err := b.r.Run("sudo", "gpg", "--batch", "--yes", "--dearmor", "-o", repo.Keyring, keyFile); err != nil {
-		return fmt.Errorf("dearmor apt repo key into %q: %w", repo.Keyring, err)
+	if err := b.r.Run("sudo", "install", "-m", "0644", pinned, repo.Keyring); err != nil {
+		return fmt.Errorf("install apt repo keyring %q: %w", repo.Keyring, err)
 	}
 
 	repoLine, err := renderRepoLine(repo.RepoLine, info)
@@ -221,6 +212,49 @@ func (b *repoBackend) installAPT(pkg manifest.Package, info platform.Info) error
 	}
 
 	return nil
+}
+
+// exportPinnedAptKey checks that keyFile carries fingerprint as a primary key
+// and returns a temp file holding only that key (with its subkeys), exported
+// in binary form from a throwaway gpg homedir, so the signed-by keyring trusts
+// exactly the pinned key. The caller removes the returned file.
+func (b *repoBackend) exportPinnedAptKey(keyFile, fingerprint string) (string, error) {
+	keyHome, err := os.MkdirTemp("", "dotf-apt-keyring-*")
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = b.r.Run("gpgconf", "--homedir", keyHome, "--kill", "all")
+		_ = os.RemoveAll(keyHome)
+	}()
+
+	out, err := b.r.Output("gpg", "--homedir", keyHome, "--batch", "--no-autostart", "--show-keys", "--with-colons", keyFile)
+	if err != nil {
+		return "", fmt.Errorf("read apt repo key fingerprint: %w", err)
+	}
+	if !hasFingerprint(out, fingerprint) {
+		return "", fmt.Errorf("apt repo key fingerprint mismatch: expected %s", fingerprint)
+	}
+	if err := b.r.Run("gpg", "--homedir", keyHome, "--batch", "--import", keyFile); err != nil {
+		return "", fmt.Errorf("import apt repo key: %w", err)
+	}
+	selected, err := b.r.Output("gpg", "--homedir", keyHome, "--batch", "--export", fingerprint)
+	if err != nil {
+		return "", fmt.Errorf("export pinned apt repo key: %w", err)
+	}
+	if len(selected) == 0 {
+		return "", fmt.Errorf("export pinned apt repo key %s: empty output", fingerprint)
+	}
+
+	pinned, err := writeTempFile("dotf-apt-keyring-*", selected)
+	if err != nil {
+		return "", err
+	}
+	if err := os.Chmod(pinned, 0o644); err != nil {
+		_ = os.Remove(pinned)
+		return "", fmt.Errorf("chmod pinned apt repo key: %w", err)
+	}
+	return pinned, nil
 }
 
 // Installed probes installed state through the host's package manager only. It
