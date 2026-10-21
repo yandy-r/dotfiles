@@ -26,13 +26,14 @@ matches:
               type: choice
               values:
                 - auto
-                - tokenhop
-                - praxrr
                 - crosshook
-                - opencode-goal-plugin
-                - ystack
+                - dotfiles
                 - itcn-crm
                 - itcn-website
+                - opencode-goal-plugin
+                - praxrr
+                - tokenhop
+                - ystack
               default: auto
             task:
               type: choice
