@@ -189,51 +189,55 @@ exit_code() {
 # PROMPT BUILDER
 # ================================================================
 
-# Build git prompt segment
+# Build git prompt segment into _dotf_ps1_git. Branch names and status come
+# from the repo, which may be untrusted, so the raw values live in variables and
+# the segment only references them: bash never re-expands the value of an
+# expanded parameter, so `$(…)` or backticks in a branch name stay literal.
+# Must run in the current shell (not a command substitution) so the variables
+# PS1 references persist.
 git_prompt() {
-    local branch
-    local status_indicators
-    local git_color
-    
-    branch=$(git_branch)
-    if [[ -n "$branch" ]]; then
-        status_indicators=$(git_status)
-        git_color=$(git_status_color)
-        
-        echo " ${git_color}git:${branch}${status_indicators}${colors[reset]}"
+    _dotf_ps1_git=""
+    _dotf_ps1_branch=$(git_branch)
+    _dotf_ps1_git_status=""
+    if [[ -n "$_dotf_ps1_branch" ]]; then
+        _dotf_ps1_git_status=$(git_status)
+        _dotf_ps1_git=" $(git_status_color)git:\${_dotf_ps1_branch}\${_dotf_ps1_git_status}${colors[reset]}"
     fi
 }
 
-# Build the main prompt
+# Build the main prompt and assign PS1 (called from PROMPT_COMMAND). Untrusted
+# values are referenced as \${var}, never spliced into PS1; see git_prompt.
 build_prompt() {
     local exit_code=$?
     local prompt=""
-    
+
     # User and host
     prompt+="${colors[user_color]}\\u"
     prompt+="${colors[white]}@"
-    prompt+="${colors[host_color]}$(hostname -s)"
+    prompt+="${colors[host_color]}\\h"
     prompt+="${colors[reset]}"
-    
+
     # Current directory
     prompt+=" ${colors[path_color]}\\w${colors[reset]}"
-    
+
     # Git information
-    prompt+="$(git_prompt)"
-    
+    git_prompt
+    prompt+="$_dotf_ps1_git"
+
     # Python virtual environment
-    prompt+="${colors[magenta]}$(python_venv)${colors[reset]}"
-    
+    _dotf_ps1_venv=$(python_venv)
+    prompt+="${colors[magenta]}\${_dotf_ps1_venv}${colors[reset]}"
+
     # Background jobs
     prompt+="${colors[yellow]}$(background_jobs)${colors[reset]}"
-    
+
     # Exit code indicator
-    prompt+="$(exit_code $exit_code)"
-    
+    prompt+="$(exit_code "$exit_code")"
+
     # Prompt symbol
     prompt+="\\n${colors[bright_white]}❯${colors[reset]} "
-    
-    echo "$prompt"
+
+    PS1="$prompt"
 }
 
 # ================================================================
@@ -257,31 +261,12 @@ show_vi_mode() {
 # PROMPT SETUP
 # ================================================================
 
-# Set PS1 using command substitution for dynamic updates
-PROMPT_COMMAND='PS1=$(build_prompt)'
+# Rebuild PS1 before every prompt. build_prompt runs in the current shell so
+# the variables PS1 references are set where prompt expansion reads them.
+PROMPT_COMMAND='build_prompt'
 
 # Secondary prompt
 PS2="${colors[bright_white]}❯ ${colors[reset]}"
 
 # Debug prompt (shown when in debug mode)
 PS4="${colors[bright_yellow]}+ ${colors[reset]}"
-
-# ================================================================
-# TITLE BAR
-# ================================================================
-
-# Set terminal title
-set_title() {
-    case "$TERM" in
-        xterm*|rxvt*|screen*)
-            echo -ne "\033]0;${USER}@${HOSTNAME}: ${PWD/#$HOME/~}\007"
-            ;;
-    esac
-}
-
-# Update title in PROMPT_COMMAND
-if [[ -z "$PROMPT_COMMAND" ]]; then
-    PROMPT_COMMAND='set_title'
-else
-    PROMPT_COMMAND="$PROMPT_COMMAND; set_title"
-fi

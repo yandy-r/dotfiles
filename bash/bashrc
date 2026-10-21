@@ -181,11 +181,15 @@ fi
 # Load user-specific bash customizations
 [[ -f ~/.bashrc.local ]] && source ~/.bashrc.local || true
 
-# Set terminal title (similar to zsh behavior)
+# Set terminal title (similar to zsh behavior). The single source of the title
+# for both Starship and the bash/prompt.sh fallback. A function, so $PWD is read
+# at every prompt and never parsed as shell code.
 case "$TERM" in
 xterm* | rxvt* | screen*)
-	# Append to PROMPT_COMMAND instead of overwriting it
-	PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND; }echo -ne '\033]0;${USER}@${HOSTNAME}: ${PWD}\007'"
+	_dotf_set_title() {
+		printf '\033]0;%s@%s: %s\007' "$USER" "$HOSTNAME" "$PWD"
+	}
+	PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND; }_dotf_set_title"
 	;;
 esac
 
