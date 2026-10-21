@@ -51,15 +51,23 @@ install path (you can still run them directly for targeted installs; see
 `dotf link` provisions the managed dotfiles symlinks into `$HOME` natively in Go
 (`internal/symlink`), and is the symlink provisioner as of Phase 4.
 
-| Flag              | Effect                                                                  |
-| ----------------- | ----------------------------------------------------------------------- |
-| `--dry-run`       | Print the plan without touching the filesystem                          |
-| `--backup`        | Back up existing real files before replacing them                       |
-| `--linux-desktop` | Manage the opt-in Linux desktop config set (hypr/waybar/swayosd/fuzzel) |
+Every real file or directory a link replaces is copied into
+`~/.config/dotfiles_backup_<epoch>` first, by default; the run names that directory on stderr
+(`dotf: link backups: <dir>`) and creates it only when something was backed up. `dotf setup`
+symlink steps back up the same way, but each step gets its own dir (a same-second rerun or a second
+step gets a `_1`, `_2`, … suffix), each named on stderr.
+
+| Flag              | Effect                                                                                                                  |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `--dry-run`       | Print the plan without touching the filesystem                                                                          |
+| `--no-backup`     | Replace real files without backing them up first                                                                        |
+| `--backup`        | Explicit spelling of the default; `--backup=false` does not disable backups (use `--no-backup`); not with `--no-backup` |
+| `--linux-desktop` | Manage the opt-in Linux desktop config set (hypr/waybar/swayosd/fuzzel)                                                 |
 
 ```bash
-dotf link --dry-run          # preview the plan
-dotf link --backup           # apply, backing up real files first
+dotf link --dry-run          # preview the plan (link.backup= lists what will be copied)
+dotf link                    # apply, backing up real files first
+dotf link --no-backup        # apply without backups
 dotf link --linux-desktop    # include the opt-in Hyprland desktop set
 ```
 
@@ -190,18 +198,19 @@ no prompts. Non-fatal step failures are accumulated (never aborting the run) and
 end-of-run summary; the exit code distinguishes a converged run (0), a completed run with soft
 failures (1), a usage error (2), and a hard abort (3).
 
-| Flag / env                               | Effect                                                                 |
-| ---------------------------------------- | ---------------------------------------------------------------------- |
-| `--headless` / `NON_INTERACTIVE=true`    | Skip the TUI and all prompts; apply the resolved intent set            |
-| `--force` / `FORCE_INSTALL=true`         | Imply `--headless`; force symlink recreation                           |
-| `--gaming` / `ENABLE_GAMING=true`        | Add the `gaming` intent to the packages phase                          |
-| `--enable-ollama` / `ENABLE_OLLAMA=true` | Add the `ollama` intent (no-op until the manifest defines it)          |
-| `--linux-desktop` / `LINUX_DESKTOP=true` | Manage the opt-in Linux desktop set (forces symlink backups)           |
-| `--snapper` / `SNAPPER=true`             | Take a snapper pre-apply snapshot (Linux only; no-op otherwise)        |
-| `--plasma` / `PLASMA=true`               | Run the KDE Plasma config sync phase (Linux/KDE only; no-op otherwise) |
-| `--homebrew=true\|false`                 | Homebrew tristate (`''` = OS default; Linux `true` is a no-op)         |
-| `--intent <name>`                        | Narrow the headless intent set (repeatable)                            |
-| `--dry-run`                              | Compose the plan without executing; never primes sudo                  |
+| Flag / env                               | Effect                                                                  |
+| ---------------------------------------- | ----------------------------------------------------------------------- |
+| `--headless` / `NON_INTERACTIVE=true`    | Skip the TUI and all prompts; apply the resolved intent set             |
+| `--force` / `FORCE_INSTALL=true`         | Imply `--headless`; force symlink recreation                            |
+| `--gaming` / `ENABLE_GAMING=true`        | Add the `gaming` intent to the packages phase                           |
+| `--enable-ollama` / `ENABLE_OLLAMA=true` | Add the `ollama` intent (no-op until the manifest defines it)           |
+| `--linux-desktop` / `LINUX_DESKTOP=true` | Manage the opt-in Linux desktop set (Linux: refused with `--no-backup`) |
+| `--snapper` / `SNAPPER=true`             | Take a snapper pre-apply snapshot (Linux only; no-op otherwise)         |
+| `--plasma` / `PLASMA=true`               | Run the KDE Plasma config sync phase (Linux/KDE only; no-op otherwise)  |
+| `--homebrew=true\|false`                 | Homebrew tristate (`''` = OS default; Linux `true` is a no-op)          |
+| `--intent <name>`                        | Narrow the headless intent set (repeatable)                             |
+| `--dry-run`                              | Compose the plan without executing; never primes sudo                   |
+| `--no-backup`                            | Replace real files in `$HOME` without backing them up (flag only)       |
 
 ```bash
 dotf apply --dry-run                     # preview the composed plan, mutate nothing
@@ -288,8 +297,8 @@ source <(dotf completion zsh)            # load into the current zsh session
 - **Desktop Runtime**: `fuzzel`, `waybar`, `hyprlock`, `hypridle`, screenshots/recording helpers,
   and monitor auto-switch dependencies install through the Arch package path
 - **Safe Activation**: Desktop config deployment is opt-in via `--linux-desktop` /
-  `LINUX_DESKTOP=true` and requires a dry run or backups before replacing existing `~/.config/hypr`,
-  `~/.config/waybar`, or `~/.config/fuzzel`
+  `LINUX_DESKTOP=true` and is refused with `--no-backup` outside a dry run, so existing
+  `~/.config/hypr`, `~/.config/waybar`, or `~/.config/fuzzel` are always backed up first
 - **Opt-in Deployment**: Generic Linux desktop configs are only deployed when explicitly requested
   with `--linux-desktop` / `LINUX_DESKTOP=true`
 
@@ -372,7 +381,7 @@ packages, symlinks, firewall):
 - **Language Runtimes**: Node.js (NVM), Rust toolchain, Go environment
 - **Pinned Herdr Runtime**: Install Herdr 0.8.2 from checksum-verified Linux/macOS release assets
   with `dotf install --intent dev`, then preserve any existing Herdr config while managing the
-  repository config with `dotf link --backup`
+  repository config with `dotf link` (real files are backed up first)
 - **Arch Desktop Runtime**: CachyOS/Arch installs can opt into the generic Hyprland desktop runtime
   with `bin/install-arch-pkgs.sh --hyprland`
 
@@ -458,17 +467,18 @@ For CachyOS or another Hyprland install, first install the runtime packages with
 dotf link --dry-run --hyprland
 ```
 
-If the preview looks correct, apply it with backups enabled:
+If the preview looks correct, apply it (existing real config dirs are backed up first):
 
 ```bash
-dotf link --backup --hyprland
+dotf link --hyprland
 ```
 
 `--linux-desktop` is retained as a deprecated alias for `--hyprland`; both flags are also accepted
 by `dotf apply`, alongside the `HYPRLAND` and `LINUX_DESKTOP` environment twins.
 
 This rollout manages `~/.config/hypr`, `~/.config/waybar`, and `~/.config/fuzzel`. It is opt-in and
-can replace existing config directories; use a dry run or backups before applying.
+replaces existing config directories after copying them into `~/.config/dotfiles_backup_<epoch>`;
+preview with a dry run first.
 
 ## 🎨 Customization
 

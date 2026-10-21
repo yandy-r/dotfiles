@@ -452,7 +452,7 @@ func TestPrintCommandHelp_Link(t *testing.T) {
 
 	for _, want := range []string{
 		"dotf link - ", "Usage:", "Description:", "Flags:", "Examples:",
-		"--backup", "--dry-run", "--force", "--hyprland", "--linux-desktop", "--no-validate",
+		"--backup", "--dry-run", "--force", "--hyprland", "--linux-desktop", "--no-backup", "--no-validate",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("printCommandHelp(link) missing %q", want)
@@ -515,10 +515,11 @@ func TestRenderFlags_DoubleDashAndSorted(t *testing.T) {
 		}
 	}
 
-	order := []string{"--backup", "--dry-run", "--force", "--hyprland", "--linux-desktop", "--no-validate"}
+	order := []string{"--backup", "--dry-run", "--force", "--hyprland", "--linux-desktop", "--no-backup", "--no-validate"}
 	last := -1
 	for _, name := range order {
-		idx := strings.Index(out, name)
+		// Match the flag's own line, not a mention inside another usage string.
+		idx := strings.Index(out, "  "+name+" ")
 		if idx < 0 {
 			t.Fatalf("renderFlags(link) missing %q", name)
 		}
@@ -693,7 +694,7 @@ func TestSetFlags_ExactFlagNames(t *testing.T) {
 		names []string
 	}{
 		{"link", func(fs *flag.FlagSet) { setLinkFlags(fs) },
-			[]string{"backup", "dry-run", "force", "hyprland", "linux-desktop", "no-validate"}},
+			[]string{"backup", "dry-run", "force", "hyprland", "linux-desktop", "no-backup", "no-validate"}},
 		// install/plan/status/diff/sysconfig/lock each add --no-user-config via a
 		// SEPARATE setNoUserConfigFlag call (their runX + help closures), which is
 		// why these cases wrap the base setter with it — mirroring the real
@@ -719,7 +720,7 @@ func TestSetFlags_ExactFlagNames(t *testing.T) {
 		// apply registers --no-user-config inside setApplyFlags (its own env-twin
 		// path), so this case does not wrap and just expects the name.
 		{"apply", func(fs *flag.FlagSet) { setApplyFlags(fs) },
-			[]string{"dry-run", "enable-ollama", "force", "gaming", "headless", "homebrew", "hyprland", "intent", "linux-desktop", "manifest", "no-user-config", "only", "plasma", "skip", "snapper"}},
+			[]string{"dry-run", "enable-ollama", "force", "gaming", "headless", "homebrew", "hyprland", "intent", "linux-desktop", "manifest", "no-backup", "no-user-config", "only", "plasma", "skip", "snapper"}},
 		{"lock", func(fs *flag.FlagSet) { setLockFlags(fs); setNoUserConfigFlag(fs) },
 			[]string{"check", "dry-run", "json", "lock", "manifest", "no-user-config", "only", "platform", "skip"}},
 		// self-update is flag-only: four booleans, and deliberately NO

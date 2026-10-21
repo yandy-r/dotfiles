@@ -202,9 +202,9 @@ Live tripwires, so nobody trips one by accident:
   constant down. Reach for a native backend first; see [`../reference/manifest-backends.md`](../reference/manifest-backends.md).
 - **`internal/selfupdate/selfupdate_test.go`** — `TestAssetNaming_MatchesBootstrap` string-matches literals inside
   `bootstrap.sh`. Renaming a release asset means editing the goreleaser config, the shim and `selfupdate` together.
-- **`internal/symlink/table_test.go`** — four golden locks over the symlink table: `TestTable_Count`,
-  `TestTable_FacetCounts`, `TestTable_BackupEligibleSet` and `TestTable_MatchesPlaybook`. Any entry added, removed,
-  or re-faceted moves at least one of them.
+- **`internal/symlink/table_test.go`** — three golden locks over the symlink table: `TestTable_Count`,
+  `TestTable_FacetCounts` and `TestTable_MatchesPlaybook`. Any entry added, removed, or re-faceted moves at least one
+  of them.
 
 ## See Also
 

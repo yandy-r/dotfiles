@@ -35,89 +35,49 @@ func TestTable_FacetCounts(t *testing.T) {
 	}
 }
 
-func TestTable_BackupEligibleSet(t *testing.T) {
-	got := map[string]bool{}
-	for _, spec := range DefaultTable() {
-		if spec.BackupEligible {
-			got[spec.Dest] = true
-		}
-	}
-
-	want := []string{
-		".bashrc", ".bash_profile", ".profile",
-		".zshrc", ".zprofile", ".functions.zsh", ".fzf.zsh",
-		".gitconfig", ".gitignore", ".tmux.conf", ".screenrc", ".wgetrc", ".shellcheckrc",
-		".config/starship.toml",
-		// Managed app-config/utility directories (ADR-11): ActionRemove is
-		// recursive for dirs, so these must be backed up before it runs.
-		".config/nvim", ".config/wezterm", ".config/ghostty", ".config/mise",
-		".config/alacritty", ".bin", ".config/direnv",
-		// Facet-gated directories are equally destructible: os.RemoveAll does
-		// not care which facet let the spec through. The Hyprland set in
-		// particular is what LinuxDesktopGuardError points at --backup to save.
-		".config/aerospace",
-		".config/hypr", ".config/waybar", ".config/swayosd", ".config/mako",
-		".config/wlogout", ".config/fuzzel", ".config/satty",
-		// ADR-12 widened this unit from FacetArch to FacetLinux; a widened facet
-		// must not widen the set of dests removed without a copy.
-		".config/systemd/user/tmux.service",
-		".config/herdr/config.toml",
-		".config/espanso",
-	}
-
-	if len(got) != len(want) {
-		t.Errorf("backup-eligible count = %d, want %d", len(got), len(want))
-	}
-	for _, dest := range want {
-		if !got[dest] {
-			t.Errorf("dest %q missing from backup-eligible set", dest)
-		}
-	}
-}
-
 // TestTable_MatchesPlaybook is the parity guard: it encodes the expected
 // 43-entry set inline (transcribed from playbooks/vars/symlinks.yml) and diffs
 // it against DefaultTable, so any drift fails CI. Zero new dependencies.
 func TestTable_MatchesPlaybook(t *testing.T) {
 	want := []LinkSpec{
-		{Src: "bash/bashrc", Dest: ".bashrc", Facet: FacetAll, BackupEligible: true},
-		{Src: "bash/bash_profile", Dest: ".bash_profile", Facet: FacetAll, BackupEligible: true},
-		{Src: "bash/profile", Dest: ".profile", Facet: FacetAll, BackupEligible: true},
-		{Src: "zsh/zshrc", Dest: ".zshrc", Facet: FacetAll, BackupEligible: true},
-		{Src: "zsh/zprofile", Dest: ".zprofile", Facet: FacetAll, BackupEligible: true},
-		{Src: "zsh/functions.zsh", Dest: ".functions.zsh", Facet: FacetAll, BackupEligible: true},
-		{Src: "zsh/fzf.zsh", Dest: ".fzf.zsh", Facet: FacetAll, BackupEligible: true},
-		{Src: "common/gitconfig", Dest: ".gitconfig", Facet: FacetAll, BackupEligible: true},
-		{Src: "common/gitignore", Dest: ".gitignore", Facet: FacetAll, BackupEligible: true},
-		{Src: "common/tmux.conf", Dest: ".tmux.conf", Facet: FacetAll, BackupEligible: true},
-		{Src: "common/screenrc", Dest: ".screenrc", Facet: FacetAll, BackupEligible: true},
-		{Src: "common/wgetrc", Dest: ".wgetrc", Facet: FacetAll, BackupEligible: true},
-		{Src: "shellcheck/shellcheckrc", Dest: ".shellcheckrc", Facet: FacetAll, BackupEligible: true},
-		{Src: "starship.toml", Dest: ".config/starship.toml", Facet: FacetAll, BackupEligible: true},
-		{Src: "nvim", Dest: ".config/nvim", IsDir: true, Facet: FacetAll, BackupEligible: true},
-		{Src: "wezterm", Dest: ".config/wezterm", IsDir: true, Facet: FacetAll, BackupEligible: true},
-		{Src: "ghostty", Dest: ".config/ghostty", IsDir: true, Facet: FacetAll, BackupEligible: true},
-		{Src: "mise", Dest: ".config/mise", IsDir: true, Facet: FacetAll, BackupEligible: true},
-		{Src: "alacritty", Dest: ".config/alacritty", IsDir: true, Facet: FacetAll, BackupEligible: true},
-		{Src: "aerospace", Dest: ".config/aerospace", IsDir: true, Facet: FacetMacOS, BackupEligible: true},
-		{Src: "herdr/config.toml", Dest: ".config/herdr/config.toml", Facet: FacetUnix, BackupEligible: true},
-		{Src: "espanso", Dest: ".config/espanso", IsDir: true, Facet: FacetUnix, BackupEligible: true},
-		{Src: "hypr", Dest: ".config/hypr", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
-		{Src: "waybar", Dest: ".config/waybar", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
-		{Src: "swayosd", Dest: ".config/swayosd", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
-		{Src: "mako", Dest: ".config/mako", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
-		{Src: "wlogout", Dest: ".config/wlogout", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
-		{Src: "fuzzel", Dest: ".config/fuzzel", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
-		{Src: "satty", Dest: ".config/satty", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
+		{Src: "bash/bashrc", Dest: ".bashrc", Facet: FacetAll},
+		{Src: "bash/bash_profile", Dest: ".bash_profile", Facet: FacetAll},
+		{Src: "bash/profile", Dest: ".profile", Facet: FacetAll},
+		{Src: "zsh/zshrc", Dest: ".zshrc", Facet: FacetAll},
+		{Src: "zsh/zprofile", Dest: ".zprofile", Facet: FacetAll},
+		{Src: "zsh/functions.zsh", Dest: ".functions.zsh", Facet: FacetAll},
+		{Src: "zsh/fzf.zsh", Dest: ".fzf.zsh", Facet: FacetAll},
+		{Src: "common/gitconfig", Dest: ".gitconfig", Facet: FacetAll},
+		{Src: "common/gitignore", Dest: ".gitignore", Facet: FacetAll},
+		{Src: "common/tmux.conf", Dest: ".tmux.conf", Facet: FacetAll},
+		{Src: "common/screenrc", Dest: ".screenrc", Facet: FacetAll},
+		{Src: "common/wgetrc", Dest: ".wgetrc", Facet: FacetAll},
+		{Src: "shellcheck/shellcheckrc", Dest: ".shellcheckrc", Facet: FacetAll},
+		{Src: "starship.toml", Dest: ".config/starship.toml", Facet: FacetAll},
+		{Src: "nvim", Dest: ".config/nvim", IsDir: true, Facet: FacetAll},
+		{Src: "wezterm", Dest: ".config/wezterm", IsDir: true, Facet: FacetAll},
+		{Src: "ghostty", Dest: ".config/ghostty", IsDir: true, Facet: FacetAll},
+		{Src: "mise", Dest: ".config/mise", IsDir: true, Facet: FacetAll},
+		{Src: "alacritty", Dest: ".config/alacritty", IsDir: true, Facet: FacetAll},
+		{Src: "aerospace", Dest: ".config/aerospace", IsDir: true, Facet: FacetMacOS},
+		{Src: "herdr/config.toml", Dest: ".config/herdr/config.toml", Facet: FacetUnix},
+		{Src: "espanso", Dest: ".config/espanso", IsDir: true, Facet: FacetUnix},
+		{Src: "hypr", Dest: ".config/hypr", IsDir: true, Facet: FacetHyprland},
+		{Src: "waybar", Dest: ".config/waybar", IsDir: true, Facet: FacetHyprland},
+		{Src: "swayosd", Dest: ".config/swayosd", IsDir: true, Facet: FacetHyprland},
+		{Src: "mako", Dest: ".config/mako", IsDir: true, Facet: FacetHyprland},
+		{Src: "wlogout", Dest: ".config/wlogout", IsDir: true, Facet: FacetHyprland},
+		{Src: "fuzzel", Dest: ".config/fuzzel", IsDir: true, Facet: FacetHyprland},
+		{Src: "satty", Dest: ".config/satty", IsDir: true, Facet: FacetHyprland},
 		{Src: "launchers/applications/alacritty-float.desktop", Dest: ".local/share/applications/alacritty-float.desktop", Facet: FacetHyprland},
 		{Src: "launchers/applications/arch-update.desktop", Dest: ".local/share/applications/arch-update.desktop", Facet: FacetArchDesktop},
 		{Src: "launchers/applications/gedit-float.desktop", Dest: ".local/share/applications/gedit-float.desktop", Facet: FacetHyprland},
 		{Src: "launchers/applications/wifi-tui.desktop", Dest: ".local/share/applications/wifi-tui.desktop", Facet: FacetHyprland},
-		{Src: "common/systemd/user/tmux.service", Dest: ".config/systemd/user/tmux.service", Facet: FacetLinux, BackupEligible: true},
-		{Src: "bin", Dest: ".bin", IsDir: true, Facet: FacetAll, BackupEligible: true},
+		{Src: "common/systemd/user/tmux.service", Dest: ".config/systemd/user/tmux.service", Facet: FacetLinux},
+		{Src: "bin", Dest: ".bin", IsDir: true, Facet: FacetAll},
 		{Src: "ssh/config", Dest: ".ssh/config", Facet: FacetAll},
 		{Src: "ansible.cfg", Dest: ".ansible.cfg", Facet: FacetAll},
-		{Src: "dotenv", Dest: ".config/direnv", IsDir: true, Facet: FacetAll, BackupEligible: true},
+		{Src: "dotenv", Dest: ".config/direnv", IsDir: true, Facet: FacetAll},
 		{Src: "branchlet/settings.json", Dest: ".branchlet/settings.json", Facet: FacetAll},
 		{Src: "atuin/config.toml", Dest: ".config/atuin/config.toml", Facet: FacetAll},
 		{Src: "lazygit/config.yml", Dest: ".config/lazygit/config.yml", Facet: FacetAll},

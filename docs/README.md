@@ -104,8 +104,8 @@ system_health
 # Test changes (dry run)
 dotf link --dry-run
 
-# Apply symlinks with backup
-dotf link --backup
+# Apply symlinks (real files are backed up first)
+dotf link
 ```
 
 ### Reload shell configuration

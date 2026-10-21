@@ -294,7 +294,7 @@ func symlinkBrokenCheck(eng *symlink.Engine, specs []symlink.LinkSpec, info plat
 			Category: "symlinks", Name: "broken", Status: checkFail,
 			Detail: fmt.Sprintf("%d real file(s) where a symlink is expected: %s",
 				len(ble.Dests), strings.Join(ble.Dests, ", ")),
-			Remedy: "back up and replace with `dotf link --backup`",
+			Remedy: "run `dotf link` (real files are backed up first)",
 		}
 	}
 	return doctorCheck{

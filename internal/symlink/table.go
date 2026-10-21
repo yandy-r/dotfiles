@@ -1,11 +1,14 @@
 // Package symlink is the native Go port of the Ansible symlink system
 // (playbooks/symlinks.yml + playbooks/vars/symlinks.yml + playbooks/tasks/*.yml).
 //
-// It reproduces the playbook's exact behavior — link creation, backup-if-not-
-// symlink, dry-run, post-run validation, broken-link handling, and the Zed
+// It reproduces the playbook's link behavior — link creation, real-file
+// replacement, dry-run, post-run validation, broken-link handling, and the Zed
 // copy exception — as a Plan/Apply/Validate engine driven by a static, typed
-// link table (DefaultTable). Because every managed destination lives under
-// $HOME, the engine uses pure os.* calls and needs no privilege escalation.
+// link table (DefaultTable). Unlike the playbook, every real file or directory
+// a link replaces is backed up first unless Options.Backup is false (the Zed
+// settings copy overwrites in place and is not backed up).
+// Because every managed destination lives under $HOME, the engine uses pure
+// os.* calls and needs no privilege escalation.
 //
 // The engine takes repoRoot (the dotfiles source tree) and home ($HOME) as
 // constructor parameters, keeping it free of environment lookups so tests can
@@ -67,26 +70,6 @@ type LinkSpec struct {
 	Copy bool
 	// Facet is the OS/flag gate controlling when this entry applies.
 	Facet Facet
-	// BackupEligible is true for 31 entries: the 15 shell/common/prompt single-
-	// file entries the playbook's backup step covers, plus all 15 directory
-	// entries, plus the tmux user unit. Covering the directories is a DELIBERATE
-	// DIVERGENCE from the retired playbook's backup step — a safety flag that
-	// does not cover the majority of what ActionRemove deletes (which is
-	// recursive for dirs) is a broken contract.
-	//
-	// Two invariants hold the set together, and both must survive future edits:
-	//
-	//  1. EVERY IsDir entry is backup-eligible, whatever its facet. ActionRemove
-	//     is os.RemoveAll for all of them, so a facet-gated directory (macOS
-	//     aerospace, the Hyprland stack) is exactly as destructible as an
-	//     ungated one. LinuxDesktopGuardError names --backup as the safety
-	//     mechanism for the Hyprland set; that promise is only true if those
-	//     seven directories are eligible.
-	//  2. Widening a spec's facet must not widen the set of dests deleted
-	//     without a copy. ADR-12 moved the tmux user unit from FacetArch to
-	//     FacetLinux, newly managing it on Debian/RedHat/SUSE/WSL, so it becomes
-	//     backup-eligible in the same change.
-	BackupEligible bool
 }
 
 // DefaultTable returns the static link table, transcribed 1:1 from
@@ -112,53 +95,52 @@ type LinkSpec struct {
 //     rollback YAML under both macOS and Linux groups.
 func DefaultTable() []LinkSpec {
 	return []LinkSpec{
-		// bash_files (backup-eligible)
-		{Src: "bash/bashrc", Dest: ".bashrc", Facet: FacetAll, BackupEligible: true},
-		{Src: "bash/bash_profile", Dest: ".bash_profile", Facet: FacetAll, BackupEligible: true},
-		{Src: "bash/profile", Dest: ".profile", Facet: FacetAll, BackupEligible: true},
+		// bash_files
+		{Src: "bash/bashrc", Dest: ".bashrc", Facet: FacetAll},
+		{Src: "bash/bash_profile", Dest: ".bash_profile", Facet: FacetAll},
+		{Src: "bash/profile", Dest: ".profile", Facet: FacetAll},
 
-		// zsh_files (backup-eligible)
-		{Src: "zsh/zshrc", Dest: ".zshrc", Facet: FacetAll, BackupEligible: true},
-		{Src: "zsh/zprofile", Dest: ".zprofile", Facet: FacetAll, BackupEligible: true},
-		{Src: "zsh/functions.zsh", Dest: ".functions.zsh", Facet: FacetAll, BackupEligible: true},
-		{Src: "zsh/fzf.zsh", Dest: ".fzf.zsh", Facet: FacetAll, BackupEligible: true},
+		// zsh_files
+		{Src: "zsh/zshrc", Dest: ".zshrc", Facet: FacetAll},
+		{Src: "zsh/zprofile", Dest: ".zprofile", Facet: FacetAll},
+		{Src: "zsh/functions.zsh", Dest: ".functions.zsh", Facet: FacetAll},
+		{Src: "zsh/fzf.zsh", Dest: ".fzf.zsh", Facet: FacetAll},
 
-		// common_files (backup-eligible)
-		{Src: "common/gitconfig", Dest: ".gitconfig", Facet: FacetAll, BackupEligible: true},
-		{Src: "common/gitignore", Dest: ".gitignore", Facet: FacetAll, BackupEligible: true},
-		{Src: "common/tmux.conf", Dest: ".tmux.conf", Facet: FacetAll, BackupEligible: true},
-		{Src: "common/screenrc", Dest: ".screenrc", Facet: FacetAll, BackupEligible: true},
-		{Src: "common/wgetrc", Dest: ".wgetrc", Facet: FacetAll, BackupEligible: true},
-		{Src: "shellcheck/shellcheckrc", Dest: ".shellcheckrc", Facet: FacetAll, BackupEligible: true},
+		// common_files
+		{Src: "common/gitconfig", Dest: ".gitconfig", Facet: FacetAll},
+		{Src: "common/gitignore", Dest: ".gitignore", Facet: FacetAll},
+		{Src: "common/tmux.conf", Dest: ".tmux.conf", Facet: FacetAll},
+		{Src: "common/screenrc", Dest: ".screenrc", Facet: FacetAll},
+		{Src: "common/wgetrc", Dest: ".wgetrc", Facet: FacetAll},
+		{Src: "shellcheck/shellcheckrc", Dest: ".shellcheckrc", Facet: FacetAll},
 
-		// prompt_config (backup-eligible)
-		{Src: "starship.toml", Dest: ".config/starship.toml", Facet: FacetAll, BackupEligible: true},
+		// prompt_config
+		{Src: "starship.toml", Dest: ".config/starship.toml", Facet: FacetAll},
 
-		// app_configs (directories; backup-eligible per ADR-11)
-		{Src: "nvim", Dest: ".config/nvim", IsDir: true, Facet: FacetAll, BackupEligible: true},
-		{Src: "wezterm", Dest: ".config/wezterm", IsDir: true, Facet: FacetAll, BackupEligible: true},
-		{Src: "ghostty", Dest: ".config/ghostty", IsDir: true, Facet: FacetAll, BackupEligible: true},
-		{Src: "mise", Dest: ".config/mise", IsDir: true, Facet: FacetAll, BackupEligible: true},
-		{Src: "alacritty", Dest: ".config/alacritty", IsDir: true, Facet: FacetAll, BackupEligible: true},
+		// app_configs (directories)
+		{Src: "nvim", Dest: ".config/nvim", IsDir: true, Facet: FacetAll},
+		{Src: "wezterm", Dest: ".config/wezterm", IsDir: true, Facet: FacetAll},
+		{Src: "ghostty", Dest: ".config/ghostty", IsDir: true, Facet: FacetAll},
+		{Src: "mise", Dest: ".config/mise", IsDir: true, Facet: FacetAll},
+		{Src: "alacritty", Dest: ".config/alacritty", IsDir: true, Facet: FacetAll},
 
-		// macos_configs (Darwin only; directory, so backup-eligible)
-		{Src: "aerospace", Dest: ".config/aerospace", IsDir: true, Facet: FacetMacOS, BackupEligible: true},
+		// macos_configs (Darwin only)
+		{Src: "aerospace", Dest: ".config/aerospace", IsDir: true, Facet: FacetMacOS},
 
 		// unix_configs (macOS and all Linux families; herdr is a single file so runtime
 		// logs stay local; espanso reads ~/.config/espanso on both)
-		{Src: "herdr/config.toml", Dest: ".config/herdr/config.toml", Facet: FacetUnix, BackupEligible: true},
-		{Src: "espanso", Dest: ".config/espanso", IsDir: true, Facet: FacetUnix, BackupEligible: true},
+		{Src: "herdr/config.toml", Dest: ".config/herdr/config.toml", Facet: FacetUnix},
+		{Src: "espanso", Dest: ".config/espanso", IsDir: true, Facet: FacetUnix},
 
-		// generic_linux_desktop_configs (Linux family, opt-in; directories, so
-		// backup-eligible — --backup is what LinuxDesktopGuardError demands
-		// before this set may be written)
-		{Src: "hypr", Dest: ".config/hypr", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
-		{Src: "waybar", Dest: ".config/waybar", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
-		{Src: "swayosd", Dest: ".config/swayosd", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
-		{Src: "mako", Dest: ".config/mako", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
-		{Src: "wlogout", Dest: ".config/wlogout", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
-		{Src: "fuzzel", Dest: ".config/fuzzel", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
-		{Src: "satty", Dest: ".config/satty", IsDir: true, Facet: FacetHyprland, BackupEligible: true},
+		// generic_linux_desktop_configs (Linux family, opt-in; directories —
+		// LinuxDesktopGuardError refuses to write this set with backups off)
+		{Src: "hypr", Dest: ".config/hypr", IsDir: true, Facet: FacetHyprland},
+		{Src: "waybar", Dest: ".config/waybar", IsDir: true, Facet: FacetHyprland},
+		{Src: "swayosd", Dest: ".config/swayosd", IsDir: true, Facet: FacetHyprland},
+		{Src: "mako", Dest: ".config/mako", IsDir: true, Facet: FacetHyprland},
+		{Src: "wlogout", Dest: ".config/wlogout", IsDir: true, Facet: FacetHyprland},
+		{Src: "fuzzel", Dest: ".config/fuzzel", IsDir: true, Facet: FacetHyprland},
+		{Src: "satty", Dest: ".config/satty", IsDir: true, Facet: FacetHyprland},
 
 		// launcher_configs (Linux family, opt-in)
 		{Src: "launchers/applications/alacritty-float.desktop", Dest: ".local/share/applications/alacritty-float.desktop", Facet: FacetHyprland},
@@ -166,18 +148,16 @@ func DefaultTable() []LinkSpec {
 		{Src: "launchers/applications/gedit-float.desktop", Dest: ".local/share/applications/gedit-float.desktop", Facet: FacetHyprland},
 		{Src: "launchers/applications/wifi-tui.desktop", Dest: ".local/share/applications/wifi-tui.desktop", Facet: FacetHyprland},
 
-		// linux_configs (Linux family — ADR-12: the unit is not Arch-specific).
-		// Backup-eligible because ADR-12 widened its facet: hosts that never had
-		// this dest managed must not have a hand-written unit removed uncopied.
-		{Src: "common/systemd/user/tmux.service", Dest: ".config/systemd/user/tmux.service", Facet: FacetLinux, BackupEligible: true},
+		// linux_configs (Linux family — ADR-12: the unit is not Arch-specific)
+		{Src: "common/systemd/user/tmux.service", Dest: ".config/systemd/user/tmux.service", Facet: FacetLinux},
 
-		// utility_dirs (directory; backup-eligible per ADR-11)
-		{Src: "bin", Dest: ".bin", IsDir: true, Facet: FacetAll, BackupEligible: true},
+		// utility_dirs (directory)
+		{Src: "bin", Dest: ".bin", IsDir: true, Facet: FacetAll},
 
 		// special_symlinks
 		{Src: "ssh/config", Dest: ".ssh/config", Facet: FacetAll},
 		{Src: "ansible.cfg", Dest: ".ansible.cfg", Facet: FacetAll},
-		{Src: "dotenv", Dest: ".config/direnv", IsDir: true, Facet: FacetAll, BackupEligible: true},
+		{Src: "dotenv", Dest: ".config/direnv", IsDir: true, Facet: FacetAll},
 		{Src: "branchlet/settings.json", Dest: ".branchlet/settings.json", Facet: FacetAll},
 		{Src: "atuin/config.toml", Dest: ".config/atuin/config.toml", Facet: FacetAll},
 		{Src: "lazygit/config.yml", Dest: ".config/lazygit/config.yml", Facet: FacetAll},

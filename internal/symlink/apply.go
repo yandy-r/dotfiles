@@ -1,10 +1,12 @@
 package symlink
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 const (
@@ -16,20 +18,28 @@ const (
 
 // Apply performs the plan's mutations in phase order (Backup, Remove, Link,
 // Copy), skipping all writes when opts.DryRun. Before mutating it creates the
-// backup dir (when opts.Backup) and the required parent dirs. Applied records
-// only the mutations actually performed — ActionSkip no-ops are excluded, so a
-// converged run reports applied=0; Planned always reflects the full plan
-// (skips included). Applied is empty under DryRun.
+// backup dir (only when the plan holds at least one ActionBackup, so a run
+// with nothing to back up leaves no empty dir) and the required parent dirs.
+// The backup dir is created exclusively: if plan.BackupDir already exists (a
+// second run within the same second) a _1, _2, … suffix is chosen instead, so
+// an earlier run's copies are never overwritten; plan.BackupDir and
+// report.BackupDir record the dir actually used.
+// Applied records only the mutations actually performed — ActionSkip no-ops
+// are excluded, so a converged run reports applied=0; Planned always reflects
+// the full plan (skips included). Applied is empty under DryRun.
 func (e *Engine) Apply(plan *Plan, opts Options) (*Report, error) {
 	report := &Report{Planned: plan.Actions, DryRun: opts.DryRun}
 	if opts.DryRun {
 		return report, nil
 	}
 
-	if opts.Backup {
-		if err := os.MkdirAll(plan.BackupDir, dirPerm); err != nil {
-			return report, fmt.Errorf("symlink: create backup dir %q: %w", plan.BackupDir, err)
+	if plan.HasBackups() {
+		dir, err := createBackupDir(plan.BackupDir)
+		if err != nil {
+			return report, err
 		}
+		plan.BackupDir = dir
+		report.BackupDir = dir
 	}
 	if err := e.ensureRequiredDirs(); err != nil {
 		return report, err
@@ -44,6 +54,41 @@ func (e *Engine) Apply(plan *Plan, opts Options) (*Report, error) {
 		}
 	}
 	return report, nil
+}
+
+// maxBackupDirSuffix bounds the _N suffixes createBackupDir tries before
+// giving up; reaching it means something other than same-second reruns is
+// squatting on the names.
+const maxBackupDirSuffix = 1000
+
+// createBackupDir creates base, or base_1, base_2, … when it already exists,
+// with os.Mkdir so an existing dir is never reused, and returns the path it
+// created. The parent dir is created as needed.
+func createBackupDir(base string) (string, error) {
+	if err := os.MkdirAll(filepath.Dir(base), dirPerm); err != nil {
+		return "", fmt.Errorf("symlink: create backup dir parent %q: %w", filepath.Dir(base), err)
+	}
+	dir := base
+	for i := 1; ; i++ {
+		err := os.Mkdir(dir, dirPerm)
+		if err == nil {
+			return dir, nil
+		}
+		if !errors.Is(err, fs.ErrExist) || i > maxBackupDirSuffix {
+			return "", fmt.Errorf("symlink: create backup dir %q: %w", dir, err)
+		}
+		dir = base + "_" + strconv.Itoa(i)
+	}
+}
+
+// HasBackups reports whether the plan contains at least one ActionBackup.
+func (p *Plan) HasBackups() bool {
+	for _, act := range p.Actions {
+		if act.Kind == ActionBackup {
+			return true
+		}
+	}
+	return false
 }
 
 // applyAction executes a single planned action against the filesystem.
@@ -69,8 +114,7 @@ func (e *Engine) applyAction(act Action, backupDir string) error {
 
 // doBackup copies the real file OR directory tree at act.DestAbs into the
 // backup dir, preserving its $HOME-relative path and permission bits. It runs
-// before any Remove so the original bytes are still present (ADR-11: the
-// managed app-config directories are backup-eligible, and ActionRemove is
+// before any Remove so the original bytes are still present (ActionRemove is
 // recursive for dirs).
 //
 // ActionBackup is only ever planned from symlink.go's default: Lstat arm, which

@@ -275,11 +275,11 @@ func applyPlasma(pe *plasma.Engine, files []plasma.FileSpec, popts plasma.Option
 }
 
 // applyPlasmaOptions maps resolved apply options onto the plasma engine's
-// Options. Backup mirrors applySymlinkOptions' Backup: opts.Hyprland —
-// opting into a destructive optional phase from the orchestrator also opts into
-// its safety net. Link and Recommended are deliberately always false: both are
-// interactive, deliberate choices that belong to `dotf plasma apply`, and Reload
-// is false because a headless apply must never tear down the running shell.
+// Options. Backup follows the --plasma opt-in — opting into a destructive
+// optional phase from the orchestrator also opts into its safety net. Link and
+// Recommended are deliberately always false: both are interactive, deliberate
+// choices that belong to `dotf plasma apply`, and Reload is false because a
+// headless apply must never tear down the running shell.
 func applyPlasmaOptions(opts applyOptions) plasma.Options {
 	return plasma.Options{
 		DryRun:   opts.DryRun,
@@ -350,14 +350,15 @@ func identityConfig(m *manifest.Manifest) sysconfig.Config {
 }
 
 // applySymlinkOptions maps resolved apply options onto the symlink engine's
-// Options. --hyprland (aliased by --linux-desktop) opts into the desktop set AND
-// forces Backup=true (the engine guard requires DryRun or Backup); --force sets
-// the parity Force flag; DryRun mirrors opts so a preview never mutates.
-// Validate is always on.
+// Options. Backup is on unless --no-backup, so every real file the phase
+// replaces is copied first; --hyprland (aliased by --linux-desktop) opts into
+// the desktop set, which the engine guard refuses with backups off outside a
+// dry run; --force sets the parity Force flag; DryRun mirrors opts so a preview
+// never mutates. Validate is always on.
 func applySymlinkOptions(opts applyOptions) symlink.Options {
 	return symlink.Options{
 		DryRun:         opts.DryRun,
-		Backup:         opts.Hyprland,
+		Backup:         !opts.NoBackup,
 		Force:          opts.Force,
 		Validate:       true,
 		ManageHyprland: opts.Hyprland,

@@ -22,7 +22,7 @@ cd ~/.config/dotfiles
 ### Symlink Management
 
 - Symlinks are provisioned by the **native Go engine**: `dotf link` (`internal/symlink`) as of Phase 4
-- `dotf link` supports `--dry-run` (preview), `--backup` (back up real files before replacing), and `--linux-desktop` (opt-in Hyprland desktop set), plus post-apply validation
+- `dotf link` supports `--dry-run` (preview), `--no-backup` (opt out of the default backup of real files before replacing; `--backup` is the explicit default), and `--linux-desktop` (opt-in Hyprland desktop set), plus post-apply validation
 - The Ansible playbook (`ansible-playbook playbooks/symlinks.yml`) is **historical-rollback-only** — do not run it in normal provisioning (see `playbooks/README.md`)
 - Symlinks cover bash, zsh, common configs, and application directories, linked to their expected locations in `$HOME`
 - As of Phase 7, `bootstrap.sh` is a POSIX download-and-exec shim (~608 lines) that downloads the prebuilt, checksum-verified `dotf` binary from GitHub Releases and runs `dotf apply`; the bash provisioning path is retired as the entry point. The `bin/install-*.sh` installers are retained and now driven by the manifest: the `dev`/`base` intents provision the daily-driver toolset, and the opt-in `runtimes`/`ai`/`cloud`/`git-tools`/`system` intents wrap the legacy installers and setup steps via the `custom-script` backend for full provisioning parity (`--intent <name>`). The opt-in `desktop` intent holds `requires_desktop` GUI packages, including Claude Desktop, espanso, 1Password, ChatGPT, WezTerm, Ghostty, Grok Bot, Cursor, Zed Preview, LM Studio, Obsidian and the reviewed desktop apps documented in `docs/reference/desktop-apps.md`. These packages are not-applicable without a detected graphical session. `claude-desktop` resolves to the official apt repo (Debian/Ubuntu), the Homebrew cask (macOS), or `bin/install-claude-desktop-rpm.sh` on Fedora and Fedora remixes (`x86_64` and `arm64`), which repacks the signature-verified official `.deb` into a local RPM (unsupported by Anthropic). `dotf apply` also ensures the standard XDG/dev directories exist (`create_directories` parity)
@@ -178,8 +178,8 @@ dotf link
 # Test symlink changes (dry run)
 dotf link --dry-run
 
-# Create symlinks with backups
-dotf link --backup
+# Create symlinks (real files are backed up first by default)
+dotf link
 
 # Rollback path only: the retired Ansible playbook is retained one release
 # ansible-playbook playbooks/symlinks.yml
@@ -445,8 +445,8 @@ list_missing_tools
 # Test symlink creation (dry run)
 dotf link --dry-run
 
-# Test with backups enabled
-dotf link --backup
+# Test for real (real files are backed up first by default)
+dotf link
 
 # The retired Ansible playbook is historical-rollback-only (see playbooks/README.md)
 ```

@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -204,5 +206,46 @@ func TestRunModuleSteps_FailureIsNonFatal(t *testing.T) {
 	}
 	if setupExitCode(results) != 1 {
 		t.Errorf("setupExitCode = %d, want 1 (a step failed)", setupExitCode(results))
+	}
+}
+
+// TestRealStepEngines_SymlinkBacksUpRealFile pins setup's symlink step to the
+// default-on backup: a real ~/.bashrc is copied aside (bytes preserved) before
+// it is replaced by the link, and the backup dir is named on stderr.
+func TestRealStepEngines_SymlinkBacksUpRealFile(t *testing.T) {
+	repoRoot := t.TempDir()
+	home := t.TempDir()
+	src := seedRepoFile(t, repoRoot, "bash/bashrc", "# repo bashrc\n")
+	seedRepoFile(t, home, ".bashrc", "# user bashrc\n")
+
+	var stderr bytes.Buffer
+	eng := &realStepEngines{repoRoot: repoRoot, home: home, stderr: &stderr}
+	if err := eng.symlink("bash/bashrc", platform.Info{OS: platform.OSDebian}); err != nil {
+		t.Fatalf("symlink() error = %v", err)
+	}
+
+	backups, err := filepath.Glob(filepath.Join(home, ".config", "dotfiles_backup_*"))
+	if err != nil {
+		t.Fatalf("Glob error = %v", err)
+	}
+	if len(backups) != 1 {
+		t.Fatalf("backup dirs = %v, want exactly one", backups)
+	}
+	got, err := os.ReadFile(filepath.Join(backups[0], ".bashrc"))
+	if err != nil {
+		t.Fatalf("ReadFile(backup/.bashrc) error = %v", err)
+	}
+	if string(got) != "# user bashrc\n" {
+		t.Errorf("backup content = %q, want the user's original", got)
+	}
+	target, err := os.Readlink(filepath.Join(home, ".bashrc"))
+	if err != nil {
+		t.Fatalf("Readlink(.bashrc) error = %v", err)
+	}
+	if target != src {
+		t.Errorf("Readlink(.bashrc) = %q, want %q", target, src)
+	}
+	if want := "dotf: link backups: " + backups[0] + "\n"; stderr.String() != want {
+		t.Errorf("stderr = %q, want %q", stderr.String(), want)
 	}
 }

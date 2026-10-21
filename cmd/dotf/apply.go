@@ -78,6 +78,15 @@ func runApply(args []string, stdout, stderr io.Writer, r exec.Runner) (code int)
 
 	info := platform.Detect(r)
 
+	// The symlink engine refuses the Hyprland desktop set with backups off on
+	// the hosts where that set applies (LinuxDesktopGuardError); catch the
+	// contradictory flags there as a usage error, before sudo is primed or any
+	// phase has mutated the host.
+	if opts.Hyprland && opts.NoBackup && !opts.DryRun && symlink.DesktopGuardApplies(info.OS) {
+		_, _ = fmt.Fprintf(stderr, "%s: apply: --hyprland cannot be combined with --no-backup (use --dry-run to preview)\n", progName)
+		return 2
+	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return reportFatal(stderr, fmt.Errorf("resolve home dir: %w", err))
@@ -233,6 +242,7 @@ func applySummary(stdout, stderr io.Writer, syscfg sysconfig.Result, results []i
 	}
 
 	coll.WriteSummary(stderr, progName)
+	printLinkBackupDir(stderr, report)
 	if err := sudo.KeepAliveErr(); err != nil {
 		_, _ = fmt.Fprintf(stderr, "%s: sudo keep-alive: %v\n", progName, err)
 	}

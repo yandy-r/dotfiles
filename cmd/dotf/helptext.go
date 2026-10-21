@@ -195,12 +195,17 @@ var helpRegistry = []commandHelp{
 			"directories) into $HOME using the engine's plan/apply/validate split.\n" +
 			"Symlinks live under $HOME, so the operation is unprivileged. The link set is\n" +
 			"the built-in default table, so there is deliberately no --manifest flag.\n" +
+			"Every real file or directory a link replaces is first copied into\n" +
+			"~/.config/dotfiles_backup_<epoch> (named on stderr when used); --no-backup\n" +
+			"opts out, and --backup is accepted as the explicit spelling of the default\n" +
+			"(--backup=false does NOT disable backups; use --no-backup).\n" +
 			"After applying, links are validated; a real file where a symlink was expected\n" +
 			"exits 1. The opt-in desktop set is the Hyprland/wlroots stack and is not what\n" +
 			"a KDE/Plasma host wants (that is dotf plasma).",
 		examples: []string{
 			"dotf link --dry-run",
-			"dotf link --backup",
+			"dotf link",
+			"dotf link --no-backup",
 			"dotf link --dry-run --hyprland",
 		},
 		setFlags: func(fs *flag.FlagSet) { setLinkFlags(fs) },
@@ -234,7 +239,9 @@ var helpRegistry = []commandHelp{
 			"ENABLE_OLLAMA, HYPRLAND with LINUX_DESKTOP as its deprecated alias, SNAPPER,\n" +
 			"PLASMA). Without --headless/--force on a terminal it drops into the guided\n" +
 			"wizard; non-interactively it refuses unless headless. --dry-run composes the\n" +
-			"plan and never primes sudo. Exit codes:\n" +
+			"plan and never primes sudo. The symlink phase backs up every real file it\n" +
+			"replaces into ~/.config/dotfiles_backup_<epoch> (flag-only --no-backup opts\n" +
+			"out). Exit codes:\n" +
 			"0 converged, 1 completed-with-failures, 2 usage error, 3 hard abort.",
 		examples: []string{
 			"dotf apply",

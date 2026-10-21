@@ -122,7 +122,7 @@ func runSetup(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	defer cancel()
 
 	engine := backend.Default(r, sudo, privilege.NewDropper(), resolveRepoRoot(), nil)
-	eng := &realStepEngines{m: m, engine: engine, repoRoot: resolveRepoRoot(), home: setupHome(stderr), r: r}
+	eng := &realStepEngines{m: m, engine: engine, repoRoot: resolveRepoRoot(), home: setupHome(stderr), r: r, stderr: stderr}
 
 	results := runModuleSteps(mod, eng, info)
 
@@ -201,6 +201,8 @@ type realStepEngines struct {
 	repoRoot string
 	home     string
 	r        exec.Runner
+	// stderr receives the symlink step's backup-dir diagnostic.
+	stderr io.Writer
 }
 
 // customScript runs a contained repo/overlay-relative script via the
@@ -229,8 +231,9 @@ func (e *realStepEngines) pkg(name string, info platform.Info) error {
 }
 
 // symlink provisions a single built-in link-table entry (matched by src) via the
-// internal/symlink engine's plan/apply/validate split. A src with no matching
-// table entry fails fast rather than silently linking nothing.
+// internal/symlink engine's plan/apply/validate split, backing up a real file
+// at the dest before replacing it (the same default as `dotf link`). A src with
+// no matching table entry fails fast rather than silently linking nothing.
 func (e *realStepEngines) symlink(src string, info platform.Info) error {
 	spec, ok := findLinkSpec(src)
 	if !ok {
@@ -238,12 +241,14 @@ func (e *realStepEngines) symlink(src string, info platform.Info) error {
 	}
 	se := symlink.NewEngine(e.repoRoot, e.home)
 	specs := []symlink.LinkSpec{spec}
-	opts := symlink.Options{Validate: true}
+	opts := symlink.Options{Backup: true, Validate: true}
 	plan, err := se.Plan(specs, info, opts)
 	if err != nil {
 		return err
 	}
-	if _, err := se.Apply(plan, opts); err != nil {
+	report, err := se.Apply(plan, opts)
+	printLinkBackupDir(e.stderr, report) // even on a partial failure
+	if err != nil {
 		return err
 	}
 	if _, err := se.Validate(specs, info, opts); err != nil {

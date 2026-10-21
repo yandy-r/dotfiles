@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/yandy-r/dotfiles/internal/exec"
+	"github.com/yandy-r/dotfiles/internal/platform"
+	"github.com/yandy-r/dotfiles/internal/symlink"
 )
 
 // seedRepoFile writes content to <repoRoot>/<rel>, creating parent dirs, and
@@ -109,5 +112,78 @@ func TestRunLink_AppliesToTempHome(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "link.create=") {
 		t.Errorf("stdout = %q, want link.create= line", stdout.String())
+	}
+}
+
+// TestRunLink_BackupDefault pins the consumer contract of the default-on
+// backup: a plain `dotf link` copies a real file aside before replacing it and
+// names the backup dir on stderr; --no-backup replaces it without a copy and
+// creates no backup dir; --backup with --no-backup is a usage error.
+func TestRunLink_BackupDefault(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       []string
+		wantCode   int
+		wantBackup bool
+	}{
+		{"default-backs-up", nil, 0, true},
+		{"explicit-backup", []string{"--backup"}, 0, true},
+		{"no-backup-opts-out", []string{"--no-backup"}, 0, false},
+		{"both-is-usage-error", []string{"--backup", "--no-backup"}, 2, false},
+		{"hyprland-no-backup-is-usage-error", []string{"--hyprland", "--no-backup"}, 2, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if slices.Contains(tt.args, "--hyprland") && !symlink.DesktopGuardApplies(platform.Detect(exec.NewFake()).OS) {
+				t.Skip("desktop guard does not apply on this host")
+			}
+			repoRoot := t.TempDir()
+			home := t.TempDir()
+			seedRepoFile(t, repoRoot, "bash/bashrc", "# repo bashrc\n")
+			seedRepoFile(t, home, ".bashrc", "# user bashrc\n")
+			t.Setenv("DOTFILES_ROOT", repoRoot)
+			t.Setenv("HOME", home)
+
+			var stdout, stderr bytes.Buffer
+			code := runLink(tt.args, &stdout, &stderr, exec.NewFake())
+			if code != tt.wantCode {
+				t.Fatalf("runLink(%v) code = %d, want %d; stderr=%q", tt.args, code, tt.wantCode, stderr.String())
+			}
+			if tt.wantCode == 2 {
+				if fi, err := os.Lstat(filepath.Join(home, ".bashrc")); err != nil || fi.Mode()&os.ModeSymlink != 0 {
+					t.Errorf("usage error touched .bashrc (err=%v), want the real file untouched", err)
+				}
+			}
+
+			backups, err := filepath.Glob(filepath.Join(home, ".config", "dotfiles_backup_*"))
+			if err != nil {
+				t.Fatalf("Glob error = %v", err)
+			}
+			if !tt.wantBackup {
+				if len(backups) != 0 {
+					t.Errorf("backup dirs = %v, want none", backups)
+				}
+				if strings.Contains(stderr.String(), "link backups:") {
+					t.Errorf("stderr = %q, want no backup dir line", stderr.String())
+				}
+				return
+			}
+			if len(backups) != 1 {
+				t.Fatalf("backup dirs = %v, want exactly one", backups)
+			}
+			got, err := os.ReadFile(filepath.Join(backups[0], ".bashrc"))
+			if err != nil {
+				t.Fatalf("ReadFile(backup/.bashrc) error = %v", err)
+			}
+			if string(got) != "# user bashrc\n" {
+				t.Errorf("backup content = %q, want the user's original", got)
+			}
+			if want := "dotf: link backups: " + backups[0] + "\n"; !strings.Contains(stderr.String(), want) {
+				t.Errorf("stderr = %q, want %q", stderr.String(), want)
+			}
+			if !strings.Contains(stdout.String(), "link.backup=.bashrc") {
+				t.Errorf("stdout = %q, want link.backup=.bashrc", stdout.String())
+			}
+		})
 	}
 }

@@ -55,8 +55,8 @@ What each capture settles:
 | `command -v snapper`                   | Expected to find nothing. That absence is exactly why `--snapper` is on the DO NOT USE list.                                                                                                                                                                                                                                                                                                                                                                                     |
 | `printenv XDG_CURRENT_DESKTOP …`       | Confirms a real Plasma 6 Wayland session, the gate `dotf plasma` and the apply Plasma phase both key off.                                                                                                                                                                                                                                                                                                                                                                        |
 | `dnf list --available …`               | Settles the package mapping table's release header — which of the named packages Fedora's own repos actually carry on this release.                                                                                                                                                                                                                                                                                                                                              |
-| `ls -d ~/.config/… ~/.bin`             | Records which managed destinations already exist as real directories. `dotf link` deletes each of these recursively, and as of ADR-11 `--backup` copies every one of them first.                                                                                                                                                                                                                                                                                                 |
-| `ls -ld ~/.config/systemd/… ~/.ssh/…`  | Records the destinations `--backup` does **not** cover, plus the newly-managed tmux user unit. A `cannot access` line is the good outcome; a real file is something Step 4 must account for and the pre-flight tarball must capture. See the uncovered table below.                                                                                                                                                                                                              |
+| `ls -d ~/.config/… ~/.bin`             | Records which managed destinations already exist as real directories. `dotf link` deletes each of these recursively, and copies every one of them into the backup dir first (the default).                                                                                                                                                                                                                                                                                       |
+| `ls -ld ~/.config/systemd/… ~/.ssh/…`  | Records the single-file destinations, plus the newly-managed tmux user unit. A `cannot access` line is the good outcome; a real file must show up on both `link.remove=` and `link.backup=` in Step 4.                                                                                                                                                                                                                                                                           |
 
 ## DO NOT USE (read before running anything)
 
@@ -76,59 +76,27 @@ Three flags are wrong on this host for reasons that are not obvious from their h
   the visible result on a live Plasma 6 session — panels, KWin, look-and-feel — cannot be judged headlessly, and a
   component restart mid-session is not something to discover by surprise.
 
-## Backup behaviour — what `dotf link --backup` now covers
+## Backup behaviour — what `dotf link` backs up
 
-As of ADR-11, `dotf link --backup` **does** back up directory destinations before replacing them.
-`internal/symlink/symlink.go` still removes a real file or directory at a managed destination recursively, but
-`BackupEligible` now covers **30** of the table's 41 entries: the 14 shell/common/prompt single-file entries, **all
-15** directory entries, and the `.config/systemd/user/tmux.service` user unit. The plan orders `ActionBackup` before
-`ActionRemove`, and the backup lands under `$HOME/.config/dotfiles_backup_<epoch>` preserving the `$HOME`-relative
-path.
+`dotf link` and `dotf apply` back up **every** real file or directory at a managed destination before replacing it
+— no flag needed. The plan orders `ActionBackup` before `ActionRemove`, and each copy lands under
+`$HOME/.config/dotfiles_backup_<epoch>` preserving the `$HOME`-relative path; the run names that directory on stderr
+(`dotf: link backups: <dir>`). The directory is created only when something was actually backed up; a rerun in the
+same second gets a `_1`, `_2`, … suffix instead of reusing it. `dotf setup` symlink steps back up too, but each step
+gets its own directory, each named on its own stderr line. `--backup` is
+still accepted as the explicit spelling of the default; `--no-backup` opts out and deletes real files with no copy.
 
-Every `IsDir` entry is now eligible whatever its facet, so there is no longer any directory that `--backup` fails to
-copy before deleting. The remaining **11** uncovered entries are all single files:
-
-| Uncovered destination                               | Applies here?                        |
-| --------------------------------------------------- | ------------------------------------ |
-| `.ssh/config`                                       | **yes** — the one that matters most  |
-| `.ansible.cfg`                                      | yes                                  |
-| `.branchlet/settings.json`                          | yes                                  |
-| `.config/atuin/config.toml`                         | yes                                  |
-| `.config/lazygit/config.yml`                        | yes                                  |
-| `.config/zed/keymap.json`                           | yes                                  |
-| `.config/zed/settings.json`                         | yes (the copy exception, not a link) |
-| `.local/share/applications/alacritty-float.desktop` | no — `FacetHyprland`, not used here  |
-| `.local/share/applications/gedit-float.desktop`     | no — `FacetHyprland`, not used here  |
-| `.local/share/applications/wifi-tui.desktop`        | no — `FacetHyprland`, not used here  |
-| `.local/share/applications/arch-update.desktop`     | no — `FacetArchDesktop`              |
-
-Therefore: **always pass `--backup`**, and read every destination on the `link.remove=` line of the dry run against
-that 11-row table. Anything on `link.remove=` that appears there is deleted with no copy kept; everything else is
-copied first.
-
-`--backup` is what makes the archive below optional for the directories. It is still **mandatory** for the seven
-uncovered files that apply here, which is exactly what this archive now captures:
+Read the `link.backup=` line of the dry run: every destination on `link.remove=` must also appear there. The one
+entry the backup does **not** cover is `.config/zed/settings.json` — the copy exception, which is overwritten in
+place rather than replaced by a link. Save it by hand first if it holds local edits:
 
 ```bash
-set --
-for p in .ssh/config .ansible.cfg .branchlet/settings.json \
-  .config/atuin/config.toml .config/lazygit/config.yml \
-  .config/zed/keymap.json .config/zed/settings.json; do
-  [ -e "$HOME/$p" ] && set -- "$@" "$p"
-done
-if [ "$#" -gt 0 ]; then
-  tar czf ~/dotfiles-preflight-"$(date +%Y%m%d%H%M)".tar.gz -C "$HOME" "$@"
-  echo "archived $# path(s)"
-else
-  echo "nothing to archive"
+if [ -e "$HOME/.config/zed/settings.json" ]; then
+  cp -p "$HOME/.config/zed/settings.json" "$HOME/zed-settings-preflight-$(date +%Y%m%d%H%M).json"
 fi
 ```
 
-The `[ -e ]` loop, rather than a glob or an `ls`, is deliberate: it exits 0 whether or not a given path exists on
-this host, and it is immune to the `ls`→`eza` alias **this repo itself installs** — which would otherwise feed
-colour escapes into `tar`'s argument list.
-
-That tarball, plus the `$HOME/.config/dotfiles_backup_<epoch>` directory, is the rollback. **Never** `--snapper`.
+That copy, plus the `$HOME/.config/dotfiles_backup_<epoch>` directory, is the rollback. **Never** `--snapper`.
 
 ## Ordered checklist
 
@@ -165,11 +133,11 @@ That tarball, plus the `$HOME/.config/dotfiles_backup_<epoch>` directory, is the
    (visible with `--verbose`) is `selinux=<mode>`. Record `getenforce` before and after every mutation from here on,
    and treat a flip from Enforcing to Permissive as stop-the-line.
 
-4. **`dotf link --dry-run --backup`** — still read-only. The `--backup` on a dry run is what makes the `link.backup=`
-   line appear, so the two lines can be compared directly. Do **not** pass `--hyprland`.
+4. **`dotf link --dry-run`** — still read-only. Backups are on by default, so the preview prints a `link.backup=`
+   line next to `link.remove=` and the two can be compared directly. Do **not** pass `--hyprland`.
 
-   Read `link.remove=` against `link.backup=`: every entry on `link.remove=` that is _missing_ from `link.backup=` is
-   deleted with no copy kept, and must appear in the 11-row uncovered table above.
+   Read `link.remove=` against `link.backup=`: they must list the same destinations. An entry on `link.remove=` that
+   is _missing_ from `link.backup=` would be deleted with no copy kept — stop and investigate.
 
    `.config/systemd/user/tmux.service` is newly managed here — ADR-12 retagged it from `FacetArch` to `FacetLinux`,
    so on Fedora it was untouched before this change. If Step 0 showed a real file at that path it must appear on
@@ -221,7 +189,7 @@ That tarball, plus the `$HOME/.config/dotfiles_backup_<epoch>` directory, is the
       Verified on this branch: `--skip docker-ce` drops it from the `packages=` line and emits no `plan.repo=` line
       at all.
 
-   3. Symlinks: `dotf link --backup`.
+   3. Symlinks: `dotf link` (backs up real files first by default).
 
    Re-run `getenforce` after each of those, and re-run `sudo firewall-cmd --get-default-zone` after the firewall
    domain. Confirm the `dotfiles_backup_<epoch>` directory exists and contains what `link.backup=` promised before

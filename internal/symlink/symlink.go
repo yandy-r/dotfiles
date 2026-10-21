@@ -17,7 +17,9 @@ import (
 type Options struct {
 	// DryRun disables all filesystem mutations (Ansible dry_run).
 	DryRun bool
-	// Backup backs up real files before replacing them (Ansible create_backups).
+	// Backup copies every real file or directory the plan replaces into
+	// BackupDir before removing it. The CLIs default it to true (--no-backup
+	// opts out); false removes real files without a copy.
 	Backup bool
 	// Force is retained for parity with Ansible force_symlinks; it is inert in
 	// practice because cleanup (ActionRemove) owns real-file removal.
@@ -67,7 +69,9 @@ type Action struct {
 type Plan struct {
 	// Actions are in phase-stable order: Backup, Remove, Link, Copy, Skip.
 	Actions []Action
-	// BackupDir is home/.config/dotfiles_backup_<epoch>, captured once.
+	// BackupDir is home/.config/dotfiles_backup_<epoch>, captured once. Apply
+	// creates it only when the plan contains an ActionBackup, switching to a
+	// _N-suffixed sibling (and updating this field) if the dir already exists.
 	BackupDir string
 }
 
@@ -92,6 +96,9 @@ type Report struct {
 	Planned []Action
 	// DryRun records whether the run was a dry run.
 	DryRun bool
+	// BackupDir is the plan's backup dir when Apply created it (at least one
+	// ActionBackup was planned and the run was not a dry run), else empty.
+	BackupDir string
 }
 
 // Engine plans, applies, and validates the symlink table against a dotfiles
@@ -120,14 +127,20 @@ func (e *MissingSourceTreeError) Error() string {
 }
 
 // LinuxDesktopGuardError is returned when the Linux-desktop set is requested on
-// a Linux-family host without either dry-run or backup enabled (the Ansible
+// a Linux-family host with neither dry-run nor backups enabled (the Ansible
 // safety gate that prevents clobbering real ~/.config desktop directories).
 type LinuxDesktopGuardError struct{}
 
 // Error implements the error interface.
 func (e *LinuxDesktopGuardError) Error() string {
-	return "symlink: managing the Linux desktop config set requires --dry-run or --backup"
+	return "symlink: managing the Linux desktop config set requires backups; drop --no-backup or use --dry-run"
 }
+
+// DesktopGuardApplies reports whether LinuxDesktopGuardError can fire on a host
+// running os: the Linux family (WSL included), where the Hyprland set applies.
+// CLIs use it to reject --hyprland with --no-backup as a usage error before
+// doing any work, with exactly the engine guard's scope.
+func DesktopGuardApplies(os platform.OS) bool { return isLinuxFamily(os) }
 
 // UnsafeDestError is returned when a LinkSpec dest is absolute or contains a
 // parent (..) segment, guarding filepath.Join(home, dest) against escaping $HOME.
@@ -163,7 +176,7 @@ func (e *Engine) Plan(specs []LinkSpec, info platform.Info, opts Options) (*Plan
 		return nil, &MissingSourceTreeError{Root: e.repoRoot}
 	}
 
-	if isLinuxFamily(info.OS) && opts.ManageHyprland && !opts.DryRun && !opts.Backup {
+	if DesktopGuardApplies(info.OS) && opts.ManageHyprland && !opts.DryRun && !opts.Backup {
 		return nil, &LinuxDesktopGuardError{}
 	}
 
@@ -204,7 +217,7 @@ func (e *Engine) Plan(specs []LinkSpec, info platform.Info, opts Options) (*Plan
 				links = append(links, newAction(spec, ActionLink, srcAbs, destAbs, "repoint"))
 			}
 		default:
-			if spec.BackupEligible && opts.Backup {
+			if opts.Backup {
 				backups = append(backups, newAction(spec, ActionBackup, srcAbs, destAbs, "backup real file"))
 			}
 			removes = append(removes, newAction(spec, ActionRemove, srcAbs, destAbs, "remove real file"))

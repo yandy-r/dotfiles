@@ -13,6 +13,7 @@ import (
 	"github.com/yandy-r/dotfiles/internal/failure"
 	"github.com/yandy-r/dotfiles/internal/plasma"
 	"github.com/yandy-r/dotfiles/internal/platform"
+	"github.com/yandy-r/dotfiles/internal/symlink"
 )
 
 // TestApplyDirs_CreatesStandardDirs asserts the create_directories apply step
@@ -578,6 +579,103 @@ func TestRunApply_SymlinkBrokenLinkAccumulates(t *testing.T) {
 	}
 }
 
+// TestRunApply_BacksUpRealFileByDefault is the YAN-1304 acceptance pin:
+// `dotf apply --headless` over a real ~/.bashrc leaves a recoverable copy and
+// names the backup dir on stderr; the dry run previews it as link.backup=; and
+// --no-backup replaces the file without a copy.
+func TestRunApply_BacksUpRealFileByDefault(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       []string
+		wantBackup bool
+	}{
+		{"default", nil, true},
+		{"no-backup", []string{"--no-backup"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repoRoot := t.TempDir()
+			home := t.TempDir()
+			t.Setenv("DOTFILES_ROOT", repoRoot)
+			t.Setenv("HOME", home)
+			writeRepoFile(t, repoRoot, filepath.Join("bash", "bashrc"), "# repo bashrc\n")
+			if err := os.WriteFile(filepath.Join(home, ".bashrc"), []byte("# user bashrc\n"), 0o644); err != nil {
+				t.Fatalf("WriteFile(.bashrc) error = %v", err)
+			}
+			manifestPath := writeTestManifest(t, testToolchainManifest)
+
+			base := append([]string{"--manifest", manifestPath, "--headless"}, tt.args...)
+
+			var dryOut, dryErr bytes.Buffer
+			if code := runApply(append(base, "--dry-run"), &dryOut, &dryErr, newApplyFake(t)); code != 0 {
+				t.Fatalf("runApply(--dry-run) code = %d, want 0; stderr=%q", code, dryErr.String())
+			}
+			if got := strings.Contains(dryOut.String(), "link.backup=.bashrc"); got != tt.wantBackup {
+				t.Errorf("dry-run stdout has link.backup=.bashrc = %t, want %t\n%s", got, tt.wantBackup, dryOut.String())
+			}
+
+			var stdout, stderr bytes.Buffer
+			if code := runApply(base, &stdout, &stderr, newApplyFake(t)); code != 0 {
+				t.Fatalf("runApply() code = %d, want 0; stderr=%q", code, stderr.String())
+			}
+			backups, err := filepath.Glob(filepath.Join(home, ".config", "dotfiles_backup_*"))
+			if err != nil {
+				t.Fatalf("Glob error = %v", err)
+			}
+			if !tt.wantBackup {
+				if len(backups) != 0 {
+					t.Errorf("backup dirs = %v, want none with --no-backup", backups)
+				}
+				return
+			}
+			if len(backups) != 1 {
+				t.Fatalf("backup dirs = %v, want exactly one", backups)
+			}
+			got, err := os.ReadFile(filepath.Join(backups[0], ".bashrc"))
+			if err != nil {
+				t.Fatalf("ReadFile(backup/.bashrc) error = %v", err)
+			}
+			if string(got) != "# user bashrc\n" {
+				t.Errorf("backup content = %q, want the user's original", got)
+			}
+			if want := "dotf: link backups: " + backups[0] + "\n"; !strings.Contains(stderr.String(), want) {
+				t.Errorf("stderr = %q, want %q", stderr.String(), want)
+			}
+		})
+	}
+}
+
+// TestRunApply_HyprlandNoBackupIsUsageError: on a host where the desktop set
+// applies it needs backups, so --hyprland with --no-backup is rejected as a
+// usage error (exit 2) before sudo is primed or any phase runs — only
+// platform detection may have executed.
+func TestRunApply_HyprlandNoBackupIsUsageError(t *testing.T) {
+	repoRoot := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("DOTFILES_ROOT", repoRoot)
+	t.Setenv("HOME", home)
+	manifestPath := writeTestManifest(t, testToolchainManifest)
+	f := newApplyFake(t)
+	if info := platform.Detect(f); !symlink.DesktopGuardApplies(info.OS) {
+		t.Skipf("host os-release resolves to %q, where the desktop guard does not apply; skipping", info.OS)
+	}
+	before := len(f.CallsSnapshot())
+
+	var stdout, stderr bytes.Buffer
+	code := runApply([]string{"--manifest", manifestPath, "--headless", "--hyprland", "--no-backup"}, &stdout, &stderr, f)
+	if code != 2 {
+		t.Fatalf("runApply(--hyprland --no-backup) code = %d, want 2; stderr=%q", code, stderr.String())
+	}
+	if want := "dotf: apply: --hyprland cannot be combined with --no-backup"; !strings.HasPrefix(stderr.String(), want) {
+		t.Errorf("stderr = %q, want prefix %q", stderr.String(), want)
+	}
+	for _, call := range f.CallsSnapshot()[before:] {
+		if call.Name != "uname" {
+			t.Errorf("unexpected call %+v before the usage error (only platform detection may run)", call)
+		}
+	}
+}
+
 func TestRunApply_SudoPrimeFailureFatal(t *testing.T) {
 	repoRoot := t.TempDir()
 	home := t.TempDir()
@@ -784,7 +882,7 @@ func TestRunApply_LinuxDesktopFlagPassthrough(t *testing.T) {
 		t.Fatalf("runApply(--linux-desktop) code = %d, want 0 (no LinuxDesktopGuardError); stderr=%q", code, stderr.String())
 	}
 
-	// Backup is forced with --linux-desktop, so the desktop set is managed and
+	// Backups are on by default, so the engine guard admits --linux-desktop and
 	// .config/hypr is a real symlink in $HOME.
 	fi, err := os.Lstat(filepath.Join(home, ".config", "hypr"))
 	if err != nil {
@@ -1165,11 +1263,11 @@ func TestApplyPlasmaPhase_NonLinuxWarnsAndRecordsNothing(t *testing.T) {
 	}
 }
 
-// TestApplyPlasmaOptions_MirrorsSymlinkBackupRule locks the deliberate choices:
+// TestApplyPlasmaOptions_BackupFollowsOptIn locks the deliberate choices:
 // Backup follows the opt-in flag (the safety net comes with the destructive
 // phase), Validate is always on, and Link/Recommended/Reload are never set from
 // the headless orchestrator.
-func TestApplyPlasmaOptions_MirrorsSymlinkBackupRule(t *testing.T) {
+func TestApplyPlasmaOptions_BackupFollowsOptIn(t *testing.T) {
 	t.Setenv("KDE_FULL_SESSION", "")
 	t.Setenv("XDG_CURRENT_DESKTOP", "")
 

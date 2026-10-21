@@ -37,6 +37,10 @@ func runLink(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
+	if o.backup && o.noBackup {
+		_, _ = fmt.Fprintf(stderr, "%s: link: --backup cannot be combined with --no-backup\n", progName)
+		return 2
+	}
 
 	repoRoot := resolveRepoRoot()
 	if repoRoot == "" {
@@ -49,9 +53,15 @@ func runLink(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	}
 
 	info := platform.Detect(r)
+	// Same scope as the engine's LinuxDesktopGuardError, but reported as a
+	// usage error: the flags contradict each other where the desktop set applies.
+	if (o.hyprland || o.linuxDesktop) && o.noBackup && !o.dryRun && symlink.DesktopGuardApplies(info.OS) {
+		_, _ = fmt.Fprintf(stderr, "%s: link: --hyprland cannot be combined with --no-backup (use --dry-run to preview)\n", progName)
+		return 2
+	}
 	opts := symlink.Options{
 		DryRun:         o.dryRun,
-		Backup:         o.backup,
+		Backup:         !o.noBackup,
 		Force:          o.force,
 		Validate:       !o.noValidate,
 		ManageHyprland: o.hyprland || o.linuxDesktop,
@@ -70,6 +80,9 @@ func runLink(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	}
 
 	report, err := eng.Apply(plan, opts)
+	// Name the backup dir even when Apply fails partway: real files may already
+	// be removed, and their copies are exactly what the user needs to find.
+	printLinkBackupDir(stderr, report)
 	if err != nil {
 		return reportErr(stderr, err)
 	}
@@ -126,8 +139,10 @@ func linkValidate(stderr io.Writer, eng *symlink.Engine, specs []symlink.LinkSpe
 
 // linkOpts holds the parsed flag values for `dotf link`. hyprland and
 // linuxDesktop are OR'd in runLink: --linux-desktop is the deprecated alias.
+// Backups are on by default: backup is the explicit (redundant) spelling of
+// the default, kept so existing scripts keep working, and noBackup opts out.
 type linkOpts struct {
-	dryRun, backup, force, noValidate, hyprland, linuxDesktop bool
+	dryRun, backup, noBackup, force, noValidate, hyprland, linuxDesktop bool
 }
 
 // setLinkFlags registers link's flags on fs and returns the opts pointer they
@@ -136,7 +151,8 @@ type linkOpts struct {
 func setLinkFlags(fs *flag.FlagSet) *linkOpts {
 	o := &linkOpts{}
 	fs.BoolVar(&o.dryRun, "dry-run", false, "print the plan without executing")
-	fs.BoolVar(&o.backup, "backup", false, "back up existing real files before replacing them")
+	fs.BoolVar(&o.backup, "backup", false, "back up real files before replacing them (the default; --backup=false does not disable backups, use --no-backup)")
+	fs.BoolVar(&o.noBackup, "no-backup", false, "replace real files without backing them up first")
 	fs.BoolVar(&o.force, "force", false, "force symlink recreation (parity; cleanup owns real-file removal)")
 	fs.BoolVar(&o.noValidate, "no-validate", false, "skip post-apply validation")
 	fs.BoolVar(&o.hyprland, "hyprland", false, "manage the opt-in Hyprland/wlroots desktop config set")
@@ -222,4 +238,13 @@ func printLinkResults(stdout io.Writer, applied []symlink.Action) error {
 func printLinkSummary(stderr io.Writer, report *symlink.Report) {
 	_, _ = fmt.Fprintf(stderr, "%s: link summary: applied=%d planned=%d\n",
 		progName, len(report.Applied), len(report.Planned))
+}
+
+// printLinkBackupDir names the backup dir on stderr when the run copied at
+// least one real file into it, so the recoverable copies are discoverable.
+func printLinkBackupDir(stderr io.Writer, report *symlink.Report) {
+	if report == nil || report.BackupDir == "" {
+		return
+	}
+	_, _ = fmt.Fprintf(stderr, "%s: link backups: %s\n", progName, report.BackupDir)
 }

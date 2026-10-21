@@ -209,15 +209,17 @@ func TestPlan_CorrectSymlink_Idempotent(t *testing.T) {
 	}
 }
 
+// TestPlan_BackupAction: with Backup on, every real file or dir the plan
+// replaces gets an ActionBackup — including dests like .ssh/config and
+// .ansible.cfg that the retired per-entry eligibility set left uncopied.
 func TestPlan_BackupAction(t *testing.T) {
 	repoRoot := t.TempDir()
 	home := t.TempDir()
 	buildFullSourceTree(t, repoRoot)
-	// Real files at three dests: a backup-eligible file entry, a directory
-	// entry made backup-eligible by ADR-11, and a still-non-eligible entry.
-	writeFile(t, filepath.Join(home, ".bashrc"), []byte("old bashrc"))
-	writeFile(t, filepath.Join(home, ".config/nvim"), []byte("old nvim"))
-	writeFile(t, filepath.Join(home, ".ansible.cfg"), []byte("old ansible cfg"))
+	dests := []string{".bashrc", ".config/nvim", ".ansible.cfg", ".ssh/config"}
+	for _, dest := range dests {
+		writeFile(t, filepath.Join(home, dest), []byte("old "+dest))
+	}
 
 	eng := NewEngine(repoRoot, home)
 	plan, err := eng.Plan(DefaultTable(), platform.Info{OS: platform.OSDebian}, Options{Backup: true})
@@ -225,17 +227,13 @@ func TestPlan_BackupAction(t *testing.T) {
 		t.Fatalf("Plan() error = %v, want nil", err)
 	}
 
-	if _, ok := planActionFor(plan, ".bashrc", ActionBackup); !ok {
-		t.Error("expected ActionBackup for backup-eligible .bashrc real file")
-	}
-	if _, ok := planActionFor(plan, ".config/nvim", ActionBackup); !ok {
-		t.Error("expected ActionBackup for backup-eligible .config/nvim (ADR-11)")
-	}
-	if _, ok := planActionFor(plan, ".ansible.cfg", ActionBackup); ok {
-		t.Error("unexpected ActionBackup for non-eligible .ansible.cfg")
-	}
-	if _, ok := planActionFor(plan, ".config/nvim", ActionRemove); !ok {
-		t.Error("expected ActionRemove for real file at .config/nvim")
+	for _, dest := range dests {
+		if _, ok := planActionFor(plan, dest, ActionBackup); !ok {
+			t.Errorf("expected ActionBackup for real file at %s", dest)
+		}
+		if _, ok := planActionFor(plan, dest, ActionRemove); !ok {
+			t.Errorf("expected ActionRemove for real file at %s", dest)
+		}
 	}
 }
 
@@ -374,5 +372,5 @@ func TestPlan_BackupDir_Deterministic(t *testing.T) {
 
 // onlyBashSpec returns a single-entry table for focused Plan tests.
 func onlyBashSpec() []LinkSpec {
-	return []LinkSpec{{Src: "bash/bashrc", Dest: ".bashrc", Facet: FacetAll, BackupEligible: true}}
+	return []LinkSpec{{Src: "bash/bashrc", Dest: ".bashrc", Facet: FacetAll}}
 }

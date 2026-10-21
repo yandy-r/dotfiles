@@ -19,6 +19,7 @@ type applyFlags struct {
 	LinuxDesktop       bool
 	Plasma             bool
 	DryRun             bool
+	NoBackup           bool
 	NoUserConfig       bool
 	Intents            multiFlag // reuse the type from install.go
 	Only, Skip         multiFlag // package-level filters, reuse multiFlag
@@ -37,11 +38,12 @@ func setApplyFlags(fs *flag.FlagSet) *applyFlags {
 	fs.BoolVar(&f.Force, "force", false, "imply --headless, force symlink recreation, and reinstall already-installed packages")
 	fs.BoolVar(&f.Gaming, "gaming", false, "add the gaming intent to the packages phase")
 	fs.BoolVar(&f.Ollama, "enable-ollama", false, "add the ollama intent (no-op until the manifest defines it)")
-	fs.BoolVar(&f.Hyprland, "hyprland", false, "manage the opt-in Hyprland/wlroots desktop config set (forces symlink backups)")
+	fs.BoolVar(&f.Hyprland, "hyprland", false, "manage the opt-in Hyprland/wlroots desktop config set (refused with --no-backup on Linux)")
 	fs.BoolVar(&f.LinuxDesktop, "linux-desktop", false, "deprecated alias for --hyprland")
 	fs.BoolVar(&f.Snapper, "snapper", false, "take a snapper pre-apply snapshot (Linux only, no-op without snapper)")
 	fs.BoolVar(&f.Plasma, "plasma", false, "sync the KDE Plasma config set (Linux/KDE only, no-op elsewhere)")
 	fs.BoolVar(&f.DryRun, "dry-run", false, "compose the plan without executing; never primes sudo")
+	fs.BoolVar(&f.NoBackup, "no-backup", false, "replace real files in $HOME without backing them up first")
 	// --no-user-config lives inside setApplyFlags (rather than the standalone
 	// setNoUserConfigFlag other commands call) because apply resolves every
 	// boolean's env twin through applyFlags→resolveApplyOptions; the usage string
@@ -58,7 +60,8 @@ func setApplyFlags(fs *flag.FlagSet) *applyFlags {
 // Force with FORCE_INSTALL, Gaming with ENABLE_GAMING, Ollama with
 // ENABLE_OLLAMA, Hyprland with HYPRLAND (and the deprecated LINUX_DESKTOP
 // alias), Snapper with SNAPPER, Plasma with PLASMA, and NoUserConfig with
-// DOTF_NO_USER_CONFIG. Homebrew is a flag-only tristate.
+// DOTF_NO_USER_CONFIG. Homebrew is a flag-only tristate, and NoBackup is
+// flag-only (the symlink phase backs up real files by default).
 type applyOptions struct {
 	Manifest, Homebrew string
 	Headless, Force    bool
@@ -66,6 +69,7 @@ type applyOptions struct {
 	Hyprland, Snapper  bool
 	Plasma             bool
 	DryRun             bool
+	NoBackup           bool
 	NoUserConfig       bool
 	Intents            []string
 	Only, Skip         []string
@@ -98,9 +102,9 @@ var optInIntents = map[string]bool{
 // boolean, precedence is a logical OR of the flag and its env variable (flag >
 // env), matching bootstrap's behavior. getenv is injected (os.Getenv in prod, a
 // map lookup in tests) so env parity is table-testable without touching the
-// process environment. Homebrew is a flag-only tristate; DryRun, Manifest,
-// Intents, and the package-level Only/Skip filters pass through unchanged (like
-// --intent, the package filters have no env twin).
+// process environment. Homebrew is a flag-only tristate; DryRun, NoBackup,
+// Manifest, Intents, and the package-level Only/Skip filters pass through
+// unchanged (like --intent, the package filters have no env twin).
 func resolveApplyOptions(f applyFlags, getenv func(string) string) applyOptions {
 	return applyOptions{
 		Manifest: f.Manifest,
@@ -122,6 +126,7 @@ func resolveApplyOptions(f applyFlags, getenv func(string) string) applyOptions 
 		// PLASMA=1 or PLASMA=kde is not truthy.
 		Plasma:       f.Plasma || envTrue(getenv("PLASMA")),
 		DryRun:       f.DryRun,
+		NoBackup:     f.NoBackup,
 		NoUserConfig: f.NoUserConfig || envTrue(getenv("DOTF_NO_USER_CONFIG")),
 		Intents:      f.Intents,
 		Only:         f.Only,

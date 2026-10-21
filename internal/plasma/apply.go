@@ -126,10 +126,8 @@ func (e *Engine) resolveReloads(cmds []ReloadCommand) []ReloadCommand {
 }
 
 // needsBackup reports whether an action mutates an existing live file and is
-// therefore backup-eligible. Unlike a symlink replace — where the repo copy is
-// the truth and the link is trivially recreatable — a bad merge destroys live
-// settings that exist nowhere else, so there is no per-spec BackupEligible
-// flag: every mutating action qualifies.
+// therefore backed up: a bad merge destroys live settings that exist nowhere
+// else, so every mutating action qualifies.
 // os.Stat rather than os.Lstat is deliberate: what needs preserving is the
 // CONTENT KDE is reading, so a linked destination backs up its target, and a
 // dangling symlink has nothing to preserve.

@@ -134,7 +134,9 @@ func TestApply_Backup(t *testing.T) {
 		}
 	})
 
-	t.Run("symlink-not-backed-up", func(t *testing.T) {
+	// symlink-not-backed-up also pins the lazy backup dir: with Backup on but
+	// no real file to replace, Apply must not leave an empty backup dir behind.
+	t.Run("symlink-not-backed-up-no-backup-dir", func(t *testing.T) {
 		home := t.TempDir()
 		mkSymlink(t, filepath.Join(home, "other"), filepath.Join(home, ".zshrc"))
 
@@ -144,20 +146,24 @@ func TestApply_Backup(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Plan() error = %v", err)
 		}
-		if _, err := eng.Apply(plan, opts); err != nil {
+		report, err := eng.Apply(plan, opts)
+		if err != nil {
 			t.Fatalf("Apply() error = %v", err)
 		}
 
-		if _, err := os.Stat(filepath.Join(plan.BackupDir, ".zshrc")); !os.IsNotExist(err) {
-			t.Errorf("backup of .zshrc symlink exists (err=%v), want none", err)
+		if _, err := os.Stat(plan.BackupDir); !os.IsNotExist(err) {
+			t.Errorf("backup dir exists with nothing to back up (err=%v), want absent", err)
+		}
+		if report.BackupDir != "" {
+			t.Errorf("Report.BackupDir = %q, want empty when nothing was backed up", report.BackupDir)
 		}
 	})
 
-	// eligible-directory-backed-up-then-linked is ADR-11 / design §7 test 4: the
+	// directory-backed-up-then-linked is ADR-11 / design §7 test 4: the
 	// only test guarding data-destroying behaviour. ActionRemove is recursive
 	// for dirs, so the backup must be ordered strictly before it — and the first
 	// host to exercise the directory-copy path is a populated daily driver.
-	t.Run("eligible-directory-backed-up-then-linked", func(t *testing.T) {
+	t.Run("directory-backed-up-then-linked", func(t *testing.T) {
 		home := t.TempDir()
 		writeFile(t, filepath.Join(home, ".config/nvim/lua/user/init.lua"), []byte("sentinel"))
 
@@ -196,9 +202,12 @@ func TestApply_Backup(t *testing.T) {
 		}
 	})
 
-	t.Run("non-eligible-real-file-removed-without-backup", func(t *testing.T) {
+	// ssh-config-backed-up-then-linked: every real file is backed up, not only
+	// the shell dotfiles — .ssh/config was once removed without a copy.
+	t.Run("ssh-config-backed-up-then-linked", func(t *testing.T) {
 		home := t.TempDir()
-		writeFile(t, filepath.Join(home, ".ansible.cfg"), []byte("user ansible cfg"))
+		original := []byte("Host personal\n")
+		writeFile(t, filepath.Join(home, ".ssh/config"), original)
 
 		eng := NewEngine(repoRoot, home)
 		opts := Options{Backup: true}
@@ -206,15 +215,23 @@ func TestApply_Backup(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Plan() error = %v", err)
 		}
-		if _, err := eng.Apply(plan, opts); err != nil {
+		report, err := eng.Apply(plan, opts)
+		if err != nil {
 			t.Fatalf("Apply() error = %v", err)
 		}
 
-		if _, err := os.Stat(filepath.Join(plan.BackupDir, ".ansible.cfg")); !os.IsNotExist(err) {
-			t.Errorf("backup of non-eligible .ansible.cfg exists (err=%v), want none", err)
+		if report.BackupDir != plan.BackupDir {
+			t.Errorf("Report.BackupDir = %q, want %q", report.BackupDir, plan.BackupDir)
 		}
-		if !isSymlink(t, filepath.Join(home, ".ansible.cfg")) {
-			t.Error(".ansible.cfg is not a symlink after apply")
+		backed, err := os.ReadFile(filepath.Join(plan.BackupDir, ".ssh/config"))
+		if err != nil {
+			t.Fatalf("ReadFile(backup/.ssh/config) error = %v", err)
+		}
+		if !bytes.Equal(backed, original) {
+			t.Errorf("backup content = %q, want %q", backed, original)
+		}
+		if !isSymlink(t, filepath.Join(home, ".ssh/config")) {
+			t.Error(".ssh/config is not a symlink after apply")
 		}
 	})
 
@@ -237,6 +254,40 @@ func TestApply_Backup(t *testing.T) {
 		}
 		if !isSymlink(t, filepath.Join(home, ".bashrc")) {
 			t.Error(".bashrc is not a symlink after apply")
+		}
+	})
+
+	// existing-backup-dir-not-overwritten: a same-second rerun finds
+	// plan.BackupDir already present; Apply must pick a fresh sibling instead
+	// of writing into (and truncating copies inside) the earlier run's dir.
+	t.Run("existing-backup-dir-not-overwritten", func(t *testing.T) {
+		home := t.TempDir()
+		writeFile(t, filepath.Join(home, ".bashrc"), []byte("second run bashrc"))
+
+		eng := NewEngine(repoRoot, home)
+		opts := Options{Backup: true}
+		plan, err := eng.Plan(DefaultTable(), platform.Info{OS: platform.OSDebian}, opts)
+		if err != nil {
+			t.Fatalf("Plan() error = %v", err)
+		}
+		first := plan.BackupDir
+		writeFile(t, filepath.Join(first, ".bashrc"), []byte("first run bashrc"))
+
+		report, err := eng.Apply(plan, opts)
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+
+		if want := first + "_1"; report.BackupDir != want || plan.BackupDir != want {
+			t.Errorf("BackupDir report=%q plan=%q, want %q", report.BackupDir, plan.BackupDir, want)
+		}
+		kept, err := os.ReadFile(filepath.Join(first, ".bashrc"))
+		if err != nil || string(kept) != "first run bashrc" {
+			t.Errorf("earlier backup = %q (err=%v), want it untouched", kept, err)
+		}
+		got, err := os.ReadFile(filepath.Join(report.BackupDir, ".bashrc"))
+		if err != nil || string(got) != "second run bashrc" {
+			t.Errorf("new backup = %q (err=%v), want %q", got, err, "second run bashrc")
 		}
 	})
 }
