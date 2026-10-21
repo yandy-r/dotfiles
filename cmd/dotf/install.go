@@ -488,7 +488,8 @@ func filterPackagesForAction(m *manifest.Manifest, pkgs []manifest.Package, only
 	// Stable dependency-first order; cycles and omitted prerequisites of an
 	// applicable package fail closed. A non-applicable package is emitted
 	// without visiting its Requires, so a cycle that passes through it is not
-	// detected here (it can never be installed on this host anyway).
+	// detected here; manifest.Validate rejects every requires cycle
+	// host-independently at load, and this check stays as defense in depth.
 	var ordered []manifest.Package
 	state := make(map[string]int)
 	var visit func(string) error

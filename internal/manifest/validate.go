@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -126,6 +127,7 @@ func Validate(m *Manifest) error {
 			}
 		}
 	}
+	errs = append(errs, validateRequiresCycles(m.Packages)...)
 
 	for intentName, intent := range m.Intents {
 		for _, ref := range intent.Packages {
@@ -147,6 +149,56 @@ func Validate(m *Manifest) error {
 	errs = append(errs, validateModules(m, names)...)
 
 	return errors.Join(errs...)
+}
+
+// validateRequiresCycles rejects every requires cycle across ALL packages,
+// ignoring host gates (os/arch/requires_desktop). Install ordering only walks
+// the requires of packages applicable to the current host, so a cycle through
+// a gated package would otherwise surface on some hosts and not others. Each
+// cycle is reported once per DFS back edge, named in traversal order
+// (a -> b -> a). Self and unknown references are reported by Validate and
+// skipped here.
+func validateRequiresCycles(pkgs []Package) []error {
+	byName := make(map[string]*Package, len(pkgs))
+	for i := range pkgs {
+		if _, dup := byName[pkgs[i].Name]; !dup {
+			byName[pkgs[i].Name] = &pkgs[i]
+		}
+	}
+	const (
+		unvisited = iota
+		visiting
+		done
+	)
+	var errs []error
+	state := make(map[string]int, len(pkgs))
+	var path []string
+	var visit func(name string)
+	visit = func(name string) {
+		state[name] = visiting
+		path = append(path, name)
+		for _, dep := range byName[name].Requires {
+			if dep == name || byName[dep] == nil {
+				continue
+			}
+			switch state[dep] {
+			case unvisited:
+				visit(dep)
+			case visiting:
+				start := slices.Index(path, dep)
+				cycle := append(slices.Clone(path[start:]), dep)
+				errs = append(errs, &ValidationError{Package: dep, Msg: "requires cycle " + strings.Join(cycle, " -> ")})
+			}
+		}
+		path = path[:len(path)-1]
+		state[name] = done
+	}
+	for _, p := range pkgs {
+		if state[p.Name] == unvisited {
+			visit(p.Name)
+		}
+	}
+	return errs
 }
 
 // validFirewallModes is the set of accepted [sysconfig] firewall values. An

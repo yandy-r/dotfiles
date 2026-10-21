@@ -1020,3 +1020,57 @@ func TestValidateRequiresAndArch(t *testing.T) {
 		}
 	}
 }
+
+// TestValidate_RequiresCycle: a requires cycle is rejected host-independently,
+// even when a package on it is OS/arch-gated (install ordering never visits
+// such a package's requires on a non-matching host, so only Validate sees it).
+func TestValidate_RequiresCycle(t *testing.T) {
+	pkg := func(name, os string, arch []string, requires ...string) manifest.Package {
+		return manifest.Package{Name: name, Backend: manifest.BackendPkg, Names: map[string]string{"dnf": name}, OS: os, Arch: arch, Requires: requires}
+	}
+	tests := []struct {
+		name    string
+		pkgs    []manifest.Package
+		wantErr string
+	}{
+		{
+			name:    "two-package cycle through os-gated package",
+			pkgs:    []manifest.Package{pkg("a", "", nil, "b"), pkg("b", "macos", nil, "a")},
+			wantErr: `requires cycle a -> b -> a`,
+		},
+		{
+			name:    "two-package cycle through arch-gated package",
+			pkgs:    []manifest.Package{pkg("a", "", []string{"arm64"}, "b"), pkg("b", "", nil, "a")},
+			wantErr: `requires cycle a -> b -> a`,
+		},
+		{
+			name:    "three-package cycle behind an acyclic entry",
+			pkgs:    []manifest.Package{pkg("root", "", nil, "x"), pkg("x", "", nil, "y"), pkg("y", "", nil, "z"), pkg("z", "linux", nil, "x")},
+			wantErr: `requires cycle x -> y -> z -> x`,
+		},
+		{
+			name: "shared prerequisite is not a cycle",
+			pkgs: []manifest.Package{pkg("a", "", nil, "b", "c"), pkg("b", "", nil, "d"), pkg("c", "", nil, "d"), pkg("d", "macos", nil)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := manifest.Validate(&manifest.Manifest{Packages: tt.pkgs})
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("Validate() = nil, want error containing %q", tt.wantErr)
+			}
+			if got := strings.Count(err.Error(), "requires cycle"); got != 1 {
+				t.Errorf("Validate() reported %d cycles, want 1: %v", got, err)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("Validate() error = %q, want substring %q", err, tt.wantErr)
+			}
+		})
+	}
+}

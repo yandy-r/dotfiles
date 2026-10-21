@@ -276,4 +276,5 @@ for source routes and platform limits.
 `arch = ["x86_64"]` restricts package applicability. `requires = ["package"]`
 selects prerequisites alongside install (including `--only`); update/remove do
 not implicitly operate on shared prerequisites. `--skip` cannot omit a prerequisite while retaining its dependent.
-Prerequisites install first; cycles are rejected during selection.
+Prerequisites install first. Requires cycles are rejected when the manifest is
+loaded or merged, on every host, even through an `os`/`arch`-gated package.
