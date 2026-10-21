@@ -168,6 +168,7 @@ packages = [
     "obsidian-macos",
     "localsend",
     "appimage-runtime",
+    "appimage-libz",
     "localsend-macos",
     "discord",
     "discord-macos",
@@ -1523,7 +1524,7 @@ class = "rolling"
 # AppImage carries no arch token, so the shared glob would match both assets on
 # an arm64 host; this entry globs the "-arm64" asset explicitly.
 name = "obsidian-arm64"
-requires = ["appimage-runtime"]
+requires = ["appimage-runtime", "appimage-libz"]
 arch = ["arm64"]
 backend = "app-artifact"
 os = "linux"
@@ -1877,6 +1878,17 @@ backend = "pkg"
 os = "linux"
 requires_desktop = true
 names = { dnf = "fuse-libs", apt = "libfuse2", pacman = "fuse2" }
+
+# Obsidian's arm64 AppImage runtime links the unversioned libz.so (its x86_64
+# runtime links libz.so.1), which distros ship only in the zlib dev package.
+# Without it the AppImage exits before Electron starts (YAN-1072).
+[[package]]
+name = "appimage-libz"
+arch = ["arm64"]
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { dnf = "zlib-ng-compat-devel", apt = "zlib1g-dev", pacman = "zlib" }
 
 [[package]]
 name = "virt-runtime"

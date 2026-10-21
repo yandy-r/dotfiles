@@ -41,6 +41,8 @@ Use repeated `--only` flags for multiple apps. Bare app names select their exact
 
 On Linux arm64 (for example Fedora Asahi Remix), ChatGPT and Google Chrome use the same vendor repos (arch-templated), and Zed Preview, LM Studio, Obsidian, Beekeeper Studio and Teams for Linux use `-arm64` sibling entries pointing at upstream's arm64/aarch64 build. The remaining apt/dnf and artifact routes are gated to `x86_64` and are not-applicable there: 1Password (the arm64 vendor repos carry only the CLI), LocalSend (upstream ships an arm64 `.tar.gz` and `.deb` but no arm64 AppImage, and the manifest has no arm64 entry), Discord, Slack, Zoom and WinBoat.
 
+Obsidian's arm64 AppImage runtime links the unversioned `libz.so`, which Fedora and Debian ship only in their zlib development package (Arch's `zlib` includes it). `obsidian-arm64` therefore requires `appimage-libz` (`zlib-ng-compat-devel` on Fedora, `zlib1g-dev` on Debian, `zlib` on Arch). Without it the AppImage exits with `libz.so: cannot open shared object file` before Electron starts.
+
 On Fedora and Fedora remixes, Claude Desktop installs through `bin/install-claude-desktop-rpm.sh` on `x86_64` and `arm64`. The script repacks the signature-verified official `.deb` into a local RPM. Anthropic does not support that RPM.
 
 AUR entries carry no `arch` gate, so on an Arch Linux arm64 host the AUR siblings (`1password`, `slack-arch`, `zoom-arch`, `winboat-arch` and the rest) are still applicable. dotf does not read a PKGBUILD's `arch` array, so an x86_64-only AUR package fails at build time there instead of being skipped.
@@ -64,3 +66,20 @@ DaVinci Resolve is excluded by choice. Linux WhatsApp wrappers and snapd are exc
 ## Verification limits
 
 Manifest selection and fixture-based installer tests do not prove an app starts on every distro. Fedora, Arch and macOS device acceptance remains separate from Go tests. Remote inventory of `cachy-g7` was read-only.
+
+### Fedora Asahi Remix (16k pages)
+
+Launch-tested on 2026-10-21 on Fedora Asahi Remix 44, kernel `7.1.13-402.asahi.fc44.aarch64+16k` (`getconf PAGESIZE` = 16384), KDE Plasma Wayland. Each app was installed with `dotf install --only <name>` and started from its desktop-entry `Exec` command. An app counts as launched when, 25 s later, its process is still running and KWin has mapped a window for its PID.
+
+| App | Version | Launches | Notes |
+| --- | --- | --- | --- |
+| Claude Desktop (Fedora repack) | 2.31226.1 | Yes | Window "Claude" |
+| ChatGPT | 26.1013.40934 | Yes | Window "ChatGPT" (X11 via Xwayland) |
+| Google Chrome | 155.0.8059.84 | Yes | Window "New Tab" |
+| Obsidian | 1.14.4 | Yes, with `appimage-libz` | Without `libz.so` the AppImage runtime fails to load; no 16k-page fault |
+| LM Studio | 0.4.26 | Yes | Window "LM Studio" |
+| Zed Preview | 1.25.1 | Yes | Window "empty project"; harmless xkbcommon Compose warnings |
+| Beekeeper Studio | 6.1.6 | Yes | Window "Beekeeper Studio"; the vendor RPM's `%post` key import fails under dnf's RPM lock |
+| Teams for Linux | 2.24.0 | Yes | Window "Sign in to your account"; desktop entry forces `--ozone-platform=x11` |
+
+No app failed on 16k pages, so none needs a page-size gate. Electron apps can leave a `SIGTRAP` core dump when they are killed. That happens on shutdown and does not affect launch.

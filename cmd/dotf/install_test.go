@@ -944,7 +944,7 @@ func TestFilterPackages_DesktopApps(t *testing.T) {
 		"grok-bot":         "grok-bot,grok-bot-arch,grok-bot-macos",
 		"zed-preview":      "zed-preview,zed-preview-arm64,zed-preview-macos",
 		"lm-studio":        "lm-studio,lm-studio-arm64,lm-studio-macos,appimage-runtime",
-		"obsidian":         "obsidian,obsidian-arm64,obsidian-macos,appimage-runtime",
+		"obsidian":         "obsidian,obsidian-arm64,obsidian-macos,appimage-runtime,appimage-libz",
 		"code-insiders":    "code-insiders,code-insiders-arch,code-insiders-macos",
 		"google-chrome":    "google-chrome,google-chrome-arch,google-chrome-macos",
 		"discord":          "discord,discord-macos",
