@@ -542,6 +542,33 @@ func TestGeneratedScripts_SetupPositional(t *testing.T) {
 	}
 }
 
+// TestGeneratedScripts_BackupPositional asserts each generated script bakes the
+// `backup <verb>` positional and backup's prune/restore flags.
+func TestGeneratedScripts_BackupPositional(t *testing.T) {
+	m := buildCompletionModel()
+	verbs := strings.Join(completionBackupVerbs, " ")
+
+	bash := generateCompletion("bash", m)
+	if !strings.Contains(bash, "backup)") || !strings.Contains(bash, verbs) {
+		t.Errorf("bash completion missing the backup verb positional (%q)", verbs)
+	}
+	for _, flag := range []string{"--keep", "--older-than", "--force"} {
+		if !strings.Contains(bash, flag) {
+			t.Errorf("bash completion missing backup's flag word %s", flag)
+		}
+	}
+
+	zsh := generateCompletion("zsh", m)
+	if !strings.Contains(zsh, "1:verb:("+verbs+")") {
+		t.Errorf("zsh completion missing the backup verb positional (%q)", verbs)
+	}
+
+	fish := generateCompletion("fish", m)
+	if !strings.Contains(fish, "__fish_seen_subcommand_from backup") || !strings.Contains(fish, "-a '"+verbs+"'") {
+		t.Errorf("fish completion missing the backup verb positional (%q)", verbs)
+	}
+}
+
 // TestGeneratedScripts_PlasmaPositional asserts each generated script bakes the
 // `plasma <verb>` positional, and that the pre-existing completion/help/setup
 // positional rules now exclude plasma — __fish_seen_subcommand_from matches a

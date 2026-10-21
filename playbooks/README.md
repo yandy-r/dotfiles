@@ -187,6 +187,16 @@ ls -la ~/.config/dotfiles/[category]/[file]
 
 ##### Restore from backup
 
+Backups made by `dotf link`/`apply`/`setup` carry a manifest and restore with `dotf backup`:
+
+```bash
+dotf backup list                       # find the backup id
+dotf backup restore <id> --dry-run     # preview, then rerun without --dry-run
+```
+
+Dirs written by this playbook have no manifest (`dotf backup list` shows them as `legacy=true`) and
+are restored by hand:
+
 ```bash
 # Find your backup directory
 ls -la ~/.config/dotfiles_backup_*

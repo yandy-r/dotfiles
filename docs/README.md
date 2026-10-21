@@ -106,6 +106,11 @@ dotf link --dry-run
 
 # Apply symlinks (real files are backed up first)
 dotf link
+
+# List, restore, and prune those backups
+dotf backup list
+dotf backup restore <id> --dry-run
+dotf backup prune --dry-run
 ```
 
 ### Reload shell configuration

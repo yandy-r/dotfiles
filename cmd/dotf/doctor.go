@@ -60,6 +60,7 @@ func runDoctor(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	home, _ := os.UserHomeDir()
 	repoRoot := resolveRepoRoot()
 	checks = append(checks, checkSymlinks(repoRoot, home, info)...)
+	checks = append(checks, checkBackups(home))
 	checks = append(checks, checkSysconfig(info))
 	checks = append(checks, checkSELinux(r, info)...)
 	checks = append(checks, checkPlasma(repoRoot, xdgConfigHome(home), xdgDataHome(home), info, r)...)
@@ -354,6 +355,38 @@ func checkSysconfig(info platform.Info) doctorCheck {
 	default:
 		return doctorCheck{Category: "sysconfig", Name: "support", Status: checkOK, Detail: "sysconfig supported on this OS"}
 	}
+}
+
+// checkBackups reports how many symlink backup dirs (~/.config/
+// dotfiles_backup_*) exist and their total size. More than
+// symlink.DefaultBackupKeep is an advisory warn pointing at `dotf backup
+// prune`; any count up to that (zero included) is ok. An unreadable backup
+// root is a warn, never a fail: backups are a convenience, not a fault.
+func checkBackups(home string) doctorCheck {
+	c := doctorCheck{Category: "backups", Name: "count", Status: checkOK}
+	if home == "" {
+		c.Status = checkWarn
+		c.Detail = "could not resolve $HOME to list backups"
+		c.Remedy = "set HOME"
+		return c
+	}
+	sets, err := symlink.ListBackups(home)
+	if err != nil {
+		c.Status = checkWarn
+		c.Detail = fmt.Sprintf("could not list backups: %v", err)
+		c.Remedy = "check permissions on " + symlink.BackupRoot(home)
+		return c
+	}
+	var size int64
+	for _, s := range sets {
+		size += s.Size
+	}
+	c.Detail = backupSummary(len(sets), size)
+	if len(sets) > symlink.DefaultBackupKeep {
+		c.Status = checkWarn
+		c.Remedy = fmt.Sprintf("dotf backup prune (keeps the newest %d)", symlink.DefaultBackupKeep)
+	}
+	return c
 }
 
 // checkSELinux reports the host's SELinux mode as an INFORMATIONAL row. It is

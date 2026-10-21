@@ -11,6 +11,7 @@ import (
 	"github.com/yandy-r/dotfiles/internal/exec"
 	"github.com/yandy-r/dotfiles/internal/manifest"
 	"github.com/yandy-r/dotfiles/internal/platform"
+	"github.com/yandy-r/dotfiles/internal/symlink"
 )
 
 const testModuleManifest = `
@@ -211,15 +212,15 @@ func TestRunModuleSteps_FailureIsNonFatal(t *testing.T) {
 
 // TestRealStepEngines_SymlinkBacksUpRealFile pins setup's symlink step to the
 // default-on backup: a real ~/.bashrc is copied aside (bytes preserved) before
-// it is replaced by the link, and the backup dir is named on stderr.
+// it is replaced by the link, and the run's backup dir is recorded for the
+// single end-of-run stderr line.
 func TestRealStepEngines_SymlinkBacksUpRealFile(t *testing.T) {
 	repoRoot := t.TempDir()
 	home := t.TempDir()
 	src := seedRepoFile(t, repoRoot, "bash/bashrc", "# repo bashrc\n")
 	seedRepoFile(t, home, ".bashrc", "# user bashrc\n")
 
-	var stderr bytes.Buffer
-	eng := &realStepEngines{repoRoot: repoRoot, home: home, stderr: &stderr}
+	eng := &realStepEngines{repoRoot: repoRoot, home: home}
 	if err := eng.symlink("bash/bashrc", platform.Info{OS: platform.OSDebian}); err != nil {
 		t.Fatalf("symlink() error = %v", err)
 	}
@@ -245,7 +246,62 @@ func TestRealStepEngines_SymlinkBacksUpRealFile(t *testing.T) {
 	if target != src {
 		t.Errorf("Readlink(.bashrc) = %q, want %q", target, src)
 	}
+	if eng.backupDir != backups[0] {
+		t.Errorf("eng.backupDir = %q, want %q", eng.backupDir, backups[0])
+	}
+	var stderr bytes.Buffer
+	printSetupBackupDir(&stderr, eng.backupDir)
 	if want := "dotf: link backups: " + backups[0] + "\n"; stderr.String() != want {
 		t.Errorf("stderr = %q, want %q", stderr.String(), want)
+	}
+}
+
+// TestRealStepEngines_SymlinkStepsShareOneBackupDir pins AC2: two symlink
+// steps over real files in one setup run produce exactly ONE backup dir (no
+// _1 sibling) holding both copies and a manifest listing both dests.
+func TestRealStepEngines_SymlinkStepsShareOneBackupDir(t *testing.T) {
+	repoRoot := t.TempDir()
+	home := t.TempDir()
+	seedRepoFile(t, repoRoot, "bash/bashrc", "# repo bashrc\n")
+	seedRepoFile(t, repoRoot, "zsh/zshrc", "# repo zshrc\n")
+	seedRepoFile(t, home, ".bashrc", "# user bashrc\n")
+	seedRepoFile(t, home, ".zshrc", "# user zshrc\n")
+
+	eng := &realStepEngines{repoRoot: repoRoot, home: home}
+	mod := manifest.Module{Name: "two", Steps: []manifest.ModuleStep{
+		{Symlink: "bash/bashrc"}, {Symlink: "zsh/zshrc"},
+	}}
+	for _, res := range runModuleSteps(mod, eng, platform.Info{OS: platform.OSDebian}) {
+		if res.status != "ok" {
+			t.Fatalf("step %d (%s) = %s: %v", res.index, res.target, res.status, res.err)
+		}
+	}
+
+	backups, err := filepath.Glob(filepath.Join(home, ".config", "dotfiles_backup_*"))
+	if err != nil {
+		t.Fatalf("Glob error = %v", err)
+	}
+	if len(backups) != 1 {
+		t.Fatalf("backup dirs = %v, want exactly one shared dir", backups)
+	}
+	for rel, want := range map[string]string{".bashrc": "# user bashrc\n", ".zshrc": "# user zshrc\n"} {
+		got, err := os.ReadFile(filepath.Join(backups[0], rel))
+		if err != nil || string(got) != want {
+			t.Errorf("backup %s = %q (err %v), want %q", rel, got, err, want)
+		}
+	}
+	sets, err := symlink.ListBackups(home)
+	if err != nil || len(sets) != 1 {
+		t.Fatalf("ListBackups = %+v, %v; want one set", sets, err)
+	}
+	if sets[0].Legacy {
+		t.Fatal("shared backup dir has no manifest")
+	}
+	var dests []string
+	for _, e := range sets[0].Entries {
+		dests = append(dests, e.Dest)
+	}
+	if strings.Join(dests, ",") != ".bashrc,.zshrc" {
+		t.Errorf("manifest dests = %v, want [.bashrc .zshrc]", dests)
 	}
 }

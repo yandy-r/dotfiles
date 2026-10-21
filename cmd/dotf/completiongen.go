@@ -37,6 +37,10 @@ var completionModules = []string{"fingerprint", "onedrive"}
 // dispatchable.
 var completionPlasmaVerbs = plasmaVerbs
 
+// completionBackupVerbs is the `dotf backup <verb>` positional's completion
+// candidate set, aliasing backupVerbs for the same single-source reason.
+var completionBackupVerbs = backupVerbs
+
 // enumUsageRe extracts a "value set" from a flag's usage string: a run of
 // pipe-separated bareword tokens like "ufw|firewalld|auto|off" or "true|false".
 // This lets a flag whose usage already documents its choices offer them as
@@ -220,6 +224,7 @@ type positionalCommand struct {
 // with no second enumeration to keep in sync.
 func positionalCommands(m completionModel) []positionalCommand {
 	return []positionalCommand{
+		{Command: "backup", Label: "verb", Candidates: completionBackupVerbs},
 		{Command: "completion", Label: "shell", Candidates: completionShells},
 		{Command: "deb", Label: "path", IsPath: true},
 		{Command: "help", Label: "command", Candidates: m.commandNames()},

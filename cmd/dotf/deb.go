@@ -381,15 +381,16 @@ func debConfirm(stdout, stderr io.Writer, o *debOpts) (int, bool) {
 func confirmDebInstall(stdout io.Writer, stdin io.Reader) confirmDecision {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	return confirmDebInstallCtx(ctx, stdout, debConfirmPrompt, stdin)
+	return confirmPromptCtx(ctx, stdout, debConfirmPrompt, stdin)
 }
 
-// confirmDebInstallCtx is the pure, context-injected core of
-// confirmDebInstall. It returns confirmAborted as soon as ctx is done (Ctrl+C),
+// confirmPromptCtx is the pure, context-injected confirmation core shared by
+// `dotf deb` and `dotf backup prune`: it writes prompt to stdout and reads one
+// line from stdin. It returns confirmAborted as soon as ctx is done (Ctrl+C),
 // confirmYes for an explicit yes, and confirmNo for any other answer, EOF, or
-// read error — a decline, deliberately, so an unreadable stdin never installs
+// read error — a decline, deliberately, so an unreadable stdin never mutates
 // anything.
-func confirmDebInstallCtx(ctx context.Context, stdout io.Writer, prompt string, stdin io.Reader) confirmDecision {
+func confirmPromptCtx(ctx context.Context, stdout io.Writer, prompt string, stdin io.Reader) confirmDecision {
 	_, _ = fmt.Fprint(stdout, prompt)
 
 	type readResult struct {
@@ -640,7 +641,7 @@ func debOfferRemedy(stdout, stderr io.Writer, pe *debtap.PreflightError) confirm
 func confirmDebRemedy(stdout io.Writer, stdin io.Reader) confirmDecision {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	return confirmDebInstallCtx(ctx, stdout, debRemedyPrompt, stdin)
+	return confirmPromptCtx(ctx, stdout, debRemedyPrompt, stdin)
 }
 
 // shellQuoteArgv renders an argv as a copy-pasteable command line, quoting only

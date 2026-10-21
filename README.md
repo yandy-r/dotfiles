@@ -52,10 +52,11 @@ install path (you can still run them directly for targeted installs; see
 (`internal/symlink`), and is the symlink provisioner as of Phase 4.
 
 Every real file or directory a link replaces is copied into
-`~/.config/dotfiles_backup_<epoch>` first, by default; the run names that directory on stderr
-(`dotf: link backups: <dir>`) and creates it only when something was backed up. `dotf setup`
-symlink steps back up the same way, but each step gets its own dir (a same-second rerun or a second
-step gets a `_1`, `_2`, … suffix), each named on stderr.
+`~/.config/dotfiles_backup_<epoch>` first, by default, together with a `.dotf-backup.json`
+manifest recording each `$HOME`-relative path, its kind, and when it was copied. The run names that
+directory on stderr (`dotf: link backups: <dir>`) and creates it only when something was backed
+up. `dotf setup` symlink steps back up the same way, and all steps of one setup run share a single
+dir, named once at the end of the run.
 
 | Flag              | Effect                                                                                                                  |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -73,6 +74,29 @@ dotf link --linux-desktop    # include the opt-in Hyprland desktop set
 
 The Ansible playbook (`playbooks/symlinks.yml`) is **historical-rollback-only**; it is not run
 during normal provisioning.
+
+### `dotf backup` — list, restore, and prune link backups
+
+`dotf backup` manages the `~/.config/dotfiles_backup_<epoch>[_N]` dirs that `link`, `apply`, and
+`setup` create.
+
+| Verb                       | Effect                                                                                                                                                                                                         |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list`                     | Every backup dir, newest first: id, created time, entry count, size. Dirs from before manifests existed show as `legacy=true`                                                                                  |
+| `restore <id> [path...]`   | Copy the manifest's entries (or just the named paths) back into `$HOME`. A missing dest or a symlink is replaced; a real file/dir is refused unless `--force`, which first backs it up to a **new** backup dir |
+| `prune`                    | Delete all but the newest `--keep` dirs (default 10), optionally only those older than `--older-than` (`720h`, `30d`). Confirms first; non-interactively it needs `--yes`                                     |
+
+Restore copies from the backup and never modifies it; legacy (manifest-less) dirs and unsafe paths
+are refused. Prune only ever removes `dotfiles_backup_<epoch>[_N]` dirs. `dotf doctor` reports the
+count and total size (`check.backups.count`) and warns above 10.
+
+```bash
+dotf backup list                                # what is there
+dotf backup restore 1729543200 --dry-run        # preview the restore plan
+dotf backup restore 1729543200 .bashrc          # restore one file
+dotf backup restore 1729543200 --force          # overwrite real files (they are backed up first)
+dotf backup prune --older-than 30d --dry-run    # preview, then rerun with --yes
+```
 
 ### `dotf sysconfig` — per-OS system configuration
 

@@ -171,9 +171,10 @@ var helpRegistry = []commandHelp{
 			"and sysconfig support level). Checks cover platform compatibility, required\n" +
 			"prerequisites (git, a download tool, the package manager, sudo),\n" +
 			"declared-package drift (via the same truthful probe as status/diff), symlink\n" +
-			"health (broken and not-yet-created links), sysconfig support for this OS, and\n" +
-			"KDE Plasma drift plus whether plasma/files/ has been exported (both omitted\n" +
-			"entirely on an OS plasma does not target).\n" +
+			"health (broken and not-yet-created links), the symlink backup dirs (count and\n" +
+			"size; warns above 10 with a dotf backup prune remedy), sysconfig support for\n" +
+			"this OS, and KDE Plasma drift plus whether plasma/files/ has been exported\n" +
+			"(both omitted entirely on an OS plasma does not target).\n" +
 			"Applies nothing. The symlink checks use the built-in link table, so\n" +
 			"--manifest affects only the package/sysconfig checks. Exits 1 when any check\n" +
 			"fails; warnings (e.g. an un-provisioned host) stay green. --json emits the\n" +
@@ -196,9 +197,11 @@ var helpRegistry = []commandHelp{
 			"Symlinks live under $HOME, so the operation is unprivileged. The link set is\n" +
 			"the built-in default table, so there is deliberately no --manifest flag.\n" +
 			"Every real file or directory a link replaces is first copied into\n" +
-			"~/.config/dotfiles_backup_<epoch> (named on stderr when used); --no-backup\n" +
-			"opts out, and --backup is accepted as the explicit spelling of the default\n" +
-			"(--backup=false does NOT disable backups; use --no-backup).\n" +
+			"~/.config/dotfiles_backup_<epoch> (named on stderr when used) together with a\n" +
+			".dotf-backup.json manifest; recover with dotf backup restore <id> (see dotf\n" +
+			"backup list). --no-backup opts out, and --backup is accepted as the explicit\n" +
+			"spelling of the default (--backup=false does NOT disable backups; use\n" +
+			"--no-backup).\n" +
 			"After applying, links are validated; a real file where a symlink was expected,\n" +
 			"or a dangling link whose source exists, exits 1. The opt-in desktop set is the\n" +
 			"Hyprland/wlroots stack and is not what a KDE/Plasma host wants\n" +
@@ -210,6 +213,40 @@ var helpRegistry = []commandHelp{
 			"dotf link --dry-run --hyprland",
 		},
 		setFlags: func(fs *flag.FlagSet) { setLinkFlags(fs) },
+	},
+	{
+		name:    "backup",
+		summary: "List, restore, and prune the symlink backup dirs",
+		usage:   "dotf backup <list|restore|prune> [args] [flags]",
+		long: "Manage the ~/.config/dotfiles_backup_<epoch>[_N] dirs that link, apply and\n" +
+			"setup create when they replace real files. Each dir carries a\n" +
+			".dotf-backup.json manifest recording every backed-up $HOME-relative path.\n" +
+			"\n" +
+			"list prints every backup dir newest first (id, created time, entry count,\n" +
+			"size); dirs from before manifests existed are shown as legacy=true.\n" +
+			"\n" +
+			"restore <id> [path...] copies the manifest entries (or just the named\n" +
+			"paths) back into $HOME. A missing dest or a symlink is replaced; a real file\n" +
+			"or directory is refused unless --force, which first backs that content up to\n" +
+			"a NEW backup dir. Legacy dirs and unsafe paths are refused. The backup dir is\n" +
+			"copied from, never modified. --dry-run prints the plan.\n" +
+			"\n" +
+			"prune removes all but the newest --keep dirs (default 10), optionally only\n" +
+			"those older than --older-than (Go duration or <N>d). It asks before deleting\n" +
+			"unless --yes, and refuses non-interactively without --yes. Only\n" +
+			"dotfiles_backup_<epoch>[_N] dirs are ever removed.\n" +
+			"\n" +
+			"Exit codes: 0 ok, 1 refusal or failure, 2 usage error.",
+		examples: []string{
+			"dotf backup list",
+			"dotf backup list --json",
+			"dotf backup restore 1729543200 --dry-run",
+			"dotf backup restore 1729543200 .bashrc .zshrc",
+			"dotf backup restore 1729543200 --force",
+			"dotf backup prune --keep 5 --dry-run",
+			"dotf backup prune --older-than 30d --yes",
+		},
+		setFlags: func(fs *flag.FlagSet) { setBackupFlags(fs) },
 	},
 	{
 		name:    "sysconfig",
@@ -242,7 +279,7 @@ var helpRegistry = []commandHelp{
 			"wizard; non-interactively it refuses unless headless. --dry-run composes the\n" +
 			"plan and never primes sudo. The symlink phase backs up every real file it\n" +
 			"replaces into ~/.config/dotfiles_backup_<epoch> (flag-only --no-backup opts\n" +
-			"out). Exit codes:\n" +
+			"out); recover with dotf backup restore <id>. Exit codes:\n" +
 			"0 converged, 1 completed-with-failures, 2 usage error, 3 hard abort.",
 		examples: []string{
 			"dotf apply",
@@ -311,6 +348,8 @@ var helpRegistry = []commandHelp{
 			"shell. Sysconfig steps are not yet wired and fail that step fast. Step failures\n" +
 			"are collected non-fatally into a run-wide summary. --dry-run prints the ordered\n" +
 			"step plan and never primes sudo; executing non-interactively requires --yes.\n" +
+			"All symlink steps of one run share a single backup dir, named once on stderr\n" +
+			"(recover with dotf backup restore <id>).\n" +
 			"Exit codes: 0 converged, 1 step failures, 2 usage, 3 hard abort.",
 		examples: []string{
 			"dotf setup fingerprint",

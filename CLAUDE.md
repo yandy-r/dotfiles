@@ -23,6 +23,7 @@ cd ~/.config/dotfiles
 
 - Symlinks are provisioned by the **native Go engine**: `dotf link` (`internal/symlink`) as of Phase 4
 - `dotf link` supports `--dry-run` (preview), `--no-backup` (opt out of the default backup of real files before replacing; `--backup` is the explicit default), and `--linux-desktop` (opt-in Hyprland desktop set), plus post-apply validation
+- Backups land in `~/.config/dotfiles_backup_<epoch>` with a `.dotf-backup.json` manifest (one dir per `link`/`apply`/`setup` run); `dotf backup list|restore <id> [path...]|prune` manages them (`restore` refuses to overwrite real files without `--force`, which backs them up first; `prune` keeps the newest 10 and needs `--yes` non-interactively). `dotf doctor` warns above 10 backups
 - The Ansible playbook (`ansible-playbook playbooks/symlinks.yml`) is **historical-rollback-only** — do not run it in normal provisioning (see `playbooks/README.md`)
 - Symlinks cover bash, zsh, common configs, and application directories, linked to their expected locations in `$HOME`
 - As of Phase 7, `bootstrap.sh` is a POSIX download-and-exec shim (~608 lines) that downloads the prebuilt, checksum-verified `dotf` binary from GitHub Releases and runs `dotf apply`; the bash provisioning path is retired as the entry point. The `bin/install-*.sh` installers are retained and now driven by the manifest: the `dev`/`base` intents provision the daily-driver toolset, and the opt-in `runtimes`/`ai`/`cloud`/`git-tools`/`system` intents wrap the legacy installers and setup steps via the `custom-script` backend for full provisioning parity (`--intent <name>`). The opt-in `desktop` intent holds `requires_desktop` GUI packages, including Claude Desktop, espanso, 1Password, ChatGPT, WezTerm, Ghostty, Grok Bot, Cursor, Zed Preview, LM Studio, Obsidian and the reviewed desktop apps documented in `docs/reference/desktop-apps.md`. These packages are not-applicable without a detected graphical session. `claude-desktop` resolves to the official apt repo (Debian/Ubuntu), the Homebrew cask (macOS), or `bin/install-claude-desktop-rpm.sh` on Fedora and Fedora remixes (`x86_64` and `arm64`), which repacks the signature-verified official `.deb` into a local RPM (unsupported by Anthropic). `dotf apply` also ensures the standard XDG/dev directories exist (`create_directories` parity)
@@ -180,6 +181,11 @@ dotf link --dry-run
 
 # Create symlinks (real files are backed up first by default)
 dotf link
+
+# Inspect, recover, and prune the backups link/apply/setup made
+dotf backup list
+dotf backup restore <id> --dry-run       # then without --dry-run (or --force)
+dotf backup prune --keep 10 --dry-run    # then --yes
 
 # Rollback path only: the retired Ansible playbook is retained one release
 # ansible-playbook playbooks/symlinks.yml
@@ -459,7 +465,7 @@ dotf link
 - `common/platform.sh`: Platform detection and environment variables
 - `common/tools.sh`: Tool detection, installation, and setup
 - `common/completions.sh`: Universal completion system
-- `internal/symlink` + `cmd/dotf/link.go`: native Go symlink engine (`dotf link`) — the symlink provisioner as of Phase 4
+- `internal/symlink` + `cmd/dotf/link.go`: native Go symlink engine (`dotf link`) — the symlink provisioner as of Phase 4; `internal/symlink/backups.go` + `cmd/dotf/backup.go` manage its backup dirs (`dotf backup`)
 - `internal/sysconfig` + `cmd/dotf/sysconfig.go`: per-OS system config (`dotf sysconfig`) — hostname/timezone/locale/shell/firewall/ssh-server
 - `internal/plasma` + `cmd/dotf/plasma.go`: native KConfig codec and KDE Plasma 6 sync engine (`dotf plasma`) — `internal/plasma/table.go` is the governed managed-file/strip table
 - `internal/debtap` + `cmd/dotf/deb.go`: verified `.deb` → pacman conversion (`dotf deb`), wrapping the AUR `debtap` tool
@@ -794,7 +800,8 @@ existing native package, reading the built artifact's own `.PKGINFO`, and checki
 dependencies with `pacman -T`. Arch/pacman only; conversion is read-only with respect to the
 host and `--install` is the sole elevating step.
 The `dotf` subcommands are `version`, `platform`, `plan`, `install`,
-`status`, `diff`, `doctor`, `link`, `sysconfig`, `apply`, `lock`, `self-update`, `setup`,
+`status`, `diff`, `doctor`, `link`, `backup` (list/restore/prune symlink backup dirs),
+`sysconfig`, `apply`, `lock`, `self-update`, `setup`,
 `plasma` (KDE Plasma 6 config set), `deb` (.deb → pacman conversion), `completion` (generate
 bash/zsh/fish completion scripts, with `--install`/`--force`/`--dry-run`), and `help` (rich
 global/per-command help, also via `--help`/`-h` on any command).
@@ -814,7 +821,7 @@ always-in-sync completion or if the subcommand set grows substantially.
 | Layer               | Technology              | Notes                                                           |
 | ------------------- | ----------------------- | --------------------------------------------------------------- |
 | Primary language    | **mixed** (shell-first) | Bash + Zsh configurations, helper scripts                       |
-| Go (provisioning)   | Go 1.26                 | `dotf` CLI: `cmd/dotf` entrypoint + `internal/*`; subcommands `version`/`platform`/`plan`/`install`/`status`/`diff`/`doctor`/`link` (native symlink engine)/`sysconfig` (per-OS system config)/`apply` (headless orchestration + flag/env parity, snapper, plasma phase, failure summary)/`lock`/`self-update`/`setup`/`plasma` (curated KDE Plasma 6 config set, native KConfig codec)/`deb` (verified .deb → pacman conversion via debtap)/`completion` (bash/zsh/fish completion scripts, `--install`/`--force`/`--dry-run`)/`help` (rich global + per-command help, also `--help`/`-h`); canonical platform detection |
+| Go (provisioning)   | Go 1.26                 | `dotf` CLI: `cmd/dotf` entrypoint + `internal/*`; subcommands `version`/`platform`/`plan`/`install`/`status`/`diff`/`doctor`/`link` (native symlink engine)/`backup` (list/restore/prune symlink backup dirs)/`sysconfig` (per-OS system config)/`apply` (headless orchestration + flag/env parity, snapper, plasma phase, failure summary)/`lock`/`self-update`/`setup`/`plasma` (curated KDE Plasma 6 config set, native KConfig codec)/`deb` (verified .deb → pacman conversion via debtap)/`completion` (bash/zsh/fish completion scripts, `--install`/`--force`/`--dry-run`)/`help` (rich global + per-command help, also `--help`/`-h`); canonical platform detection |
 | Secondary languages | JavaScript, Python      | dev tooling (commitlint), utility scripts                       |
 | Package manager     | npm                     | dev-only: linters, commit hooks                                 |
 | Infrastructure      | Ansible (retired for symlinks) | Symlinks use native `dotf link` (`internal/symlink`); as of Phase 7 `bootstrap.sh` is a shim that downloads `dotf` and execs `dotf apply`. `playbooks/symlinks.yml` is historical-rollback-only |

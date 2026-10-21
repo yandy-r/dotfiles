@@ -80,17 +80,20 @@ Three flags are wrong on this host for reasons that are not obvious from their h
 
 `dotf link` and `dotf apply` back up **every** real file or directory at a managed destination before replacing it
 — no flag needed. The plan orders `ActionBackup` before `ActionRemove`, and each copy lands under
-`$HOME/.config/dotfiles_backup_<epoch>` preserving the `$HOME`-relative path; the run names that directory on stderr
-(`dotf: link backups: <dir>`). The directory is created only when something was actually backed up; a rerun in the
-same second gets a `_1`, `_2`, … suffix instead of reusing it. `dotf setup` symlink steps back up too, but each step
-gets its own directory, each named on its own stderr line. `--backup` is
+`$HOME/.config/dotfiles_backup_<epoch>` preserving the `$HOME`-relative path, alongside a `.dotf-backup.json`
+manifest of what was copied; the run names that directory on stderr (`dotf: link backups: <dir>`). The directory is
+created only when something was actually backed up; a rerun in the same second gets a `_1`, `_2`, … suffix instead of
+reusing it. `dotf setup` symlink steps back up too, and all steps of one setup run share a single directory, named
+once on stderr at the end of the run. `--backup` is
 still accepted as the explicit spelling of the default; `--no-backup` opts out and deletes real files with no copy.
+`dotf backup list` shows every backup dir, and `dotf backup restore <id> --dry-run` previews putting one back.
 
 Read the `link.backup=` line of the dry run: every destination on `link.remove=` must also appear there. The
 `.config/zed/settings.json` copy exception is covered too: an identical file is skipped, and a differing one is backed
 up (with backups on) before the repo copy overwrites it, so it appears on `link.backup=` and `link.copy=`.
 
-That `$HOME/.config/dotfiles_backup_<epoch>` directory is the rollback. **Never** `--snapper`.
+That `$HOME/.config/dotfiles_backup_<epoch>` directory (restorable with `dotf backup restore <id>`, Zed copy
+included) is the rollback. **Never** `--snapper`.
 
 ## Ordered checklist
 

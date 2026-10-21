@@ -8,7 +8,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +32,11 @@ type Options struct {
 	// manage_linux_desktop). The CLI spells it --hyprland, with --linux-desktop
 	// retained as a back-compat alias.
 	ManageHyprland bool
+	// BackupDir, when non-empty, is an existing backup dir (an earlier
+	// Apply's Report.BackupDir in the same run) that Apply reuses instead of
+	// creating a new one, merging its entries into that dir's manifest. Empty
+	// keeps the default lazy, exclusive per-Apply dir.
+	BackupDir string
 }
 
 // ActionKind classifies a planned filesystem operation.
@@ -226,8 +230,7 @@ func (e *Engine) Plan(specs []LinkSpec, info platform.Info, opts Options) (*Plan
 		return nil, &LinuxDesktopGuardError{}
 	}
 
-	backupDir := filepath.Join(e.home, ".config",
-		"dotfiles_backup_"+strconv.FormatInt(time.Now().Unix(), 10))
+	backupDir := newBackupBase(e.home, time.Now())
 
 	var backups, removes, links, copies, skips []Action
 

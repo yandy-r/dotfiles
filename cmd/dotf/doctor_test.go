@@ -585,6 +585,7 @@ func TestRunDoctor_Healthy(t *testing.T) {
 	}
 	for _, key := range []string{
 		"check.platform.detect=ok",
+		"check.backups.count=ok",
 		"check.prerequisites.git=ok",
 		"check.packages.drift=ok",
 		"check.symlinks.broken=ok",

@@ -9,18 +9,18 @@ import (
 	"testing"
 )
 
-// dispatchableCommands are the fifteen commands routed by main.go's switch.
+// dispatchableCommands are the sixteen commands routed by main.go's switch.
 // "help" is a registry entry but is handled before the switch, so it is
 // excluded here.
 var dispatchableCommands = []string{
 	"version", "platform", "plan", "install", "status",
-	"diff", "doctor", "link", "sysconfig", "apply", "lock", "self-update", "setup", "plasma", "completion",
+	"diff", "doctor", "link", "backup", "sysconfig", "apply", "lock", "self-update", "setup", "plasma", "completion",
 }
 
 // allRegistryNames is the full ordered set the registry must expose.
 var allRegistryNames = []string{
 	"version", "platform", "plan", "install", "status",
-	"diff", "doctor", "link", "sysconfig", "apply", "lock", "self-update", "setup", "plasma", "deb", "completion", "help",
+	"diff", "doctor", "link", "backup", "sysconfig", "apply", "lock", "self-update", "setup", "plasma", "deb", "completion", "help",
 }
 
 func TestIsHelpToken(t *testing.T) {
@@ -737,6 +737,10 @@ func TestSetFlags_ExactFlagNames(t *testing.T) {
 		{"plasma", func(fs *flag.FlagSet) { setPlasmaFlags(fs) },
 			[]string{"backup", "dry-run", "json", "link", "only", "recommended", "reload",
 				"show-volatile", "unlink", "yes"}},
+		// backup is flag-only like link: it reads the backup dirs under
+		// $HOME, never the manifest.
+		{"backup", func(fs *flag.FlagSet) { setBackupFlags(fs) },
+			[]string{"dry-run", "force", "json", "keep", "older-than", "yes"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

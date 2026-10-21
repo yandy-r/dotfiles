@@ -122,9 +122,12 @@ func runSetup(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	defer cancel()
 
 	engine := backend.Default(r, sudo, privilege.NewDropper(), resolveRepoRoot(), nil)
-	eng := &realStepEngines{m: m, engine: engine, repoRoot: resolveRepoRoot(), home: setupHome(stderr), r: r, stderr: stderr}
+	eng := &realStepEngines{m: m, engine: engine, repoRoot: resolveRepoRoot(), home: setupHome(stderr), r: r}
 
 	results := runModuleSteps(mod, eng, info)
+	// Named once per run, before anything that can fail: every symlink step
+	// shares one backup dir.
+	printSetupBackupDir(stderr, eng.backupDir)
 
 	if err := printSetupResults(stdout, mod.Name, results); err != nil {
 		return reportErr(stderr, err)
@@ -201,8 +204,10 @@ type realStepEngines struct {
 	repoRoot string
 	home     string
 	r        exec.Runner
-	// stderr receives the symlink step's backup-dir diagnostic.
-	stderr io.Writer
+	// backupDir is the run's single backup dir: the first symlink step that
+	// backs anything up creates it, and every later step reuses it (via
+	// symlink.Options.BackupDir) so one setup run never scatters _1/_2 dirs.
+	backupDir string
 }
 
 // customScript runs a contained repo/overlay-relative script via the
@@ -232,8 +237,9 @@ func (e *realStepEngines) pkg(name string, info platform.Info) error {
 
 // symlink provisions a single built-in link-table entry (matched by src) via the
 // internal/symlink engine's plan/apply/validate split, backing up a real file
-// at the dest before replacing it (the same default as `dotf link`). A src with
-// no matching table entry fails fast rather than silently linking nothing.
+// at the dest before replacing it (the same default as `dotf link`). All steps
+// of one run share the run's backup dir (e.backupDir). A src with no matching
+// table entry fails fast rather than silently linking nothing.
 func (e *realStepEngines) symlink(src string, info platform.Info) error {
 	spec, ok := findLinkSpec(src)
 	if !ok {
@@ -241,13 +247,16 @@ func (e *realStepEngines) symlink(src string, info platform.Info) error {
 	}
 	se := symlink.NewEngine(e.repoRoot, e.home)
 	specs := []symlink.LinkSpec{spec}
-	opts := symlink.Options{Backup: true, Validate: true}
+	opts := symlink.Options{Backup: true, Validate: true, BackupDir: e.backupDir}
 	plan, err := se.Plan(specs, info, opts)
 	if err != nil {
 		return err
 	}
 	report, err := se.Apply(plan, opts)
-	printLinkBackupDir(e.stderr, report) // even on a partial failure
+	// Recorded even on a partial failure: real files may already be copied.
+	if e.backupDir == "" && report != nil {
+		e.backupDir = report.BackupDir
+	}
 	if err != nil {
 		return err
 	}
@@ -255,6 +264,15 @@ func (e *realStepEngines) symlink(src string, info platform.Info) error {
 		return err
 	}
 	return nil
+}
+
+// printSetupBackupDir names the run's shared backup dir on stderr (same wording
+// as `dotf link`) when any step backed something up.
+func printSetupBackupDir(stderr io.Writer, dir string) {
+	if dir == "" {
+		return
+	}
+	_, _ = fmt.Fprintf(stderr, "%s: link backups: %s\n", progName, dir)
 }
 
 // sysconfig is not yet wired into the setup orchestrator: the current

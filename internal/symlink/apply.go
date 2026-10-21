@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 const (
@@ -23,30 +25,61 @@ const (
 // The backup dir is created exclusively: if plan.BackupDir already exists (a
 // second run within the same second) a _1, _2, … suffix is chosen instead, so
 // an earlier run's copies are never overwritten; plan.BackupDir and
-// report.BackupDir record the dir actually used.
+// report.BackupDir record the dir actually used. When opts.BackupDir is set
+// (an earlier Apply's report.BackupDir in the same run) that existing dir is
+// reused instead, and a dest already recorded in its manifest is an error
+// raised before any write.
+// Whenever anything was backed up — including when Apply fails partway — it
+// writes (or, for a reused dir, merges into) the dir's BackupManifestName
+// atomically, one entry per completed ActionBackup.
 // Applied records only the mutations actually performed — ActionSkip no-ops
 // are excluded, so a converged run reports applied=0; Planned always reflects
 // the full plan (skips included). Applied is empty under DryRun.
-func (e *Engine) Apply(plan *Plan, opts Options) (*Report, error) {
-	report := &Report{Planned: plan.Actions, DryRun: opts.DryRun}
+func (e *Engine) Apply(plan *Plan, opts Options) (report *Report, err error) {
+	report = &Report{Planned: plan.Actions, DryRun: opts.DryRun}
 	if opts.DryRun {
 		return report, nil
 	}
 
+	var manifest *BackupManifest
+	fresh := false
 	if plan.HasBackups() {
-		dir, err := createBackupDir(plan.BackupDir)
-		if err != nil {
-			return report, err
+		dir, m, berr := prepareBackupDir(plan, opts.BackupDir)
+		if berr != nil {
+			return report, berr
 		}
 		plan.BackupDir = dir
 		report.BackupDir = dir
+		manifest = m
+		fresh = opts.BackupDir == ""
+	}
+	before := 0
+	if manifest != nil {
+		before = len(manifest.Entries)
+		defer func() {
+			if len(manifest.Entries) == before {
+				// Nothing was backed up (ensureRequiredDirs or the first copy
+				// failed): drop a dir this run created rather than leave a
+				// manifest-less legacy-looking set. os.Remove only succeeds
+				// when it is empty, so a partial copy is never discarded.
+				if fresh && os.Remove(plan.BackupDir) == nil {
+					report.BackupDir = ""
+				}
+				return
+			}
+			err = errors.Join(err, writeManifest(plan.BackupDir, manifest))
+		}()
 	}
 	if err := e.ensureRequiredDirs(); err != nil {
 		return report, err
 	}
 
 	for _, act := range plan.Actions {
-		if err := e.applyAction(act, plan.BackupDir, plan.rootReal); err != nil {
+		if act.Kind == ActionBackup {
+			if berr := e.backupAction(act, plan.BackupDir, plan.rootReal, manifest); berr != nil {
+				return report, berr
+			}
+		} else if err := e.applyAction(act, plan.rootReal); err != nil {
 			return report, err
 		}
 		if act.Kind != ActionSkip {
@@ -54,6 +87,50 @@ func (e *Engine) Apply(plan *Plan, opts Options) (*Report, error) {
 		}
 	}
 	return report, nil
+}
+
+// prepareBackupDir returns the backup dir for plan and the manifest to extend.
+// With reuse empty it exclusively creates plan.BackupDir (or a _N sibling) and
+// starts a fresh manifest. Otherwise reuse must be an existing real dir; its
+// manifest (if any) is loaded and every planned backup dest is checked against
+// it, so an earlier copy is never overwritten.
+func prepareBackupDir(plan *Plan, reuse string) (string, *BackupManifest, error) {
+	if reuse == "" {
+		dir, err := createBackupDir(plan.BackupDir)
+		if err != nil {
+			return "", nil, err
+		}
+		return dir, &BackupManifest{Version: backupManifestVersion, CreatedAt: time.Now().UTC()}, nil
+	}
+	fi, err := os.Lstat(reuse)
+	if err != nil {
+		return "", nil, fmt.Errorf("symlink: reuse backup dir %q: %w", reuse, err)
+	}
+	if !fi.IsDir() {
+		return "", nil, fmt.Errorf("symlink: reuse backup dir %q: not a real directory", reuse)
+	}
+	m, err := readManifest(reuse)
+	if err != nil {
+		return "", nil, err
+	}
+	if m == nil {
+		m = &BackupManifest{Version: backupManifestVersion, CreatedAt: time.Now().UTC()}
+	}
+	seen := make(map[string]bool, len(m.Entries))
+	for _, ent := range m.Entries {
+		seen[path.Clean(ent.Dest)] = true
+	}
+	for _, act := range plan.Actions {
+		if act.Kind != ActionBackup {
+			continue
+		}
+		dest := path.Clean(act.Spec.Dest)
+		if seen[dest] {
+			return "", nil, fmt.Errorf("symlink: backup dir %q already holds a copy of %q", reuse, act.Spec.Dest)
+		}
+		seen[dest] = true
+	}
+	return reuse, m, nil
 }
 
 // maxBackupDirSuffix bounds the _N suffixes createBackupDir tries before
@@ -91,22 +168,19 @@ func (p *Plan) HasBackups() bool {
 	return false
 }
 
-// applyAction executes a single planned action against the filesystem. Before
-// any mutating step it re-checks that the paths it writes or removes do not
-// resolve inside the repo (rootReal), closing the window in which a dest's
+// applyAction executes a single non-backup planned action against the
+// filesystem; Apply routes ActionBackup through backupAction so it can record
+// the manifest entry. Before any mutating step it re-checks that the dest does
+// not resolve inside the repo (rootReal), closing the window in which a dest's
 // parent could be swapped for a symlink into the repo after Plan ran.
-func (e *Engine) applyAction(act Action, backupDir, rootReal string) error {
+func (e *Engine) applyAction(act Action, rootReal string) error {
 	if act.Kind != ActionSkip {
 		if err := guardOutsideRepo(act.Spec.Dest, act.DestAbs, rootReal); err != nil {
 			return err
 		}
 	}
 	switch act.Kind {
-	case ActionBackup:
-		if err := guardOutsideRepo(act.Spec.Dest, filepath.Join(backupDir, act.Spec.Dest), rootReal); err != nil {
-			return err
-		}
-		return e.doBackup(act, backupDir)
+
 	case ActionRemove:
 		if err := os.RemoveAll(act.DestAbs); err != nil {
 			return fmt.Errorf("symlink: remove %q: %w", act.DestAbs, err)
@@ -123,6 +197,32 @@ func (e *Engine) applyAction(act Action, backupDir, rootReal string) error {
 	}
 }
 
+// backupAction copies act's real file or dir tree into backupDir via
+// backupInto and appends its manifest entry, so every engine backup — link
+// blockers and the differing Zed copy dest alike — is restorable. Like
+// applyAction it first re-checks that neither the dest nor its backup copy
+// resolves inside the repo.
+//
+// ActionBackup is planned only for a dest Plan's Lstat saw as neither missing
+// nor a symlink: the link default: arm, or a differing regular file at a Copy
+// dest. DestAbs is therefore never a symlink, satisfying backupInto.
+func (e *Engine) backupAction(act Action, backupDir, rootReal string, manifest *BackupManifest) error {
+	if err := guardOutsideRepo(act.Spec.Dest, act.DestAbs, rootReal); err != nil {
+		return err
+	}
+	if err := guardOutsideRepo(act.Spec.Dest, filepath.Join(backupDir, act.Spec.Dest), rootReal); err != nil {
+		return err
+	}
+	kind, err := backupInto(act.DestAbs, backupDir, act.Spec.Dest)
+	if err != nil {
+		return err
+	}
+	manifest.Entries = append(manifest.Entries, BackupEntry{
+		Dest: path.Clean(act.Spec.Dest), Kind: kind, BackedUpAt: time.Now().UTC(),
+	})
+	return nil
+}
+
 // guardOutsideRepo returns a DestInRepoError when path, with its parent dirs
 // symlink-resolved, lies inside rootReal. Plan already skips a dest that is its
 // own source, so any planned mutation that now lands in the repo is refused.
@@ -133,33 +233,6 @@ func guardOutsideRepo(dest, path, rootReal string) error {
 	}
 	if loc, ok := resolvedLocation(path); ok && within(rootReal, loc) {
 		return &DestInRepoError{Dest: dest, Resolved: loc}
-	}
-	return nil
-}
-
-// doBackup copies the real file OR directory tree at act.DestAbs into the
-// backup dir, preserving its $HOME-relative path and permission bits. It runs
-// before any Remove so the original bytes are still present (ActionRemove is
-// recursive for dirs).
-//
-// ActionBackup is planned only for a dest Plan's Lstat saw as neither missing
-// nor a symlink: the link default: arm, or a differing regular file at a Copy
-// dest. DestAbs is therefore never a symlink and os.Stat following links is
-// not a hazard here.
-func (e *Engine) doBackup(act Action, backupDir string) error {
-	info, err := os.Stat(act.DestAbs)
-	if err != nil {
-		return fmt.Errorf("symlink: stat backup source %q: %w", act.DestAbs, err)
-	}
-	dst := filepath.Join(backupDir, act.Spec.Dest)
-	if info.IsDir() {
-		if err := copyTree(act.DestAbs, dst); err != nil {
-			return fmt.Errorf("symlink: backup %q: %w", act.DestAbs, err)
-		}
-		return nil
-	}
-	if err := copyFile(act.DestAbs, dst, info.Mode().Perm()); err != nil {
-		return fmt.Errorf("symlink: backup %q: %w", act.DestAbs, err)
 	}
 	return nil
 }
@@ -245,8 +318,21 @@ func copyFile(src, dst string, mode os.FileMode) error {
 // copyTree recursively copies the directory tree at src to dst, recreating
 // directories, regular files (with their permission bits) and symlinks. It is
 // the ActionBackup path for directory destinations (ADR-11).
-func copyTree(src, dst string) error {
-	return filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
+func copyTree(src, dst string) error { return copyTreeWith(src, dst, copyFile) }
+
+// copyTreeWith is copyTree with the regular-file copier injected, so restore
+// can write files atomically while link/apply keep copyFile.
+func copyTreeWith(src, dst string, copyRegular func(src, dst string, mode os.FileMode) error) error {
+	// Directories are created with dirPerm during the walk (WalkDir visits a
+	// parent before its children, so recreating a restrictive mode such as
+	// 0500 up front would make copying that dir's children fail) and given
+	// their source permission bits afterwards, deepest first.
+	type dirMode struct {
+		path string
+		mode os.FileMode
+	}
+	var dirs []dirMode
+	err := filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -261,9 +347,7 @@ func copyTree(src, dst string) error {
 		}
 		switch {
 		case d.IsDir():
-			// dirPerm, not the source dir's own mode: WalkDir visits a parent
-			// before its children, so recreating a restrictive mode (e.g. 0500)
-			// would make the copy of that dir's children fail.
+			dirs = append(dirs, dirMode{target, info.Mode().Perm()})
 			return os.MkdirAll(target, dirPerm)
 		case info.Mode()&os.ModeSymlink != 0:
 			// Recreate the link rather than follow it, so a plugin-link-heavy
@@ -277,11 +361,20 @@ func copyTree(src, dst string) error {
 			}
 			return os.Symlink(link, target)
 		case info.Mode().IsRegular():
-			return copyFile(p, target, info.Mode().Perm())
+			return copyRegular(p, target, info.Mode().Perm())
 		default:
 			// Sockets, fifos and device nodes carry no configuration state and
 			// cannot be meaningfully recreated; skip them.
 			return nil
 		}
 	})
+	if err != nil {
+		return err
+	}
+	for i := len(dirs) - 1; i >= 0; i-- {
+		if cerr := os.Chmod(dirs[i].path, dirs[i].mode); cerr != nil {
+			return cerr
+		}
+	}
+	return nil
 }
