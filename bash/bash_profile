@@ -9,12 +9,25 @@
 [[ -n "$DOTFILES_BASH_PROFILE_LOADED" ]] && return 0
 export DOTFILES_BASH_PROFILE_LOADED=1
 
+# Installer-added PATH lines stay here, BEFORE ~/.bashrc: bashrc returns early in
+# non-interactive shells (so `bash -l -c` still needs them), and for interactive
+# login shells bashrc's final common/local.sh must run after them so
+# dotfiles.local/paths.sh entries stay first on PATH.
+
+# Added by CodeRabbit CLI installer
+export PATH="/home/yandy/.local/bin:$PATH"
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/yandy/.lmstudio/bin"
+# End of LM Studio CLI section
+
 # Source the main bashrc configuration
 if [[ -f ~/.bashrc ]]; then
     source ~/.bashrc
 fi
 
-# Legacy dotfiles support (optional)
+# Legacy dotfiles support (optional). These run after ~/.bashrc, and therefore
+# after common/local.sh, so they still override both.
 for file in ~/.{path,extra}; do
     [[ -r "$file" ]] && source "$file"
 done
@@ -33,11 +46,4 @@ fi
 if [[ -f "$HOME/.atuin/bin/env" ]]; then
     source "$HOME/.atuin/bin/env"
 fi
-
-# Added by CodeRabbit CLI installer
-export PATH="/home/yandy/.local/bin:$PATH"
-
-# Added by LM Studio CLI (lms)
-export PATH="$PATH:/Users/yandy/.lmstudio/bin"
-# End of LM Studio CLI section
 

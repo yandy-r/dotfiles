@@ -178,8 +178,8 @@ fi
 # POST-LOAD CUSTOMIZATIONS
 # ================================================================
 
-# Load user-specific bash customizations
-[[ -f ~/.bashrc.local ]] && source ~/.bashrc.local || true
+# Machine-local overrides (dotfiles.local/, secrets, ~/.bashrc.local) are
+# loaded by common/local.sh, the last line of this file.
 
 # Set terminal title (similar to zsh behavior). The single source of the title
 # for both Starship and the bash/prompt.sh fallback. A function, so $PWD is read
@@ -200,3 +200,6 @@ esac
 
 # opencode
 export PATH=/home/yandy/.opencode/bin:$PATH
+
+# Machine-local overrides, secrets and ~/.bashrc.local. MUST stay the last line.
+source "$DOTFILES_ROOT/common/local.sh"

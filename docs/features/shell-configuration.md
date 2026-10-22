@@ -187,54 +187,98 @@ setopt HIST_VERIFY          # Verify before executing
 
 ## Adding Personal Customizations
 
-**Important**: Do not modify the core dotfiles directly. Instead, use local override files.
+**Important**: Do not modify the core dotfiles directly. Machine-local files
+outside the repo are the place for per-host tweaks, secrets, and the snippets
+installers like to append (`export PATH=...`, completion hooks) — put those
+there instead of letting them land in the tracked rc files.
 
-### Bash Customizations
+`common/local.sh` loads them. It is the **last** line of both `bash/bashrc` and
+`zsh/zshrc`, so local files win: a `paths.sh` entry ends up first on `PATH`,
+aliases and exports override the shared defaults. In a bash login shell,
+`bash/bash_profile` sources `~/.bashrc` first and then the legacy `~/.path` and
+`~/.extra`, so those two still run after the hook and override it.
 
-Create `~/.bashrc.local`:
+### Shared Overrides (Bash and Zsh)
+
+Create any of these in `${XDG_CONFIG_HOME:-~/.config}/dotfiles.local/`:
+
+| File | Use for |
+|------|---------|
+| `env.sh` | Environment variables (`export MY_VAR=...`) |
+| `paths.sh` | PATH additions (`export PATH="$HOME/tools/bin:$PATH"`) |
+| `aliases.sh` | Personal aliases and functions |
+| `secrets.sh` | Secret exports you would rather keep out of `env.sh` |
+
+They are plain shell sourced by both bash and zsh, so keep them POSIX-ish or
+guard shell-specific lines with `[[ -n "$ZSH_VERSION" ]]` / `[[ -n "$BASH_VERSION" ]]`.
+
+In zsh, `fpath` edits in any override file are picked up automatically: when
+the hook sees `fpath` changed it re-runs `compinit -i` with its own dump file
+(`${ZDOTDIR:-$HOME}/.zcompdump-local`), so a completion such as
+`fpath=(~/my-completions $fpath)` works without calling `compinit` yourself.
+
+### Secrets
+
+`${XDG_CONFIG_HOME:-~/.config}/secrets/` holds credentials (keep it `chmod 700`):
+
+- Raw token files, each containing only the token, are exported for both shells:
+
+  | File | Variable |
+  |------|----------|
+  | `1password-service-account` | `OP_SERVICE_ACCOUNT_TOKEN` |
+  | `gemini_api_key` | `GEMINI_API_KEY` |
+  | `openai_api_key` | `OPENAI_API_KEY` |
+  | `anthropic_api_key` | `ANTHROPIC_API_KEY` |
+
+- Any `*.sh` file is sourced, in sorted order, for other secrets
+  (`export GITHUB_TOKEN=...`).
+
+### Load Order
+
+Each step runs only when the file exists; missing files are silently skipped.
+
+1. `dotfiles.local/env.sh`, `paths.sh`, `aliases.sh`, `secrets.sh`
+2. Raw token files in `secrets/`
+3. `secrets/*.sh` (sorted)
+4. Legacy per-shell file: `~/.bashrc.local` (bash) or `~/.zshrc.local` (zsh)
+
+**Permission guard**: a file is skipped with a one-line `dotfiles: skipping
+<path> (...)` warning on stderr when it (following symlinks) is not owned by
+you or is not a readable file, or when it or the directory holding it (or, for
+a symlink, the directory holding its target) is world-writable, or
+group-writable by a group other than your user-private group. A directory not
+owned by you is also rejected. For example
+`dotfiles: skipping /home/me/.config/secrets/x.sh (group/world-writable)`.
+
+- On user-private-group systems (Ubuntu, Fedora: your primary group has your
+  user name), files and directories created under the default `umask 002`
+  (`664`/`775`) still load, since only you are in that group.
+- Elsewhere (macOS `staff`, shared groups), any group write is rejected.
+- The symlink-target directory is checked only where `realpath` exists (GNU
+  coreutils, macOS 13+); otherwise only the directory holding the link is.
+
+Recommended: `dotfiles.local/` and `secrets/` at `chmod 700`, files at `600`.
+A normal `755` home directory is fine for the legacy `~/.*rc.local` files.
+
+Files are sourced at top level, not inside a function, so `typeset`/`declare`
+and zsh `setopt` in them behave exactly as if typed at the prompt.
+
+### Per-Shell Customizations
+
+The legacy files still work and load last, for settings that only make sense in
+one shell:
 
 ```bash
-# Personal bash customizations
-# This file is sourced at the end of bashrc
-
-# Example: Add personal aliases
-alias myproject="cd ~/Projects/my-project"
-
-# Example: Add personal functions
-my_function() {
-    echo "Hello from my function"
-}
-
-# Example: Set personal environment variables
-export MY_VAR="my-value"
+# ~/.bashrc.local
+shopt -s nocasematch
 ```
-
-### Zsh Customizations
-
-Create `~/.zshrc.local`:
 
 ```zsh
-# Personal zsh customizations
-# This file is sourced at the end of zshrc
-
-# Example: Add personal aliases
-alias myproject="cd ~/Projects/my-project"
-
-# Example: Add zsh-specific settings
+# ~/.zshrc.local
 setopt MENU_COMPLETE  # Auto-select first completion
-
-# Example: Personal functions
-my_function() {
-    echo "Hello from my function"
-}
 ```
 
-### Both Shells
-
-For customizations that should apply to both shells, add them to:
-
-- `~/.aliases` - Personal aliases (sourced by bash)
-- `~/.bash_aliases` - Alternative location (sourced by bash)
+Bash also still sources `~/.aliases` and `~/.bash_aliases` if present.
 
 ## Troubleshooting
 

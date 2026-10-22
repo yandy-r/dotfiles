@@ -120,7 +120,10 @@ If Starship is not available, a custom git-aware prompt is used as fallback.
 
 ### Local Customizations
 
-Add machine-specific configurations to `~/.bashrc.local`:
+Machine-specific settings shared with zsh go in
+`${XDG_CONFIG_HOME:-~/.config}/dotfiles.local/` (`env.sh`, `paths.sh`,
+`aliases.sh`, `secrets.sh`) and secrets in `${XDG_CONFIG_HOME:-~/.config}/secrets/`.
+Bash-only settings go in `~/.bashrc.local`:
 
 ```bash
 # ~/.bashrc.local
@@ -128,7 +131,11 @@ export MY_CUSTOM_VAR="value"
 alias myalias="my-command"
 ```
 
-This file is sourced at the end of bashrc and is not tracked by git.
+All of these are untracked and loaded by `common/local.sh`, the last line of
+bashrc (`~/.bashrc.local` comes last). In a login shell, `~/.path` and
+`~/.extra` are sourced by `bash_profile` after bashrc, so they run after the
+hook. See
+[Adding Personal Customizations](../docs/features/shell-configuration.md#adding-personal-customizations).
 
 ### Adding Aliases
 

@@ -23,6 +23,7 @@ common/
 ├── tools.sh            # Tool detection, setup, and lazy loading
 ├── completions.sh      # Universal completion system (50+ tools)
 ├── lazy-completions.sh # Lazy-loaded completions for performance
+├── local.sh            # Machine-local overrides hook (sourced last by both rc files)
 ├── macos/              # macOS-specific configurations
 │   ├── aliases.sh      # Dock, Finder, System Preferences
 │   └── functions.sh    # Spotlight, Keychain, WiFi, Audio
@@ -77,6 +78,9 @@ echo "Package manager: $DOTFILES_PKG_MGR"
 ### exports.sh - Environment Variables
 
 Sets up environment variables following XDG Base Directory Specification.
+
+It also sets `umask 022` for both shells, so new files are not group-writable
+even where the login default is `002` (Ubuntu's `USERGROUPS_ENAB`).
 
 **Key Variables:**
 
@@ -173,6 +177,31 @@ Manages tool detection, initialization, and lazy loading.
 - `list_missing_tools` - Show recommended tools not installed
 - `init_mise` - Initialize mise version manager
 
+### local.sh - Machine-Local Overrides
+
+Sourced as the **last** line of `bash/bashrc` and `zsh/zshrc`, so whatever it
+loads wins over the shared configuration. Each file is loaded only when present,
+in this order:
+
+1. `${XDG_CONFIG_HOME:-~/.config}/dotfiles.local/env.sh`, `paths.sh`,
+   `aliases.sh`, `secrets.sh`
+2. Raw token files in `${XDG_CONFIG_HOME:-~/.config}/secrets/`, exported as
+   `OP_SERVICE_ACCOUNT_TOKEN` (`1password-service-account`), `GEMINI_API_KEY`
+   (`gemini_api_key`), `OPENAI_API_KEY` (`openai_api_key`) and
+   `ANTHROPIC_API_KEY` (`anthropic_api_key`)
+3. `${XDG_CONFIG_HOME:-~/.config}/secrets/*.sh`, sorted
+4. The legacy per-shell file: `~/.bashrc.local` or `~/.zshrc.local`
+
+Files not owned by the current user or not readable are skipped with a
+`dotfiles: skipping <path> (...)` warning on stderr, as are files whose path
+(file, its directory, and a symlink target's directory where `realpath` exists)
+is world-writable, group-writable by a group other than the user-private group,
+or in a directory not owned by the user. Files are sourced at top level
+(not inside a function), so `typeset`/`declare` and zsh `setopt` in them persist.
+In zsh, if an override file changes `fpath`, `compinit -i` is re-run afterwards
+with a separate dump, `${ZDOTDIR:-$HOME}/.zcompdump-local`.
+Regression test: `scripts/test-shell-local-hook.sh`.
+
 ### completions.sh - Universal Completions
 
 Provides completion support for 50+ modern CLI tools.
@@ -237,6 +266,11 @@ Both `bash/bashrc` and `zsh/zshrc` source the common modules in this order:
 4. `aliases.sh` - Set up aliases
 5. `functions.sh` - Load utility functions
 6. `tools.sh` - Initialize tools and completions
+
+Shell-specific setup and installer-added blocks follow, and each rc file ends by
+sourcing `local.sh` (machine-local overrides, secrets, `~/.<shell>rc.local`).
+In a bash login shell, `bash/bash_profile` sources `~/.bashrc` first, then the
+legacy `~/.path` and `~/.extra`, which therefore run after `local.sh`.
 
 ### Platform-Specific Loading
 

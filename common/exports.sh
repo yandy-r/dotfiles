@@ -34,6 +34,10 @@ if [[ -z "$DOTFILES_OS" ]]; then
     fi
 fi
 
+# Ubuntu's USERGROUPS_ENAB login default is umask 002, which leaves files group-writable;
+# permission-checking tooling (e.g. itcn/website's Neon CLI trust check) refuses those.
+umask 022
+
 # ================================================================
 # CORE ENVIRONMENT VARIABLES
 # ================================================================

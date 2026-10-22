@@ -192,7 +192,12 @@ alias cleanup="find . -name '*.DS_Store' -type f -ls -delete"
 
 ### Local Customizations
 
-Add machine-specific configurations to `~/.zshrc.local`:
+Machine-specific settings shared with bash go in
+`${XDG_CONFIG_HOME:-~/.config}/dotfiles.local/` (`env.sh`, `paths.sh`,
+`aliases.sh`, `secrets.sh`) and secrets in `${XDG_CONFIG_HOME:-~/.config}/secrets/` (raw
+`1password-service-account`, `gemini_api_key`, `openai_api_key`,
+`anthropic_api_key` token files are exported automatically). Zsh-only settings
+go in `~/.zshrc.local`:
 
 ```zsh
 # ~/.zshrc.local
@@ -203,7 +208,9 @@ alias myalias="my-command"
 # Custom completions
 ```
 
-This file is sourced at the end of zshrc and is not tracked by git.
+All of these are untracked and loaded by `common/local.sh`, the last line of
+zshrc (`~/.zshrc.local` comes last). See
+[Adding Personal Customizations](../docs/features/shell-configuration.md#adding-personal-customizations).
 
 ### Adding Completions
 

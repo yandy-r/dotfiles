@@ -20,10 +20,6 @@ source "$DOTFILES_ROOT/common/aliases.sh"
 source "$DOTFILES_ROOT/common/functions.sh"
 source "$DOTFILES_ROOT/common/tools.sh"
 
-# Ubuntu's USERGROUPS_ENAB login default is umask 002, which leaves files group-writable;
-# permission-checking tooling (e.g. itcn/website's Neon CLI trust check) refuses those.
-umask 022
-
 # ================================================================
 # ZSH-SPECIFIC CONFIGURATION
 # ================================================================
@@ -127,32 +123,13 @@ fi
 # 1PASSWORD CONFIGURATION
 # ================================================================
 
-# Load 1Password service account token if available
-if [[ -f ~/.config/secrets/1password-service-account && -r ~/.config/secrets/1password-service-account ]]; then
-    export OP_SERVICE_ACCOUNT_TOKEN="$(cat ~/.config/secrets/1password-service-account)"
-fi
+# OP_SERVICE_ACCOUNT_TOKEN and the AI API keys (GEMINI/OPENAI/ANTHROPIC) are
+# exported from ~/.config/secrets/ by common/local.sh, sourced at the end.
 
 # 1Password CLI completions
 if command -v op >/dev/null 2>&1; then
     eval "$(op completion zsh)"
     compdef _op op
-fi
-
-## AI TOOLS CONFIGURATION
-
-# GEMINI API KEY
-if [[ -f ~/.config/secrets/gemini_api_key && -r ~/.config/secrets/gemini_api_key ]]; then
-  export GEMINI_API_KEY="$(cat ~/.config/secrets/gemini_api_key)"
-fi
-
-# OPENAI API KEY
-if [[ -f ~/.config/secrets/openai_api_key && -r ~/.config/secrets/openai_api_key ]]; then
-  export OPENAI_API_KEY="$(cat ~/.config/secrets/openai_api_key)"
-fi
-
-# ANTHROPIC API KEY
-if [[ -f ~/.config/secrets/anthropic_api_key && -r ~/.config/secrets/anthropic_api_key ]]; then
-  export ANTHROPIC_API_KEY="$(cat ~/.config/secrets/anthropic_api_key)"
 fi
 
 # ================================================================
@@ -344,8 +321,8 @@ fi
 # USER CUSTOMIZATIONS
 # ================================================================
 
-# Load user-specific zsh customizations
-[[ -f ~/.zshrc.local ]] && source ~/.zshrc.local || true
+# Machine-local overrides (dotfiles.local/, secrets, ~/.zshrc.local) are
+# loaded by common/local.sh, the last line of this file.
 
 # Note: WezTerm theme is defined in common/exports.sh
 
@@ -481,3 +458,6 @@ export PATH="$HOME/.grok/bin:$PATH"
 fpath=(~/.grok/completions/zsh $fpath)
 autoload -Uz compinit && compinit -C
 # <<< grok installer <<<
+
+# Machine-local overrides, secrets and ~/.zshrc.local. MUST stay the last line.
+source "$DOTFILES_ROOT/common/local.sh"
