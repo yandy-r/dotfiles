@@ -55,7 +55,8 @@ printf "@@LEAK=%s\n" "$(set | grep -c "^__dotf_ce")"
 if [[ -n "${ZSH_VERSION:-}" ]]; then
 	printf "@@COMP_z=%s\n" "${_comps[z]:-}"
 	printf "@@COMP_%s=%s\n" rfmedia "${_comps[rfmedia]:-}" docker "${_comps[docker]:-}" \
-		grok "${_comps[grok]:-}" op "${_comps[op]:-}" branchlet "${_comps[branchlet]:-}"
+		grok "${_comps[grok]:-}" op "${_comps[op]:-}" branchlet "${_comps[branchlet]:-}" \
+		dotfnew2 "${_comps[dotfnew2]:-}"
 	autoload +X _docker 2>/dev/null
 	printf "@@DOCKERSRC=%s\n" "${functions_source[_docker]:-}"
 fi
@@ -138,13 +139,22 @@ expect_compinit() {
 	[[ "$got" == "$want" ]] || fail "$label: compinit calls = '$(tr '\n' ';' <"$out.compinit")', want '$(printf '%s;' "$@")'"
 }
 
+# Repo completions ($REPO_ROOT/zsh/completions) load only when compaudit
+# accepts that dir: a checkout group-writable by a shared group (umask 002 with
+# primary group staff/docker, as on CI runners) is skipped, never loaded.
+REPO_COMP_OP=""
+if command -v zsh >/dev/null 2>&1 &&
+	[[ -z "$(zsh -fc 'autoload -Uz compaudit; compaudit "$1" 2>/dev/null' zsh "$REPO_ROOT/zsh/completions")" ]]; then
+	REPO_COMP_OP=_op
+fi
+
 # expect_completions <label> <out> <home>
 expect_completions() {
 	local label="$1" out="$2" home="$3"
 	expect "$label" COMP_rfmedia _rfmedia "$out"
 	expect "$label" COMP_docker _docker "$out"
 	expect "$label" COMP_grok _grok "$out"
-	expect "$label" COMP_op _op "$out"
+	expect "$label" COMP_op "$REPO_COMP_OP" "$out"
 	expect "$label" COMP_branchlet _branchlet "$out"
 	# The user's ~/.docker/completions copy is the one that loads.
 	expect "$label" DOCKERSRC "$home/.docker/completions/_docker" "$out"
@@ -236,20 +246,32 @@ test_shell() {
 
 	local ref="$TMP_DIR/$label/ref"
 	if [[ "$ext" == zsh ]]; then
-		# g. Exactly one compinit per start, and an unchanged startup reuses
-		# ~/.zcompdump (backdated with a reference file; a rewrite makes it newer).
+		# g. Exactly one compinit per start: the cold start builds the dump
+		# (-i), later starts load it unaudited (-C), and an unchanged startup
+		# reuses ~/.zcompdump (backdated with a reference file; a rewrite makes
+		# it newer).
 		expect_compinit "$label cold" "$out.1" "compinit -i"
-		expect_compinit "$label warm" "$out.2" "compinit -i"
+		expect_compinit "$label warm" "$out.2" "compinit -C"
 		local dump="$home/.zcompdump"
 		[[ -f "$dump" ]] || fail "$label: $dump not created"
 		backdate "$dump" "$ref"
 		# shellcheck disable=SC2086
 		run_shell "$home" "$out.3" $shell_cmd
-		expect_compinit "$label unchanged" "$out.3" "compinit -i"
+		expect_compinit "$label unchanged" "$out.3" "compinit -C"
 		check_not_rewritten "$label unchanged startup" "$ref" "$dump"
 
 		# h. Installer completion dirs and repo/zshrc completions are registered.
 		expect_completions "$label" "$out.3" "$home"
+
+		# A newly installed completion file changes the count: the dump is
+		# rebuilt (-i) and the new completion loads.
+		printf '#compdef dotfnew\n_message new\n' >"$home/.zfunc/_dotfnew"
+		# shellcheck disable=SC2086
+		run_shell "$home" "$out.3b" $shell_cmd
+		expect_compinit "$label new file" "$out.3b" "compinit -i"
+		[[ "$dump" -nt "$ref" ]] || fail "$label: $dump not rebuilt after a new completion file"
+		grep -q "'dotfnew' '_dotfnew'" "$dump" || fail "$label: _dotfnew missing from rebuilt $dump"
+		rm "$home/.zfunc/_dotfnew"
 	fi
 
 	# c. New binary metadata (an upgrade) regenerates only that tool's cache.
@@ -339,24 +361,31 @@ test_shell() {
 # skip_global_compinit), simulated from the temp HOME's ~/.zshenv: the dotfiles
 # re-run compinit once into ~/.zcompdump-dotfiles, which an unchanged startup
 # then reuses, and completions still resolve.
+#
+# The simulated call is `compinit -u`, not Debian's bare `compinit`: a bare one
+# depends on the host's default fpath being secure. Where it is not (GitHub's
+# Ubuntu image runs `chmod -R 777 /usr/share`), it prompts, reads EOF, aborts
+# and removes compdef, so the dotfiles fall back to their own single
+# `compinit -i` and this case would never reach the re-run it exists for. -u
+# skips only that audit; it still initializes from the default fpath.
 test_system_compinit() {
 	local shell_cmd="$1" label="system-compinit"
 	local home="$TMP_DIR/$label/home" out="$TMP_DIR/$label/run" ref="$TMP_DIR/$label/ref"
 	mkdir -p "$TMP_DIR/$label"
 	make_home "$home"
-	printf 'autoload -Uz compinit && compinit\n' >>"$home/.zshenv"
-	local own="compinit -i -d $home/.zcompdump-dotfiles"
+	printf 'autoload -Uz compinit && compinit -u\n' >>"$home/.zshenv"
+	local own="compinit -i -d $home/.zcompdump-dotfiles" own_warm="compinit -C -d $home/.zcompdump-dotfiles"
 
 	# shellcheck disable=SC2086
 	run_shell "$home" "$out.1" $shell_cmd
-	expect_compinit "$label cold" "$out.1" "compinit " "$own"
+	expect_compinit "$label cold" "$out.1" "compinit -u" "$own"
 	[[ -f "$home/.zcompdump-dotfiles" ]] || fail "$label: ~/.zcompdump-dotfiles not created"
 	expect_completions "$label cold" "$out.1" "$home"
 
 	backdate "$home/.zcompdump-dotfiles" "$home/.zcompdump" "$ref"
 	# shellcheck disable=SC2086
 	run_shell "$home" "$out.2" $shell_cmd
-	expect_compinit "$label warm" "$out.2" "compinit " "$own"
+	expect_compinit "$label warm" "$out.2" "compinit -u" "$own_warm"
 	check_not_rewritten "$label unchanged startup" "$ref" "$home/.zcompdump-dotfiles" "$home/.zcompdump"
 	expect_completions "$label warm" "$out.2" "$home"
 
@@ -382,6 +411,76 @@ EOF
 	expect_completions "$label zoxide compdef" "$out.3" "$home"
 }
 
+# A group-writable checkout (umask 002, as on CI runners and many machines)
+# whose group is not the user-private one: compaudit flags both
+# $DOTFILES_ROOT/zsh/completions and $DOTFILES_ROOT/zsh. compinit -i alone then
+# rewrote ~/.zcompdump on every start (common/completions.sh:_dotfiles_compinit
+# explains why). The flagged repo completions must stay unloaded, everything
+# else must load, and an unchanged startup must reuse the dump.
+test_insecure_root() {
+	local shell_cmd="$1" label="insecure-root"
+	local home="$TMP_DIR/$label/home" out="$TMP_DIR/$label/run" ref="$TMP_DIR/$label/ref"
+	local root="$TMP_DIR/$label/dotfiles"
+	mkdir -p "$root"
+	cp -R "$REPO_ROOT/bash" "$REPO_ROOT/common" "$REPO_ROOT/zsh" "$root/"
+	chmod -R g+w "$root"
+	# A user-private group passes compaudit; world write fails it on any host.
+	[[ "$(id -gn)" == "$USER_NAME" ]] && chmod o+w "$root/zsh" "$root/zsh/completions"
+	make_home "$home"
+	ln -sf "$root/zsh/zshrc" "$home/.zshrc"
+
+	local saved_root="$REPO_ROOT"
+	REPO_ROOT="$root"
+	# shellcheck disable=SC2086
+	run_shell "$home" "$out.1" $shell_cmd
+	expect_compinit "$label cold" "$out.1" "compinit -i"
+	[[ -f "$home/.zcompdump" ]] || fail "$label: ~/.zcompdump not created"
+	backdate "$home/.zcompdump" "$ref"
+	# shellcheck disable=SC2086
+	run_shell "$home" "$out.2" $shell_cmd
+	REPO_ROOT="$saved_root"
+	expect_compinit "$label warm" "$out.2" "compinit -C"
+	check_not_rewritten "$label unchanged startup" "$ref" "$home/.zcompdump"
+	expect "$label" COMP_op "" "$out.2"
+	expect "$label" COMP_rfmedia _rfmedia "$out.2"
+	expect "$label" COMP_docker _docker "$out.2"
+	expect "$label" COMP_grok _grok "$out.2"
+	expect "$label" COMP_branchlet _branchlet "$out.2"
+}
+
+# A secure completion dir under a world-writable parent (Homebrew's
+# group-writable share/ holding zsh-completions on an admin-user Mac; GitHub's
+# Ubuntu image, whose /usr/share/zsh is 777): compaudit reports only the
+# parent. The dir must keep loading as with plain compinit -i, and an unchanged
+# startup must reuse the dump (compinit's own check rewrote it every start).
+test_insecure_parent() {
+	local shell_cmd="$1" label="insecure-parent"
+	local home="$TMP_DIR/$label/home" out="$TMP_DIR/$label/run" ref="$TMP_DIR/$label/ref"
+	mkdir -p "$TMP_DIR/$label"
+	make_home "$home"
+	chmod o+w "$home/.grok/completions"
+	# shellcheck disable=SC2086
+	run_shell "$home" "$out.1" $shell_cmd
+	expect_compinit "$label cold" "$out.1" "compinit -i"
+	expect_completions "$label cold" "$out.1" "$home"
+	[[ -f "$home/.zcompdump" ]] || fail "$label: ~/.zcompdump not created"
+	backdate "$home/.zcompdump" "$ref"
+	# shellcheck disable=SC2086
+	run_shell "$home" "$out.2" $shell_cmd
+	expect_compinit "$label warm" "$out.2" "compinit -C"
+	check_not_rewritten "$label unchanged startup" "$ref" "$home/.zcompdump"
+	expect_completions "$label warm" "$out.2" "$home"
+
+	# A new file whose count delta equals the files under insecure-parent dirs
+	# (one: _grok) makes compinit's own buggy count match the stale header; the
+	# rebuild must still not load that stale dump, so dotfnew2 must register.
+	printf '#compdef dotfnew2\n_message new\n' >"$home/.zfunc/_dotfnew2"
+	# shellcheck disable=SC2086
+	run_shell "$home" "$out.3" $shell_cmd
+	expect_compinit "$label new file" "$out.3" "compinit -i"
+	expect "$label new file" COMP_dotfnew2 _dotfnew2 "$out.3"
+}
+
 ZSH_CMD="zsh -o NO_GLOBAL_RCS -i -c"
 SHELLS=("bash -i -c")
 if command -v zsh >/dev/null 2>&1; then
@@ -395,6 +494,8 @@ for shell_cmd in "${SHELLS[@]}"; do
 done
 if command -v zsh >/dev/null 2>&1; then
 	test_system_compinit "$ZSH_CMD"
+	test_insecure_parent "$ZSH_CMD"
+	test_insecure_root "$ZSH_CMD"
 fi
 
 echo "PASS: shell startup cache tests"

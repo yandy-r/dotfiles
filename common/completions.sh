@@ -630,6 +630,114 @@ setup_carapace_completions() {
 # Orchestrates all completion setup. Bash uses lazy loading for
 # performance; zsh loads everything eagerly.
 
+# _dotfiles_compinit [-d DUMPFILE]: initialize completion with `compinit -i`
+# semantics, but decide dump freshness here so an unchanged startup reuses the
+# dump on every host layout.
+#
+# compinit's own freshness check compares the dump header's file count against
+# a count it takes after its security audit, while compdump writes a count
+# taken differently. The two disagree, so the dump is rewritten on EVERY start,
+# whenever compaudit reports:
+#   - two or more insecure entries (a checkout group-writable by a shared
+#     group reports $DOTFILES_ROOT/zsh/completions and $DOTFILES_ROOT/zsh):
+#     zsh 5.9 joins them with a literal `|`, so nothing is excluded from its
+#     count while compdump excludes them;
+#   - an insecure PARENT of a secure fpath dir (Homebrew's group-writable
+#     share/ on admin-user Macs; GitHub's Ubuntu image, whose /usr/share/zsh
+#     is 777): compinit keeps loading the dir but leaves its files out of its
+#     count, while compdump counts them.
+#
+# So, in order:
+#   1. Every fpath dir compaudit flags itself is dropped. A dir holding a file
+#      it flags (foreign-owned) or whose .zwc digest it flags is dropped WHOLE,
+#      which is stricter than compinit -i (that skips only the flagged file);
+#      nothing compinit -i skipped is ever loaded. Kept on purpose: a secure
+#      dir under an insecure parent (compinit -i loads it too; Homebrew's
+#      zsh-completions must not vanish), and the dir compinit/compaudit/
+#      compdump autoload from, so the completion system itself always
+#      resolves. Group write by the user-private group (Ubuntu/Fedora umask
+#      002) passes compaudit, so such a checkout keeps its repo completions.
+#      Restore skipped directories with `compaudit | xargs chmod g-w,o-w`.
+#   2. The completion files on the cleaned fpath are counted with compdump's
+#      own formula. When the dump's header is exactly `#files: N<TAB>version:
+#      $ZSH_VERSION` for that count, `compinit -C` loads it without auditing
+#      or rewriting. That is compinit's own freshness rule (file count plus
+#      version), so installing or removing a completion file still rebuilds
+#      the dump, as with stock zsh. Skipping the audit is safe: step 1 already
+#      removed everything it flags, and `-i` would load the same remaining
+#      dirs.
+#   3. Otherwise the stale dump is deleted and `compinit -i` rebuilds, then
+#      compdump rewrites the dump with _comp_secure unset, so its header uses
+#      the step 2 formula and the next start matches. The delete matters:
+#      compinit's own (buggy) count can coincidentally equal the stale header,
+#      and it would then load that dump instead of rebuilding. (_comp_secure,
+#      set by compinit when its audit finds anything, makes compdump also drop
+#      group-writable dirs without the user-private-group exemption.)
+# A flagged system dir (an insecure zsh install) is the one case left to plain
+# `compinit -i`: compinit drops it from fpath, so no stable count exists.
+_dotfiles_compinit() {
+    emulate -L zsh
+    setopt extended_glob
+    local out dir entry name line dump="${ZDOTDIR:-$HOME}/.zcompdump" flagged_system=""
+    local -a insecure keep system files args=("$@")
+    autoload -Uz compaudit compinit compdump
+    out="$(compaudit 2>/dev/null)"
+    if [[ -n "$out" ]]; then
+        # First fpath dir holding each completion-system function: where
+        # autoload resolves it.
+        for name in compinit compaudit compdump; do
+            # shellcheck disable=SC2154 # zsh's fpath array
+            for dir in "${fpath[@]}"; do
+                if [[ -f "$dir/$name" ]]; then
+                    system+=("$dir")
+                    break
+                fi
+            done
+        done
+        # shellcheck disable=SC2296 # zsh-only (@f) flag
+        insecure=("${(@f)out}")
+        for dir in "${fpath[@]}"; do
+            for entry in "${insecure[@]}"; do
+                if [[ "$entry" == "$dir" || "$entry" == "$dir.zwc" ||
+                    ("${entry##*/}" == _* && "${entry%/*}" == "$dir") ]]; then
+                    if [[ " ${system[*]} " == *" $dir "* ]]; then
+                        flagged_system=1
+                        break
+                    fi
+                    continue 2
+                fi
+            done
+            keep+=("$dir")
+        done
+        fpath=("${keep[@]}")
+    fi
+    if [[ -n "$flagged_system" ]]; then
+        compinit -i "$@"
+        return
+    fi
+
+    # compinit's -d takes the next argument as the dump unless it is an option.
+    while (( $# )); do
+        if [[ "$1" == -d && $# -gt 1 && "$2" != -* ]]; then
+            dump="$2"
+            shift
+        fi
+        shift
+    done
+    # Verbatim from compdump; eval keeps the zsh-only glob away from shellcheck.
+    eval 'files=( ${^~fpath:/.}/^([^_]*|*~|*.zwc)(N) )'
+    line=""
+    [[ -f "$dump" ]] && IFS= read -r line <"$dump"
+    if [[ "$line" == "#files: ${#files}"$'\t'"version: $ZSH_VERSION" ]]; then
+        compinit -C "${args[@]}"
+    else
+        rm -f -- "$dump"
+        compinit -i "${args[@]}"
+        unset _comp_secure
+        compdump
+    fi
+}
+
 # Initialize zsh's completion system before anything below registers with it.
 #
 # This file is sourced from common/tools.sh, which zsh/zshrc loads near the TOP
@@ -650,17 +758,19 @@ setup_carapace_completions() {
 _ensure_completion_system() {
     [[ -n "${ZSH_VERSION:-}" ]] || return 0
 
-    # -i, not bare compinit: a bare compinit stops startup with an interactive
-    # "insecure directories" prompt when any fpath entry is group-writable, which
-    # is exactly the state a freshly provisioned machine can land in. -i skips
-    # those directories instead (never -u, which would load them anyway).
+    # _dotfiles_compinit runs an audited compinit (-i on rebuild, -C when the
+    # dump is current), never bare compinit: a bare compinit stops startup with
+    # an interactive "insecure directories" prompt when any fpath entry is
+    # group-writable, which is exactly the state a freshly provisioned machine
+    # can land in. Insecure directories are skipped instead (never -u, which
+    # would load them anyway).
     #
     # _dotfiles_compinit_done (not exported) makes this run once per shell, so
     # re-sourcing ~/.zshrc does not pay for compinit again.
     if [[ -n "${_dotfiles_compinit_done:-}" ]]; then
         :
     elif ! typeset -f compdef >/dev/null 2>&1; then
-        autoload -Uz compinit && compinit -i
+        _dotfiles_compinit
     else
         # A system zshrc already ran compinit with the default fpath — Debian/
         # Ubuntu's /etc/zsh/zshrc does unless skip_global_compinit=1 is set in
@@ -689,7 +799,7 @@ _ensure_completion_system() {
                 _dotf_kept[$_dotf_key]="$_dotf_fn"
             fi
         done
-        autoload -Uz compinit && compinit -i -d "${ZDOTDIR:-$HOME}/.zcompdump-dotfiles"
+        _dotfiles_compinit -d "${ZDOTDIR:-$HOME}/.zcompdump-dotfiles"
         # shellcheck disable=SC2296 # zsh-only (k) flag
         for _dotf_key in ${(k)_dotf_kept}; do
             (( ${+_comps[$_dotf_key]} )) || _comps[$_dotf_key]="${_dotf_kept[$_dotf_key]}"

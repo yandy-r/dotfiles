@@ -6,6 +6,10 @@
 # and permission guards, a custom XDG_CONFIG_HOME, login bash's ~/.extra still
 # overriding bashrc, and that a machine without overrides gets no hook output.
 # Fixture files are written with literal $VAR text, expanded by the shell under test.
+#
+# TEST_BASH (optional): absolute path of the bash binary under test; defaults
+# to `command -v bash`. Only the shells under test use it, the driver itself
+# needs bash >= 4. CI sets TEST_BASH=/bin/bash on macOS to cover bash 3.2.
 # shellcheck disable=SC2016
 set -euo pipefail
 
@@ -18,9 +22,16 @@ umask 022
 
 USER_NAME="${USER:-$(id -un)}"
 
+TEST_BASH="${TEST_BASH:-$(command -v bash)}"
+[[ "$TEST_BASH" == /* && -x "$TEST_BASH" ]] || {
+	echo "FAIL: TEST_BASH must be an absolute path to an executable bash (got '$TEST_BASH')" >&2
+	exit 1
+}
+echo "bash under test: $TEST_BASH ($("$TEST_BASH" -c 'echo "$BASH_VERSION"'))"
+
 # Minimal PATH: the shells under test plus the base system, never the host's
 # tool dirs, so the results do not depend on what this machine has installed.
-TEST_PATH="/usr/bin:/bin:$(dirname "$(command -v bash)")"
+TEST_PATH="/usr/bin:/bin:$(dirname "$TEST_BASH")"
 if command -v zsh >/dev/null 2>&1; then
 	TEST_PATH="$TEST_PATH:$(dirname "$(command -v zsh)")"
 fi
@@ -91,16 +102,20 @@ populate() {
 
 # run_shell <home> <out_prefix> <xdg-or-empty> <shell args...>
 # Writes <out_prefix>.out / .err. Starts from umask 077 to prove the reset.
+# A leading `bash` is run as "$TEST_BASH", never resolved through TEST_PATH, so
+# callers keep the readable `bash ...` label while the binary stays explicit.
 run_shell() {
 	local home="$1" out="$2" xdg="$3"
 	shift 3
+	local -a cmd=("$@")
+	[[ "${cmd[0]}" == bash ]] && cmd[0]="$TEST_BASH"
 	local -a envs=(HOME="$home" PATH="$TEST_PATH" TERM=xterm-256color DOTFILES_ROOT="$REPO_ROOT" USER="$USER_NAME")
 	[[ -n "$xdg" ]] && envs+=(XDG_CONFIG_HOME="$xdg")
 	(
 		cd "$home"
 		umask 077
-		env -i "${envs[@]}" "$@" "$PROBE" </dev/null >"$out.out" 2>"$out.err"
-	) || fail "$* exited non-zero (stderr: $(<"$out.err"))"
+		env -i "${envs[@]}" "${cmd[@]}" "$PROBE" </dev/null >"$out.out" 2>"$out.err"
+	) || fail "${cmd[*]} exited non-zero (stderr: $(<"$out.err"))"
 }
 
 field() {
@@ -191,7 +206,9 @@ test_full() {
 			fail "$ctx: ownership warning missing (stderr: $(<"$out.err"))"
 		# Sourcing it would surface as an error naming zz.sh (e.g. the hostname
 		# run as a command); only the guard's own warning may mention it.
-		if grep -a 'zz\.sh' "$out.err" | grep -qv '^dotfiles: skipping'; then
+		# Fixed-string match on the guard's exact warning, not a ^ anchor:
+		# bash 3.2's readline can prefix stderr with an escape code (ESC[?1034h).
+		if grep -a 'zz\.sh' "$out.err" | grep -qvF "dotfiles: skipping $config/secrets/zz.sh (not owned by $USER_NAME)"; then
 			fail "$ctx: foreign-owned zz.sh was sourced (stderr: $(<"$out.err"))"
 		fi
 	fi

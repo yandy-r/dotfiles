@@ -352,6 +352,16 @@ exec zsh
 whence compinit
 ```
 
+Completion directories that `compaudit` reports as insecure (group- or
+world-writable, e.g. a group-writable dotfiles checkout) are left out of
+`fpath` before `compinit` runs, so their completions do not load. List them
+with `compaudit`; restore them with `compaudit | xargs chmod g-w,o-w`.
+
+A secure completion directory under an insecure parent (on an admin-user Mac,
+Homebrew's group-writable `share/` holding `share/zsh-completions`) still
+loads. Hardening the parent is still worthwhile:
+`chmod go-w "$(brew --prefix)/share"`.
+
 ### Vi Mode Issues
 
 If keybindings conflict with plugins:

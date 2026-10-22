@@ -165,10 +165,17 @@ for _dotf_local_entry in "${_dotf_local_files[@]}"; do
     esac
 done
 
-# -i, as in common/completions.sh: skip insecure directories instead of prompting.
-# A separate dump keeps the main one stable (see the header).
+# common/completions.sh:_dotfiles_compinit runs `compinit -i` on an audited
+# fpath, so the dump stays stable; plain `compinit -i` when completions.sh was
+# not sourced (e.g. DOTFILES_NO_AUTO_TOOL_SETUP=1). A separate dump keeps the
+# main one stable (see the header).
 if [[ -n "${ZSH_VERSION:-}" && "${fpath[*]}" != "${_dotf_local_fpath:-}" ]]; then
-    autoload -Uz compinit && compinit -i -d "${ZDOTDIR:-$HOME}/.zcompdump-local"
+    # shellcheck disable=SC2154 # zsh's functions array
+    if (( ${+functions[_dotfiles_compinit]} )); then
+        _dotfiles_compinit -d "${ZDOTDIR:-$HOME}/.zcompdump-local"
+    else
+        autoload -Uz compinit && compinit -i -d "${ZDOTDIR:-$HOME}/.zcompdump-local"
+    fi
 fi
 
 unset _dotf_local_entry _dotf_local_files _dotf_local_fpath _dotf_local_user _dotf_local_upg_gid
