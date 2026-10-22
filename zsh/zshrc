@@ -360,7 +360,7 @@ _orig_path_len=$(echo "$PATH" | tr ':' '\n' | wc -l)
 PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '\.nix-profile' | grep -v '^/nix/' | tr '\n' ':' | sed 's/:$//')
 
 # Platform-specific cleanup using DOTFILES_OS variable
-if [[ "$DOTFILES_OS" == "debian" ]] || [[ "$DOTFILES_OS" == "ubuntu" ]] || [[ "$DOTFILES_OS" == "linux" ]] || [[ "$DOTFILES_OS" == "redhat" ]] || [[ "$DOTFILES_OS" == "arch" ]]; then
+if [[ "$DOTFILES_OS" == "debian" ]] || [[ "$DOTFILES_OS" == "linux" ]] || [[ "$DOTFILES_OS" == "redhat" ]] || [[ "$DOTFILES_OS" == "arch" ]]; then
     # Remove macOS-specific paths when on Linux
     PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '/opt/homebrew' | grep -v '^/Users/' | tr '\n' ':' | sed 's/:$//')
 elif [[ "$DOTFILES_OS" == "macos" ]]; then

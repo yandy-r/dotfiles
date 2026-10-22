@@ -650,6 +650,7 @@ qr() {
 sysinfo() {
     echo "=== System Information ==="
     echo "OS: $DOTFILES_OS"
+    echo "Distro: $DOTFILES_DISTRO${DOTFILES_CODENAME:+ ($DOTFILES_CODENAME)}"
     echo "Architecture: $DOTFILES_ARCH"
     echo "Container: $DOTFILES_CONTAINER"
     echo "Package Manager: $DOTFILES_PKG_MGR"

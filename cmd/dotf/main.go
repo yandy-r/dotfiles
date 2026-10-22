@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/yandy-r/dotfiles/internal/exec"
-	"github.com/yandy-r/dotfiles/internal/platform"
 	"github.com/yandy-r/dotfiles/internal/version"
 )
 
@@ -61,8 +60,7 @@ func run(args []string) int {
 		runVersion()
 		return 0
 	case "platform":
-		runPlatform()
-		return 0
+		return runPlatform(rest, os.Stdout, os.Stderr, exec.New())
 	case "plan":
 		return runPlan(rest, os.Stdout, os.Stderr, exec.New())
 	case "install":
@@ -105,13 +103,4 @@ func run(args []string) int {
 // runVersion prints the CLI's version metadata to stdout.
 func runVersion() {
 	fmt.Printf("%s %s\n", progName, version.String())
-}
-
-// runPlatform prints the detected platform Info as machine-greppable
-// key=value pairs, a machine-greppable analogue of
-// common/platform.sh:print_platform_info's human-readable output.
-func runPlatform() {
-	info := platform.Detect(exec.New())
-	fmt.Printf("os=%s arch=%s pkg=%s container=%s distro=%s\n",
-		info.OS, info.Arch, info.PkgMgr, info.Container, info.Distro)
 }

@@ -4,14 +4,12 @@ This document describes how the dotfiles platform detection system works, includ
 
 ## Overview
 
-There are **two** detectors, kept in deliberate lockstep:
+There are **two** detectors, but only one source of truth:
 
-- The **canonical** Go detector in `internal/platform`, which every `dotf` subcommand uses. Its doc comments assert the mirroring explicitly (`types.go`: "The string values returned here MUST match `common/platform.sh` exactly").
-- The **shell mirror** in `common/platform.sh`, which runs at bash/zsh startup and exports the `DOTFILES_*` variables the rest of the shell ecosystem reads.
+- The **canonical** Go detector in `internal/platform`, which every `dotf` subcommand uses. `dotf platform --write` renders its result to the platform env cache (`${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/platform.env`, see [the env cache contract](#platform-env-cache---env----write)), and `dotf apply`/`dotf link` refresh that cache after every successful run.
+- The **shell fallback** in `common/platform.sh`. At bash/zsh startup `setup_platform_env` loads the cache (strictly validated, never sourced). Only when the cache fails validation, or is missing and `dotf platform --write` cannot create it, do its `detect_*` functions run and export the same `DOTFILES_*` variables.
 
-The Go detector is the source of truth for the vocabulary — the OS/arch/package-manager/container token sets. The shell file reproduces that vocabulary so a `dotf` run and a shell session never disagree about what host they are on.
-
-**An edit to one requires the mirrored edit to the other.** Where a divergence is deliberate it is recorded in both places as a divergence (there is exactly one today: package-manager probe ordering, see [`detectPkgMgr`](#detectpkgmgr) and [`detect_package_manager`](#detect_package_manager)).
+The Go detector owns the vocabulary — the OS/arch/package-manager/container token sets — and the detection rules. The shell `detect_*` functions reproduce them so a host without `dotf` still agrees with one that has it. **A detection change lands in Go first; mirror it into the shell fallback in the same change.** The one known, accepted gap is `brew` resolution through shell functions/aliases (see [`detectPkgMgr`](#detectpkgmgr)).
 
 ## Part 1 — Canonical Go detector (`internal/platform`)
 
@@ -111,10 +109,7 @@ The passthrough default is deliberate and mirrors the shell exactly: an unrecogn
 
 On macOS Homebrew _is_ the package manager, so it is probed first. On x86_64 Linux it is still probed first, because `--homebrew=true` deliberately bootstraps linuxbrew and expects the packages phase to use it. On **aarch64 Linux the native manager wins instead**: Homebrew publishes no aarch64-Linux bottles at all, so an incidental linuxbrew install must not silently reroute every package away from the manifest's `dnf` names. Linuxbrew is still selected there when no native manager is present.
 
-Two notes carried from the source:
-
-- This ordering **deliberately diverges** from `common/platform.sh:detect_package_manager`, which still prioritizes brew unconditionally. Do not "fix" either side back to match the other without reconciling both.
-- The shell checks `command -v brew`, which also resolves shell functions and aliases. `LookPath` (like Go's `exec.LookPath`) resolves only executables on `PATH`. The two therefore diverge in the edge case of a `brew` shim defined as a shell function or alias with no corresponding `PATH` binary.
+The shell fallback `common/platform.sh:detect_package_manager` uses the same host-dependent ordering. One residual difference is carried from the source: the shell checks `command -v brew`, which also resolves shell functions and aliases. `LookPath` (like Go's `exec.LookPath`) resolves only executables on `PATH`. The two therefore diverge in the edge case of a `brew` shim defined as a shell function or alias with no corresponding `PATH` binary.
 
 ### `detectContainer`
 
@@ -140,7 +135,7 @@ The divergence is intentional. The exported predicate answers "does the single s
 
 ### `dotf platform` output contract
 
-`cmd/dotf/main.go` emits exactly one line, a machine-greppable analogue of the shell's `print_platform_info`:
+With no flags, `cmd/dotf/platform.go` emits exactly one line, a machine-greppable analogue of the shell's `print_platform_info`:
 
 ```text
 os=%s arch=%s pkg=%s container=%s distro=%s
@@ -154,13 +149,57 @@ os=redhat arch=x86_64 pkg=dnf container=docker distro=fedora
 
 `Codename` and `VersionID` are deliberately **not** printed — they are consumed programmatically (`VersionID` is the `$releasever` the repo backend's `dnf_repo` templating uses), not surfaced on this line. The shape is anchored from both ends: `cmd/dotf/main_test.go` asserts the regexp `^os=\S+ arch=\S+ pkg=\S+ container=\S+ distro=\S+\n$`, and the Fedora CI smoke step (critical test #6) greps the same line on a real Fedora userspace. Adding a field breaks both.
 
-## Part 2 — Shell mirror (`common/platform.sh`)
+### Platform env cache (`--env` / `--write`)
 
-### Detection flow
+`dotf platform --env` prints the platform as shell export lines; `dotf platform --write` atomically writes the same content to `${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/platform.env` (`XDG_CACHE_HOME` honored only when absolute) and prints nothing on success; both flags together write and print. The file format is fixed — one header comment, then these keys in this order:
+
+```text
+# Generated by `dotf platform --write`; do not edit.
+export DOTFILES_PLATFORM_SCHEMA=1
+export DOTFILES_PLATFORM_HOST=<os.Hostname()>
+export DOTFILES_OS=<os>
+export DOTFILES_ARCH=<arch>
+export DOTFILES_CONTAINER=<container>
+export DOTFILES_PKG_MGR=<pkg>
+export DOTFILES_DISTRO=<distro>
+export DOTFILES_CODENAME=<codename, may be empty>
+export DOTFILES_HOMEBREW_PATH=<homebrew prefix, may be empty>
+```
+
+- Every value must match `^[A-Za-z0-9._/+-]*$`; the Go renderer (`platform.EnvLines`) replaces any non-conforming value with the empty string, so the file is always unquoted and shell-safe.
+- `DOTFILES_HOMEBREW_PATH` is `brew --prefix` when `brew` is on `PATH`, else `/opt/homebrew` (macOS arm64), `/usr/local` (other macOS), `/home/linuxbrew/.linuxbrew` (Linux family incl. WSL), else empty (`platform.HomebrewPrefix`).
+- `platform.WriteEnvCache` creates the parent directory `0700`, refuses a symlinked parent or target, writes a `0600` temp file in the same directory, fsyncs, and renames it into place.
+- `dotf apply` and `dotf link` refresh the cache after a successful non-dry-run, reusing their already-detected `Info`. A write failure is a single `dotf: warning:` line on stderr and never changes the exit code.
+- The shell loader `_dotfiles_load_platform_cache` accepts the file only if it passes every check listed under [`_dotfiles_load_platform_cache`](#_dotfiles_load_platform_cache-file) in Part 2 (ownership, schema, host, arch, container, key/value whitelist). `internal/platform/env_test.go` (`TestEnvCache_ShellParity`) runs the real loader against a Go-rendered file and tampered variants to keep the two sides in lockstep.
+
+## Part 2 — Shell loader and fallback (`common/platform.sh`)
+
+### Startup order: `setup_platform_env`
+
+The shell does not detect the platform itself when it can avoid it. `setup_platform_env` resolves the platform variables in this order:
+
+1. `_dotfiles_load_platform_cache` reads `${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/platform.env` (`XDG_CACHE_HOME` is honored only when absolute), the file written by `dotf platform --write`. If it loads with `DOTFILES_PKG_MGR=homebrew` but an empty `DOTFILES_HOMEBREW_PATH` (Go blanked a prefix with unsafe characters), the prefix is recomputed with `get_homebrew_path`.
+2. If the load fails because the file **does not exist**, `dotf` is on `PATH`, the current user owns `$HOME` (so `sudo` with the user's `HOME` never leaves a root-owned cache) and no `platform.env.attempted` marker exists, it runs `dotf platform --write` once (output discarded, failure ignored so `set -e` scripts that source `platform.sh` never abort) and retries the load. If that run leaves no file (an older `dotf` without `--write`, an unwritable or symlinked cache dir), it drops the `.attempted` marker so later shells skip the fork; any successful `--write`, `apply` or `link` removes the marker. A file that exists but fails validation never forks `dotf`; it goes straight to step 3.
+3. If the load still fails, the shell `detect_*` functions below run as a fallback. They export the same `DOTFILES_OS`, `DOTFILES_ARCH`, `DOTFILES_CONTAINER`, `DOTFILES_PKG_MGR`, `DOTFILES_DISTRO`, `DOTFILES_CODENAME` and `DOTFILES_HOMEBREW_PATH`; `DOTFILES_PLATFORM_SCHEMA` and `DOTFILES_PLATFORM_HOST` are unset, so their presence means "came from dotf".
+
+The SSH, OSC 52, clipboard/opener and XDG variables are then derived from the resolved platform variables, never by re-detecting.
+
+#### `_dotfiles_load_platform_cache [file]`
+
+The loader never `source`s or `eval`s the file and forks nothing (only `read`, parameter expansion and `case`), so it is cheap on every shell start and safe against a tampered file. It parses into locals and exports only when **all** of these hold; otherwise it returns 1 and exports nothing:
+
+- the file is a regular file, not a symlink, and owned by the current user (`-O`);
+- every non-blank, non-`#` line is `export KEY=VALUE`, `KEY` is one of the nine whitelisted keys, and no key repeats;
+- every `VALUE` consists only of `A-Za-z0-9._/+-` (empty allowed) — quotes, spaces, `$`, backticks and `;` are rejected;
+- all nine keys are present, `DOTFILES_PLATFORM_SCHEMA` is `1`, and `DOTFILES_PLATFORM_HOST` equals `${HOSTNAME:-${HOST:-}}` (so a cache in a shared NFS home is ignored on other hosts);
+- the cached `DOTFILES_ARCH` matches the running shell's arch, read fork-free from bash `$HOSTTYPE` / zsh `$CPUTYPE` and normalized (`amd64`→`x86_64`, `aarch64`→`arm64`, `armv6l`/`armv7l`→`arm`) — so a Rosetta shell (`arch -x86_64 zsh`) ignores an arm64 cache; the check is skipped when the variable is unset or unrecognized;
+- the cached `DOTFILES_CONTAINER` is not `none` while `/.dockerenv` or `/run/.containerenv` exists (a container sharing `$HOME` and hostname with its host).
+
+### Fallback detection flow
 
 ```mermaid
 flowchart TD
-    START["Shell Initialization"] --> DETECT_OS["detect_os()"]
+    START["setup_platform_env (cache missing/invalid)"] --> DETECT_OS["detect_os()"]
     DETECT_OS --> OS_CHECK{"uname -s"}
 
     OS_CHECK -->|Darwin| MACOS["macos"]
@@ -205,13 +244,13 @@ flowchart TD
     ARM --> DETECT_PKG
     RAWARCH --> DETECT_PKG
 
-    DETECT_PKG["detect_package_manager()"] --> PKG_CHECK{"command -v, in order"}
-    PKG_CHECK -->|brew| HOMEBREW["homebrew"]
-    PKG_CHECK -->|apt| APT["apt"]
-    PKG_CHECK -->|dnf| DNF["dnf"]
-    PKG_CHECK -->|yum| YUM["yum"]
-    PKG_CHECK -->|pacman| PACMAN["pacman"]
-    PKG_CHECK -->|zypper| ZYPPER["zypper"]
+    DETECT_PKG["detect_package_manager()"] --> PKG_CHECK{"command -v; aarch64 Linux family?"}
+    PKG_CHECK -->|"no: brew first"| HOMEBREW["homebrew"]
+    PKG_CHECK -->|"yes: native first, brew last"| APT["apt"]
+    PKG_CHECK -->|then| DNF["dnf"]
+    PKG_CHECK -->|then| YUM["yum"]
+    PKG_CHECK -->|then| PACMAN["pacman"]
+    PKG_CHECK -->|then| ZYPPER["zypper"]
 
     HOMEBREW --> EXPORT
     APT --> EXPORT
@@ -299,25 +338,24 @@ Each consumer sources the family file first and the distro overlay second, so an
 
 | Function                   | Returns                                                        | Notes                                                                           |
 | -------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `get_distro_name()`        | raw `ID` from `/etc/os-release`, else `unknown`                | Unmapped; used where the specific distro (not the family) matters               |
+| `get_distro_name()`        | raw `ID` from `/etc/os-release`, else `unknown`                | Unmapped; exported as `DOTFILES_DISTRO` on fallback                             |
+| `get_distro_codename()`    | `VERSION_CODENAME`, else `UBUNTU_CODENAME`, else empty         | Exported as `DOTFILES_CODENAME` on fallback                                     |
 | `detect_arch()`            | `x86_64`, `arm64`, `arm`, or raw `uname -m`                    | Same case statement as `archFromUname`, passthrough default included            |
 | `detect_container()`       | `docker`, `kubernetes`, `wsl`, `none`                          | `/.dockerenv` or `/proc/1/cgroup`, then `KUBERNETES_SERVICE_HOST`, then `WSL_*` |
-| `detect_package_manager()` | `homebrew`, `apt`, `dnf`, `yum`, `pacman`, `zypper`, `unknown` | See the divergence note below                                                   |
+| `detect_package_manager()` | `homebrew`, `apt`, `dnf`, `yum`, `pacman`, `zypper`, `unknown` | Same host-dependent order as `detectPkgMgr`                                     |
 | `get_homebrew_path()`      | Homebrew prefix, or empty                                      | `brew --prefix` when `brew` is on `PATH`; otherwise the table below             |
 
 #### `detect_package_manager`
 
-The shell probes `command -v` in a **fixed** order — `brew`, `apt`, `dnf`, `yum`, `pacman`, `zypper` — prioritising Homebrew unconditionally, including on aarch64 Linux.
-
-This is a **deliberate, recorded divergence** from the Go side, which demotes `brew` below the native managers on arm64 Linux (see [`detectPkgMgr`](#detectpkgmgr)). `dotf` is what installs packages, so its ordering is the one that governs provisioning; the shell value is informational. Reconcile the shell side as its own change — do not "fix" the Go side back.
+The shell fallback probes `command -v` in the same host-dependent order as [`detectPkgMgr`](#detectpkgmgr): the native managers (`apt`, `dnf`, `yum`, `pacman`, `zypper`) before `brew` on aarch64 Linux family hosts, `brew` first everywhere else.
 
 #### Homebrew path detection
 
-| OS    | Architecture | Homebrew path                |
-| ----- | ------------ | ---------------------------- |
-| macOS | arm64        | `/opt/homebrew`              |
-| macOS | x86_64       | `/usr/local`                 |
-| Linux | any          | `/home/linuxbrew/.linuxbrew` |
+| OS                       | Architecture | Homebrew path                |
+| ------------------------ | ------------ | ---------------------------- |
+| macOS                    | arm64        | `/opt/homebrew`              |
+| macOS                    | x86_64       | `/usr/local`                 |
+| Linux family (incl. WSL) | any          | `/home/linuxbrew/.linuxbrew` |
 
 ### Utility functions
 
@@ -382,7 +420,9 @@ Both helpers no-op when the directory does not exist or is already on `PATH`.
 
 ### Platform-specific commands
 
-| Function              | macOS     | WSL                            | Other (X11/Wayland)                                                                    |
+WSL is recognized with `is_wsl` (OS `wsl` **or** container `wsl`), so a WSL distro whose `DOTFILES_OS` is its family (e.g. `debian`) still gets the Windows clipboard and opener. macOS is read from the exported `DOTFILES_OS`.
+
+| Function              | macOS     | WSL (`is_wsl`)                 | Other (X11/Wayland)                                                                    |
 | --------------------- | --------- | ------------------------------ | -------------------------------------------------------------------------------------- |
 | `get_copy_command()`  | `pbcopy`  | `clip.exe`                     | `xclip -selection clipboard`, else `xsel --clipboard --input`, else `cat`              |
 | `get_paste_command()` | `pbpaste` | `powershell.exe Get-Clipboard` | `xclip -selection clipboard -o`, else `xsel --clipboard --output`, else a stub message |
@@ -392,18 +432,22 @@ Both helpers no-op when the directory does not exist or is already on `PATH`.
 
 After `setup_platform_env()` runs, these variables are available:
 
-| Variable                 | Description                 | Example values                 |
-| ------------------------ | --------------------------- | ------------------------------ |
-| `DOTFILES_OS`            | Detected operating system   | `macos`, `debian`, `redhat`    |
-| `DOTFILES_ARCH`          | CPU architecture            | `x86_64`, `arm64`              |
-| `DOTFILES_CONTAINER`     | Container type if any       | `docker`, `kubernetes`, `none` |
-| `DOTFILES_PKG_MGR`       | Primary package manager     | `homebrew`, `dnf`, `pacman`    |
-| `DOTFILES_HOMEBREW_PATH` | Homebrew installation path  | `/opt/homebrew`                |
-| `DOTFILES_IS_SSH`        | Running over SSH            | `true`, `false`                |
-| `DOTFILES_USE_OSC52`     | Should use OSC 52 clipboard | `true`, `false`                |
-| `DOTFILES_COPY_CMD`      | Clipboard copy command      | `pbcopy`                       |
-| `DOTFILES_PASTE_CMD`     | Clipboard paste command     | `pbpaste`                      |
-| `DOTFILES_OPEN_CMD`      | File/URL opener             | `open`                         |
+| Variable                   | Description                    | Example values                 |
+| -------------------------- | ------------------------------ | ------------------------------ |
+| `DOTFILES_OS`              | Detected OS family             | `macos`, `debian`, `redhat`    |
+| `DOTFILES_ARCH`            | CPU architecture               | `x86_64`, `arm64`              |
+| `DOTFILES_CONTAINER`       | Container type if any          | `docker`, `kubernetes`, `none` |
+| `DOTFILES_PKG_MGR`         | Primary package manager        | `homebrew`, `dnf`, `pacman`    |
+| `DOTFILES_DISTRO`          | Raw os-release `ID`            | `ubuntu`, `fedora`, `unknown`  |
+| `DOTFILES_CODENAME`        | Release codename (or empty)    | `noble`, `bookworm`            |
+| `DOTFILES_HOMEBREW_PATH`   | Homebrew installation path     | `/opt/homebrew`                |
+| `DOTFILES_PLATFORM_SCHEMA` | Cache schema (cache only)      | `1`                            |
+| `DOTFILES_PLATFORM_HOST`   | Cache writer host (cache only) | `myhost`                       |
+| `DOTFILES_IS_SSH`          | Running over SSH               | `true`, `false`                |
+| `DOTFILES_USE_OSC52`       | Should use OSC 52 clipboard    | `true`, `false`                |
+| `DOTFILES_COPY_CMD`        | Clipboard copy command         | `pbcopy`                       |
+| `DOTFILES_PASTE_CMD`       | Clipboard paste command        | `pbpaste`                      |
+| `DOTFILES_OPEN_CMD`        | File/URL opener                | `open`                         |
 
 ### XDG directory setup
 
@@ -446,7 +490,7 @@ Platform Information:
   Open Command: open
 ```
 
-Individual functions can be exercised directly, and compared against the Go side with `dotf platform`:
+Individual functions can be exercised directly, and compared against the Go side with `dotf platform` (and the cache it writes with `dotf platform --env`):
 
 ```bash
 source ~/.config/dotfiles/common/platform.sh
@@ -458,6 +502,7 @@ echo "Package Manager: $(detect_package_manager)"
 echo "Module dirs: $(os_module_dirs | tr '\n' ' ')"
 
 dotf platform
+dotf platform --env
 ```
 
 ## Fedora family (including Fedora Asahi Remix)
@@ -489,4 +534,4 @@ The `dnf` install/upgrade/remove argv and the `rpm -q` query argv are **source-c
 - [Testing](../development/testing.md) — how the detector's assertions are run
 - [Fedora first-run checklist](../fedora-first-run.md) — device-captured os-release provenance
 - `internal/platform/` — canonical Go detector (`platform.go`, `types.go`, `osrelease.go`)
-- `common/platform.sh` — shell mirror
+- `common/platform.sh` — shell cache loader and `detect_*` fallback

@@ -215,7 +215,13 @@ func runApply(args []string, stdout, stderr io.Writer, r exec.Runner) (code int)
 	sshRes := applySSHServer(eng, sshMode, info, &coll)
 
 	// P6: greppable stdout results, then the single stderr summary + exit code.
-	return applySummary(stdout, stderr, mergeSysconfigResults(idRes, fwRes, sshRes), results, report, plasmaReport, &coll, sudo)
+	code = applySummary(stdout, stderr, mergeSysconfigResults(idRes, fwRes, sshRes), results, report, plasmaReport, &coll, sudo)
+	// P7: a clean run refreshes the shell's platform env cache from the final
+	// (post-brew-bootstrap) detection; a write failure is only a warning.
+	if code == 0 {
+		refreshPlatformCache(stderr, r, info)
+	}
+	return code
 }
 
 // applySummary writes the per-phase greppable result lines to stdout, then the

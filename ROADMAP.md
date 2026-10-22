@@ -89,9 +89,6 @@ Worth doing, but off the first-boot path:
   `SSHServerPlanNeedsSudo`; only `cmd/dotf/sysconfig.go:76` does. This is pre-existing, but the firewalld tri-state
   read widened its blast radius: `dotf apply --firewall auto` on Fedora now plans against an unprimed sudo and defers
   the domain as UNKNOWN.
-- **Reconciling `common/platform.sh`'s `detect_package_manager` with the Go detector.** After the arm64 work the Go
-  detector demotes brew below the native manager on aarch64 Linux; the shell side still probes `brew` first,
-  unconditionally.
 
 ## Explicitly deferred
 

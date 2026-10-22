@@ -2,11 +2,12 @@
 // operating system, CPU architecture, package manager, and container
 // environment.
 //
-// This package is the single source of truth for the vocabulary that
-// common/platform.sh has historically defined across the shell ecosystem
-// (DOTFILES_OS, DOTFILES_ARCH, DOTFILES_PKG_MGR, DOTFILES_CONTAINER). The
-// string values returned here MUST match common/platform.sh exactly so the
-// Go CLI and the shell scripts agree (see issue #4).
+// This package is the single source of truth for the platform vocabulary the
+// shell ecosystem consumes (DOTFILES_OS, DOTFILES_ARCH, DOTFILES_PKG_MGR,
+// DOTFILES_CONTAINER, ...): `dotf platform --write` renders it to the platform
+// env cache that common/platform.sh loads. The shell detect_* functions are
+// only the fallback when dotf and the cache are absent, so the string values
+// here and theirs MUST stay identical (see issue #4).
 package platform
 
 // OS identifies the canonical operating system / distro family, mirroring

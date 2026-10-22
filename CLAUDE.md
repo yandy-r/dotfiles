@@ -804,7 +804,9 @@ the AUR `debtap` tool, verifying the input by its ar header (not its extension),
 existing native package, reading the built artifact's own `.PKGINFO`, and checking translated
 dependencies with `pacman -T`. Arch/pacman only; conversion is read-only with respect to the
 host and `--install` is the sole elevating step.
-The `dotf` subcommands are `version`, `platform`, `plan`, `install`,
+The `dotf` subcommands are `version`, `platform` (`--env` prints / `--write` atomically writes the
+platform env cache `${XDG_CACHE_HOME:-~/.cache}/dotfiles/platform.env` that `common/platform.sh`
+loads instead of re-detecting; `apply`/`link` refresh it after a successful run), `plan`, `install`,
 `status`, `diff`, `doctor`, `link`, `backup` (list/restore/prune symlink backup dirs),
 `sysconfig`, `apply`, `lock`, `self-update`, `setup`,
 `plasma` (KDE Plasma 6 config set), `deb` (.deb → pacman conversion), `completion` (generate

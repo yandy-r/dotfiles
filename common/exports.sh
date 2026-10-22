@@ -620,7 +620,7 @@ case "$DOTFILES_OS" in
         export HOMEBREW_CASK_OPTS="${HOMEBREW_CASK_OPTS:-} --no-quarantine"
         ;;
 
-    debian|ubuntu)
+    debian)
         # Debian/Ubuntu specific exports
         export DEBIAN_FRONTEND=noninteractive
 

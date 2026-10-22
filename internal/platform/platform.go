@@ -61,9 +61,11 @@ func detectOS(r exec.Runner, osReleasePath, procVersionPath string) OS {
 }
 
 // detectOSFrom determines the canonical OS/distro family from an already
-// scanned os-release record, mirroring common/platform.sh:detect_os. uname -s
-// is resolved via r, falling back to runtime.GOOS if the command is
-// unavailable, so detection never panics even on a minimal/sandboxed host.
+// scanned os-release record. This is the canonical detection;
+// common/platform.sh:detect_os is the shell fallback used only when dotf and
+// its platform env cache are absent. uname -s is resolved via r, falling back
+// to runtime.GOOS if the command is unavailable, so detection never panics
+// even on a minimal/sandboxed host.
 func detectOSFrom(r exec.Runner, rel osRelease, procVersionPath string) OS {
 	uname := unameS(r)
 
@@ -101,7 +103,8 @@ func unameS(r exec.Runner) string {
 
 // detectLinuxFamily resolves the Linux distro family from a scanned
 // os-release record, falling back to /proc/version (WSL detection) and finally
-// "linux", mirroring common/platform.sh:detect_os's Linux* branch.
+// "linux". Canonical; common/platform.sh:detect_os's Linux* branch is the shell
+// fallback.
 func detectLinuxFamily(rel osRelease, procVersionPath string) OS {
 	if !rel.Present {
 		if procVersionHasMicrosoft(procVersionPath) {
@@ -114,8 +117,8 @@ func detectLinuxFamily(rel osRelease, procVersionPath string) OS {
 }
 
 // osFamilyFromID maps an os-release ID (falling back to ID_LIKE) to the
-// canonical OS family, mirroring common/platform.sh:detect_os's ID/ID_LIKE
-// case statement exactly.
+// canonical OS family. Canonical; the ID/ID_LIKE case statement in
+// common/platform.sh:detect_os is the shell fallback and follows this mapping.
 func osFamilyFromID(id, idLike string) OS {
 	switch id {
 	case "ubuntu", "debian":
@@ -151,8 +154,8 @@ func fileExists(path string) bool {
 }
 
 // procVersionHasMicrosoft reports whether the kernel version banner at path
-// contains "microsoft" (case-insensitive), mirroring common/platform.sh:
-// detect_os's `grep -qi microsoft /proc/version` WSL check. Returns false
+// contains "microsoft" (case-insensitive) — the same WSL signal the shell
+// fallback common/platform.sh:detect_os checks. Returns false
 // (never panics) if the file is missing or unreadable.
 func procVersionHasMicrosoft(path string) bool {
 	data, err := os.ReadFile(path)
@@ -162,8 +165,8 @@ func procVersionHasMicrosoft(path string) bool {
 	return strings.Contains(strings.ToLower(string(data)), "microsoft")
 }
 
-// detectArch determines the canonical CPU architecture, mirroring
-// common/platform.sh:detect_arch. uname -m is resolved via
+// detectArch determines the canonical CPU architecture (shell fallback:
+// common/platform.sh:detect_arch). uname -m is resolved via
 // r, falling back to runtime.GOARCH if the command errors.
 func detectArch(r exec.Runner) Arch {
 	return archFromUname(unameM(r))
@@ -179,9 +182,9 @@ func unameM(r exec.Runner) string {
 	return runtime.GOARCH
 }
 
-// archFromUname maps a raw `uname -m` value to the canonical Arch,
-// mirroring common/platform.sh:detect_arch's case statement exactly,
-// including passthrough of unrecognized values.
+// archFromUname maps a raw `uname -m` value to the canonical Arch, including
+// passthrough of unrecognized values. Canonical; the case statement in
+// common/platform.sh:detect_arch is the shell fallback.
 func archFromUname(raw string) Arch {
 	switch raw {
 	case "x86_64", "amd64":
@@ -202,11 +205,9 @@ func archFromUname(raw string) Arch {
 // applyBrew). On aarch64 Linux the NATIVE manager wins instead: Homebrew
 // publishes no aarch64-Linux bottles at all, so an incidental linuxbrew install
 // must not silently reroute every package away from the manifest's dnf names.
-// Linuxbrew is still selected there when no native manager is present.
-//
-// NOTE: this deliberately DIVERGES from common/platform.sh:detect_package_manager,
-// which still prioritizes brew unconditionally. Reconcile the shell side
-// separately; do not "fix" this back.
+// Linuxbrew is still selected there when no native manager is present. The
+// shell fallback common/platform.sh:detect_package_manager uses the same
+// priority.
 //
 // Note: the shell implementation checks `command -v brew`, which also
 // resolves shell functions and aliases, not just PATH executables. r's
@@ -241,7 +242,7 @@ func detectPkgMgr(r exec.Runner, os OS, arch Arch) PkgMgr {
 }
 
 // detectContainer determines the canonical container/virtualization
-// environment, mirroring common/platform.sh:detect_container.
+// environment (shell fallback: common/platform.sh:detect_container).
 func detectContainer() Container {
 	if fileExists("/.dockerenv") || cgroupHasDocker("/proc/1/cgroup") {
 		return ContainerDocker
@@ -256,8 +257,8 @@ func detectContainer() Container {
 }
 
 // cgroupHasDocker reports whether the cgroup file at path mentions
-// "docker", mirroring common/platform.sh:detect_container's
-// `grep -q docker /proc/1/cgroup 2>/dev/null` check. Returns false (never
+// "docker" — the same signal as the shell fallback's
+// `grep -q docker /proc/1/cgroup` check. Returns false (never
 // panics) if the file is missing or unreadable.
 func cgroupHasDocker(path string) bool {
 	data, err := os.ReadFile(path)

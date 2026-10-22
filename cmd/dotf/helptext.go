@@ -11,7 +11,7 @@ import "flag"
 // commandHelp is one command's documentation. Flag descriptions are NOT stored
 // here: setFlags registers the command's real flags on a flagset so the help
 // renderer reads their usage strings verbatim (DRY). setFlags is nil for
-// commands with no flags (version, platform, help).
+// commands with no flags (version, help).
 type commandHelp struct {
 	name     string
 	summary  string
@@ -58,11 +58,21 @@ var helpRegistry = []commandHelp{
 	{
 		name:    "platform",
 		summary: "Print detected platform facts (os, arch, package manager, distro)",
-		usage:   "dotf platform",
+		usage:   "dotf platform [--env] [--write]",
 		long: "Print the detected host platform as machine-greppable key=value pairs:\n" +
 			"operating system, CPU architecture, package manager, container status, and\n" +
-			"Linux distro. Reads only; changes nothing.",
-		examples: []string{"dotf platform"},
+			"Linux distro. Without flags it reads only and changes nothing.\n\n" +
+			"--env prints the platform as shell export lines instead (schema, host, os,\n" +
+			"arch, container, package manager, distro, codename, Homebrew prefix).\n" +
+			"--write atomically writes those lines to the platform env cache, which\n" +
+			"common/platform.sh loads at shell startup instead of re-detecting; it prints\n" +
+			"nothing on success. apply and link refresh the cache after a successful run.",
+		examples: []string{
+			"dotf platform",
+			"dotf platform --env",
+			"dotf platform --write",
+		},
+		setFlags: func(fs *flag.FlagSet) { setPlatformFlags(fs) },
 	},
 	{
 		name:    "plan",

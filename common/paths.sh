@@ -295,7 +295,7 @@ setup_system_paths() {
             append_path "/Library/TeX/texbin"
             append_path "/Applications/Visual Studio Code.app/Contents/Resources/app/bin"
             ;;
-        debian|ubuntu)
+        debian)
             append_path "/snap/bin"
             ;;
     esac

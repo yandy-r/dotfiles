@@ -461,7 +461,7 @@ func TestPrintCommandHelp_Link(t *testing.T) {
 }
 
 func TestPrintCommandHelp_NoFlagsSection(t *testing.T) {
-	for _, name := range []string{"version", "platform"} {
+	for _, name := range []string{"version"} {
 		ch, _ := lookupHelp(name)
 		var buf bytes.Buffer
 		printCommandHelp(&buf, ch)
@@ -550,7 +550,7 @@ func TestRenderFlags_Placeholders(t *testing.T) {
 }
 
 func TestRenderFlags_NilNoop(t *testing.T) {
-	for _, name := range []string{"version", "platform", "help"} {
+	for _, name := range []string{"version", "help"} {
 		ch, _ := lookupHelp(name)
 		if ch.setFlags != nil {
 			t.Errorf("%s has a non-nil setFlags, want nil", name)

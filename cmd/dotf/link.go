@@ -18,11 +18,13 @@ import (
 // platform, and provisions the static symlink table (symlink.DefaultTable)
 // into $HOME via the symlink engine's Plan/Apply/Validate split. Symlinks live
 // under $HOME, so the operation is unprivileged: the injected exec.Runner is
-// used ONLY to feed platform.Detect; all filesystem work is direct os.* calls
+// used ONLY to feed platform.Detect and the platform env cache refresh's
+// Homebrew-prefix probe; all filesystem work is direct os.* calls
 // inside internal/symlink. It writes machine-greppable data to stdout and
 // diagnostics to stderr, returning exit code 1 when post-apply validation
 // finds a broken link (a real file where a symlink was expected, or a dangling
-// or looping link whose source exists).
+// or looping link whose source exists). A clean non-dry-run refreshes the
+// platform env cache (see refreshPlatformCache).
 //
 // There is deliberately no --manifest flag: the engine is driven by the static
 // DefaultTable (ported 1:1 from playbooks/vars/symlinks.yml), not m.Symlinks
@@ -118,10 +120,16 @@ func runLink(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	}
 	printLinkSummary(stderr, report)
 
-	if !opts.Validate {
-		return 0
+	code := 0
+	if opts.Validate {
+		code = linkValidate(stderr, eng, specs, info, opts)
 	}
-	return linkValidate(stderr, eng, specs, info, opts)
+	// A clean link run refreshes the shell's platform env cache; a write
+	// failure is only a warning and never changes the exit code.
+	if code == 0 {
+		refreshPlatformCache(stderr, r, info)
+	}
+	return code
 }
 
 // staleDests returns the $HOME-relative dests of links, sorted.

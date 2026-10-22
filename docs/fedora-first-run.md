@@ -121,7 +121,7 @@ included) is the rollback. **Never** `--snapper`.
    ```
 
 2. **Detection.** `dotf platform` prints `os=<os> arch=<arch> pkg=<pkg> container=<c> distro=<distro>`
-   (`cmd/dotf/main.go`). Expect `os=redhat arch=arm64 pkg=dnf` and record `distro=` verbatim. On aarch64 Linux the
+   (`cmd/dotf/platform.go`). Expect `os=redhat arch=arm64 pkg=dnf` and record `distro=` verbatim. On aarch64 Linux the
    native package manager now wins over an incidental Linuxbrew, so `pkg=dnf` is expected **even with brew on
    `PATH`**. If `pkg=` is anything other than `dnf`, stop and report it — that is a detection bug, not an expected
    condition.
