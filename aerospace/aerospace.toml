@@ -458,10 +458,6 @@ run = ['layout floating']
 if.app-id = 'com.openai.chat'
 run = ['layout floating']
 
-[[on-window-detected]]
-if.app-id = 'md.obsidian'
-run = ['layout floating']
-
 # Project Management (with workspace assignment)
 [[on-window-detected]]
 if.app-id = 'com.linear'
@@ -477,10 +473,6 @@ run = ['layout floating']
 
 [[on-window-detected]]
 if.app-id = 'com.automattic.SimplenoteMac'
-run = ['layout floating']
-
-[[on-window-detected]]
-if.app-id = 'com.anysphere.sand'
 run = ['layout floating']
 
 # ----------------------------------------------------------------
@@ -560,6 +552,14 @@ run = ['move-node-to-workspace 4']
 # Communication & Messaging (Workspace 5)
 [[on-window-detected]]
 if.app-id = 'com.hnc.Discord'
+run = ['move-node-to-workspace 5']
+
+[[on-window-detected]]
+if.app-id = 'come.anysphere.send'
+run = ['move-node-to-workspace 5']
+
+[[on-window-detected]]
+if.app-id = 'md.obsidian'
 run = ['move-node-to-workspace 5']
 
 [[on-window-detected]]
