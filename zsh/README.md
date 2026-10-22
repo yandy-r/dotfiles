@@ -9,7 +9,7 @@ This directory contains the zsh shell configuration for the dotfiles repository.
 | `zshrc`                  | Main interactive shell configuration          | `~/.zshrc`       |
 | `zprofile`               | Login shell configuration                     | `~/.zprofile`    |
 | `functions.zsh`          | Legacy zsh functions (kept for compatibility) | Sourced by zshrc |
-| `fzf.zsh`                | FZF keybindings for zsh                       | Sourced by zshrc |
+| `fzf.zsh`                | FZF keybindings for zsh                       | `~/.fzf.zsh` (fallback: sourced by `setup_fzf`) |
 | `completions/`           | Custom completion files                       | Added to FPATH   |
 | `omz-migration-notes.md` | Migration notes from Oh My Zsh                | Reference only   |
 
@@ -23,12 +23,15 @@ This directory contains the zsh shell configuration for the dotfiles repository.
    - Ensures Homebrew paths are prioritized
 
 2. **Interactive shell** (`~/.zshrc`):
+   - Selects vi mode before shared tools bind keys (including fzf's Tab widget)
    - Sources the common configuration system
    - Applies zsh-specific options and keybindings
    - Initializes completion system
    - Loads plugins (autosuggestions, syntax highlighting)
    - Initializes Starship prompt
-   - Loads tool integrations
+   - Loads tool integrations via `common/tools.sh`
+   - Runs `finalize_path` (from `common/paths.sh`) before local overrides
+   - Sources `common/local.sh` last
 
 ### Common System Integration
 
@@ -150,45 +153,25 @@ The configuration uses these plugins (loaded via `common/tools.sh`):
 
 ### Carapace (Universal Completion)
 
-If [Carapace](https://github.com/rsteube/carapace-bin) is installed, `zshrc` loads it eagerly, after the single `compinit`
-(it is not cached, since its output depends on carapace's specs and config):
+If [Carapace](https://github.com/rsteube/carapace-bin) is installed,
+`common/completions.sh:setup_carapace_completions` registers it eagerly in
+zsh and bash 4+ (after the single `compinit` in zsh; not cached, since its output
+depends on carapace's specs and config):
 
 ```zsh
 export CARAPACE_BRIDGES='zsh,fish,bash,inshellisense'
-source <(carapace _carapace)
+source <(carapace _carapace zsh)
 ```
 
 Provides completions for 350+ commands across multiple shells.
 
-## Zsh-Specific Aliases
+## Aliases
 
-Beyond the common aliases, zsh includes:
-
-```zsh
-# Editor shortcuts
-alias vi='nvim'
-alias vim='nvim'
-alias edit='$EDITOR'
-alias g="git"
-alias v="vim"
-
-# Enhanced eza (if installed)
-alias la="eza -lg --all --group-directories-first --color always --icons always"
-alias ld="eza -lDg --color always --icons always"
-alias lf="eza -lfg --color always --icons always"
-alias lh="eza -dlg .* --color always --icons always --group-directories-first"
-alias lt="eza -alg --color always --icons always --group-directories-first --sort=modified"
-
-# 1Password run (if installed)
-alias opr="op run --no-masking --"
-alias opl="op run --no-masking"
-alias ope="op run --no-masking --env-file"
-
-# macOS-specific
-alias hosts='sudo $EDITOR /etc/hosts'
-alias trimcopy="tr -d '\n' | pbcopy"
-alias cleanup="find . -name '*.DS_Store' -type f -ls -delete"
-```
+All shell aliases — editor shortcuts (`vi`, `vim`, `edit`, …), eza, ripgrep
+(`rg`, `rgr`), `mtr`, 1Password run, macOS `cleanup`/`emptytrash`/`hosts` —
+live in `common/aliases.sh` and `common/macos/aliases.sh`, shared with bash.
+The only zsh-side keybindings are the vi-mode rebinds at the top of `zshrc`.
+For zsh-only aliases, use `~/.zshrc.local` (loaded last by `common/local.sh`).
 
 ## Customization
 
@@ -277,12 +260,13 @@ eval "$(direnv hook zsh)"
 
 ### FZF (Fuzzy Finder)
 
-FZF integration:
-
-```zsh
-source "$(fzf-share)/key-bindings.zsh"
-source "$(fzf-share)/completion.zsh"
-```
+FZF integration is owned by `common/tools.sh:setup_fzf` for both shells: it
+sources `~/.fzf.zsh` when present, else `zsh/fzf.zsh` from the repo. The repo
+file prefers `fzf --zsh` and falls back to the packaged key-binding and
+completion scripts. It loads after compinit and carapace, with vi mode already
+selected so `**<Tab>` is bound in the active vi-insert keymap. Bash loads its
+bash-completion framework at top level before shared tools, using the resolver
+in `common/paths.sh`.
 
 - `Ctrl+T` - Fuzzy file search
 - `Alt+C` - Fuzzy directory change
@@ -290,28 +274,19 @@ source "$(fzf-share)/completion.zsh"
 
 ### Python Virtual Environments
 
-Auto-activation of `.venv` directories:
-
-```zsh
-python_venv() {
-    if [[ -d ".venv" ]]; then
-        source ".venv/bin/activate"
-    else
-        [[ -n "${VIRTUAL_ENV:-}" ]] && deactivate
-    fi
-}
-add-zsh-hook chpwd python_venv
-```
+`common/tools.sh:setup_python_venv` auto-activates the nearest ancestor `.venv`
+in both shells (zsh via a `chpwd` hook, bash via `PROMPT_COMMAND`). A one-shot
+`precmd` hook handles initial zsh activation at the first prompt, after local
+overrides finish modifying PATH. Manually activated environments are left alone.
+Set `DOTFILES_NO_VENV_AUTO=1` to disable it.
 
 ### thefuck
 
-If [thefuck](https://github.com/nvbn/thefuck) is installed:
+If [thefuck](https://github.com/nvbn/thefuck) is installed,
+`common/tools.sh:setup_thefuck` defines the alias (output cached by
+`common/cached-eval.sh`, keyed on its settings file). Type `fuck` to correct
+the previous command.
 
-```zsh
-eval "$(thefuck --alias)"
-```
-
-Type `fuck` to correct previous command.
 
 ## Troubleshooting
 

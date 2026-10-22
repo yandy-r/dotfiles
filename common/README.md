@@ -109,10 +109,16 @@ Manages PATH with intelligent platform detection.
 - Language runtime paths (Cargo, Go, Node, Python)
 - User local binaries (~/.local/bin)
 - Duplicate path removal
+- `_dotf_bash_completion_file` resolves the single bash-completion candidate
+  list; bashrc sources the result at top level before `tools.sh`, preserving
+  global arrays in older bash-completion releases (skipped in POSIX mode or
+  when already loaded)
 
 ### aliases.sh - Smart Aliases
 
-Provides aliases with automatic tool detection and fallbacks.
+Provides aliases with automatic tool detection and fallbacks for both shells.
+All shell aliases live here or in the platform overlays (`macos/aliases.sh`,
+`linux/aliases.sh`); neither `zshrc` nor `bashrc` defines its own set.
 
 **Categories:**
 
@@ -120,7 +126,9 @@ Provides aliases with automatic tool detection and fallbacks.
 - **File operations**: Enhanced ls (eza > ls), safe operations
 - **Git shortcuts**: Common git operations
 - **Development**: Docker, kubectl, terraform
-- **Modern tools**: ripgrep, fd, bat, fzf integrations
+- **Modern tools**: ripgrep (`rg`, `rgr`), fd, bat, eza
+- **Editors**: `v`, `vi`, `vim`, `edit` (all `$EDITOR`)
+- **Network**: `mtr` (auto-sudoed when installed)
 
 **Example - Smart ls:**
 
@@ -132,6 +140,7 @@ alias ls="eza -lg --group-directories-first --color always --icons always"
 alias ls="ls --color=auto"  # Linux
 alias ls="ls -G"            # macOS
 ```
+
 
 ### functions.sh - Utility Functions
 
@@ -163,7 +172,16 @@ Cross-platform utility functions for common tasks.
 
 ### tools.sh - Tool Detection and Setup
 
-Manages tool detection, initialization, and lazy loading.
+Manages tool detection, initialization, and lazy loading — one owner function
+per tool, shared by both shells:
+
+- `setup_fzf` — fzf keybindings/completions; sources `~/.fzf.zsh` /
+  `~/.fzf.bash` (both linked by `dotf link`) with the repo files as fallback;
+  loads after compinit, bash-completion and carapace so fallback loaders survive
+- `setup_python_venv` — `.venv` auto-activation hook in both shells; initial
+  activation waits until the first prompt after local overrides, preserving
+  their PATH entries on deactivate (disable with `DOTFILES_NO_VENV_AUTO=1`)
+- `setup_thefuck` — thefuck alias (cached via `_cached_eval`)
 
 **Tool Categories:**
 
@@ -217,6 +235,11 @@ test: `scripts/test-shell-startup-cache.sh`.
 ### completions.sh - Universal Completions
 
 Provides completion support for 50+ modern CLI tools.
+The bash-completion framework is sourced by bashrc at top level, not inside a
+setup function; `paths.sh` owns its candidate-file resolver. This module owns
+compinit and eager tool registrations (including carapace in zsh and bash 4+).
+`tools.sh` loads fzf last to wrap, rather than replace, those registrations.
+
 
 **Supported Tools:**
 

@@ -22,9 +22,12 @@
 #
 # Performance Notes:
 #   - Both bash and zsh: heavy completions (kubectl, helm, docker, aws,
-#     terraform, npm, ansible, …) are lazy-loaded via lazy-completions.sh.
-#     Eager zsh loading was ~5s (ansible alone ~2.3s from failed probes).
-#   - Lightweight setup only: Homebrew fpath, git, fabric static completions.
+#     gcloud, terraform, npm, ansible, …) are lazy-loaded via
+#     lazy-completions.sh. Eager zsh loading was ~5s (ansible alone ~2.3s
+#     from failed probes).
+#   - Eager in both shells: the bash-completion framework (bash), git, fabric
+#     static completions, the cheap `complete -C`/compdef registrations
+#     (vault, cdktf, azure), and carapace's bridged completions.
 #
 # Environment:
 #   DOTFILES_NO_AUTO_COMPLETIONS - Disable automatic setup on source
@@ -263,44 +266,24 @@ setup_terraform_completions() {
         fi
     fi
     
-    # Vault
-    if command -v vault >/dev/null 2>&1; then
-        if [[ "$CURRENT_SHELL" == "bash" ]]; then
-            complete -C vault vault
-        elif [[ "$CURRENT_SHELL" == "zsh" ]]; then
-            compctl -f -x 'p[1]' -k '(auth delete list read write)' -- vault
-        fi
-    fi
-    
+    # Vault (also called eagerly by setup_all_completions)
+    setup_vault_completions
+
     # Consul
     if command -v consul >/dev/null 2>&1; then
         if [[ "$CURRENT_SHELL" == "bash" ]]; then
             complete -C consul consul
         fi
     fi
-    
+
     # Nomad
     if command -v nomad >/dev/null 2>&1; then
         if [[ "$CURRENT_SHELL" == "bash" ]]; then
             complete -C nomad nomad
         fi
     fi
-    
-    # CDKTF
-    if command -v cdktf >/dev/null 2>&1; then
-        if [[ "$CURRENT_SHELL" == "zsh" ]]; then
-            # Zsh completion function: uses zsh-only `words` array and split-from-subst.
-            # shellcheck disable=SC2154,SC2207
-            _cdktf_yargs_completions() {
-                local reply
-                local si=$IFS
-                IFS=$'\n' reply=($(COMP_CWORD="$((CURRENT - 1))" COMP_LINE="$BUFFER" COMP_POINT="$CURSOR" cdktf --get-yargs-completions "${words[@]}"))
-                IFS=$si
-                _describe 'values' reply
-            }
-            compdef _cdktf_yargs_completions cdktf
-        fi
-    fi
+    # CDKTF (also called eagerly by setup_all_completions)
+    setup_cdktf_completions
     
     # Pulumi
     load_completion pulumi
@@ -311,6 +294,37 @@ setup_terraform_completions() {
         load_completion ansible-playbook
         load_completion ansible-vault
     fi
+}
+
+# Vault completion, split out of setup_terraform_completions so it can be
+# registered eagerly (a single `complete -C` is cheap in both shells).
+setup_vault_completions() {
+    command -v vault >/dev/null 2>&1 || return 0
+
+    if [[ "$CURRENT_SHELL" == "bash" ]]; then
+        complete -C "$(command -v vault)" vault
+    elif [[ "$CURRENT_SHELL" == "zsh" ]]; then
+        compctl -f -x 'p[1]' -k '(auth delete list read write)' -- vault
+    fi
+}
+
+# CDKTF completion, split out of setup_terraform_completions so it can be
+# registered eagerly (defining the zsh function is cheap; the command probe
+# only runs on first <TAB>).
+setup_cdktf_completions() {
+    command -v cdktf >/dev/null 2>&1 || return 0
+    [[ "$CURRENT_SHELL" == "zsh" ]] || return 0
+
+    # Zsh completion function: uses zsh-only `words` array and split-from-subst.
+    # shellcheck disable=SC2154,SC2207
+    _cdktf_yargs_completions() {
+        local reply
+        local si=$IFS
+        IFS=$'\n' reply=($(COMP_CWORD="$((CURRENT - 1))" COMP_LINE="$BUFFER" COMP_POINT="$CURSOR" cdktf --get-yargs-completions "${words[@]}"))
+        IFS=$si
+        _describe 'values' reply
+    }
+    compdef _cdktf_yargs_completions cdktf
 }
 
 # ================================================================
@@ -556,34 +570,6 @@ setup_modern_tools_completions() {
 }
 
 # ================================================================
-# HOMEBREW COMPLETIONS
-# ================================================================
-# Homebrew-provided completions for various tools.
-# Adds Homebrew completion paths to FPATH (zsh) or sources bash completion.
-
-setup_homebrew_completions() {
-    if [[ -n "$DOTFILES_HOMEBREW_PATH" ]]; then
-        case "$CURRENT_SHELL" in
-            zsh)
-                # Add Homebrew completion paths
-                if [[ -d "$DOTFILES_HOMEBREW_PATH/share/zsh/site-functions" ]]; then
-                    FPATH="$DOTFILES_HOMEBREW_PATH/share/zsh/site-functions:$FPATH"
-                fi
-                if [[ -d "$DOTFILES_HOMEBREW_PATH/share/zsh-completions" ]]; then
-                    FPATH="$DOTFILES_HOMEBREW_PATH/share/zsh-completions:$FPATH"
-                fi
-                ;;
-            bash)
-                # Load bash completion
-                if [[ -f "$DOTFILES_HOMEBREW_PATH/etc/profile.d/bash_completion.sh" ]]; then
-                    source "$DOTFILES_HOMEBREW_PATH/etc/profile.d/bash_completion.sh"
-                fi
-                ;;
-        esac
-    fi
-}
-
-# ================================================================
 # 1PASSWORD COMPLETIONS
 # ================================================================
 # Password manager CLIs: 1Password (op), Bitwarden (bw, bws).
@@ -610,25 +596,41 @@ setup_1password_completions() {
 # Carapace provides completions for 100+ tools via a single binary.
 # Falls back to fish/bash/zsh completions when native ones unavailable.
 # https://github.com/rsteube/carapace
+#
+# The single carapace owner: registered eagerly at startup in BOTH shells
+# (bridging every tool costs less than the lazy wrapper did), so there is no
+# lazy wrapper for it in lazy-completions.sh.
 
 setup_carapace_completions() {
-    if command -v carapace >/dev/null 2>&1; then
-        export CARAPACE_BRIDGES='zsh,fish,bash,inshellisense'
-        
-        if [[ "$CURRENT_SHELL" == "zsh" ]]; then
-            zstyle ':completion:*' format $'\e[2;37mCompleting %d\e[m'
-            source <(carapace _carapace)
-        elif [[ "$CURRENT_SHELL" == "bash" ]]; then
-            source <(carapace _carapace)
-        fi
+    # Carapace's generated bash loaders require bash 4+.
+    if [[ "$CURRENT_SHELL" == bash ]] && (( BASH_VERSINFO[0] < 4 )); then
+        return 0
     fi
+    command -v carapace >/dev/null 2>&1 || return 0
+    [[ -n "${LAZY_LOADED_CARAPACE:-}" ]] && return 0
+
+    export CARAPACE_BRIDGES='zsh,fish,bash,inshellisense'
+
+    # `command` bypasses any remaining wrapper; the explicit shell argument
+    # keeps carapace from misdetecting the shell when invoked non-interactively.
+    case "$CURRENT_SHELL" in
+        zsh)
+            zstyle ':completion:*' format $'\e[2;37mCompleting %d\e[m'
+            eval "$(command carapace _carapace zsh 2>/dev/null)" || true
+            ;;
+        bash)
+            eval "$(command carapace _carapace bash 2>/dev/null)" || true
+            ;;
+    esac
+
+    LAZY_LOADED_CARAPACE=1
 }
 
 # ================================================================
 # MAIN SETUP FUNCTION
 # ================================================================
-# Orchestrates all completion setup. Bash uses lazy loading for
-# performance; zsh loads everything eagerly.
+# Orchestrates all completion setup: the cheap registrations below run in
+# BOTH shells; the heavy generators stay lazy via lazy-completions.sh.
 
 # _dotfiles_compinit [-d DUMPFILE]: initialize completion with `compinit -i`
 # semantics, but decide dump freshness here so an unchanged startup reuses the
@@ -800,7 +802,7 @@ _ensure_completion_system() {
             fi
         done
         _dotfiles_compinit -d "${ZDOTDIR:-$HOME}/.zcompdump-dotfiles"
-        # shellcheck disable=SC2296 # zsh-only (k) flag
+        # shellcheck disable=SC2296,SC2004 # zsh-only (k) flag
         for _dotf_key in ${(k)_dotf_kept}; do
             (( ${+_comps[$_dotf_key]} )) || _comps[$_dotf_key]="${_dotf_kept[$_dotf_key]}"
         done
@@ -819,20 +821,25 @@ setup_all_completions() {
     # Must precede every registration below — see _ensure_completion_system.
     _ensure_completion_system
 
-    # Set up Homebrew completions first (provides foundation)
-    setup_homebrew_completions
-
     # Core development tools (git completions are fast)
     setup_git_completions
     setup_fabric_completions
 
-    # Heavy completions (kubectl, helm, docker, aws, gcloud, terraform, carapace,
-    # plus ansible/npm/pip/…) stay out of the eager path. lazy-completions.sh
-    # installs first-use wrappers for the big CLIs. The setup_* helpers above
-    # this comment remain available for manual/debug loading.
+    # Cheap, command -v-guarded registrations, eager in BOTH shells.
+    setup_vault_completions
+    setup_cdktf_completions
+    setup_azure_completions
+
+    # carapace: the single eager owner of universal bridged completions.
+    setup_carapace_completions
+
+    # Heavy completions (kubectl, helm, docker, aws, gcloud, terraform, plus
+    # ansible/npm/pip/…) stay out of the eager path. lazy-completions.sh
+    # installs first-use wrappers for the big CLIs; the remaining setup_*
+    # helpers here stay available for manual/debug loading.
     #
     # Eager zsh loading previously cost ~5s — mostly ansible probe failures
-    # (~2.3s) plus kubectl/npm/pip generation — while bash already returned early.
+    # (~2.3s) plus kubectl/npm/pip generation.
 }
 
 # ================================================================

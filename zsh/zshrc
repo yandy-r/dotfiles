@@ -12,6 +12,13 @@
 # Dotfiles root directory - always use the ~/.config/dotfiles location
 export DOTFILES_ROOT="${DOTFILES_ROOT:-$HOME/.config/dotfiles}"
 
+# Vi mode settings (matching bash configuration)
+export KEYTIMEOUT=1
+bindkey -v
+bindkey -M viins 'jj' vi-cmd-mode
+bindkey -M viins '^A' beginning-of-line
+bindkey -M viins '^E' end-of-line
+
 # Load platform detection and common configurations
 source "$DOTFILES_ROOT/common/platform.sh"
 source "$DOTFILES_ROOT/common/cached-eval.sh"
@@ -28,13 +35,6 @@ source "$DOTFILES_ROOT/common/tools.sh"
 # ================================================================
 # ZSH OPTIONS AND KEYBINDINGS
 # ================================================================
-
-# Vi mode settings (matching bash configuration)
-export KEYTIMEOUT=1
-bindkey -v
-bindkey -M viins 'jj' vi-cmd-mode
-bindkey -M viins '^A' beginning-of-line
-bindkey -M viins '^E' end-of-line
 
 # Additional zsh options for better UX
 setopt AUTO_CD              # Change directory without typing cd
@@ -103,180 +103,14 @@ typeset -f complete >/dev/null 2>&1 || { autoload -U +X bashcompinit && bashcomp
 # Load legacy functions if they exist
 [[ -f "$HOME/.functions.zsh" ]] && source "$HOME/.functions.zsh"
 
-# ================================================================
-# ENHANCED COMPLETION SETUP
-# ================================================================
-
-# Legacy completions (should be moved to tools.sh)
-if command -v vault >/dev/null 2>&1; then
-    compctl -f -x 'p[1]' -k '(auth delete list read write)' -- vault
-fi
-
-# Azure CLI completion (if available)
-if [[ -n "$DOTFILES_HOMEBREW_PATH" && -f "$DOTFILES_HOMEBREW_PATH/etc/bash_completion.d/az" ]]; then
-    source "$DOTFILES_HOMEBREW_PATH/etc/bash_completion.d/az"
-fi
-
-# ================================================================
-# 1PASSWORD CONFIGURATION
-# ================================================================
-
-# OP_SERVICE_ACCOUNT_TOKEN and the AI API keys (GEMINI/OPENAI/ANTHROPIC) are
-# exported from ~/.config/secrets/ by common/local.sh, sourced at the end.
-
-# 1Password CLI completions: zsh/completions/_op (on fpath via setup_fpath) is
-# autoloaded by compinit — no `op completion zsh` fork at startup.
-
-# ================================================================
-# CDKTF COMPLETIONS
-# ================================================================
-
-if command -v cdktf >/dev/null 2>&1; then
-    _cdktf_yargs_completions() {
-        local reply
-        local si=$IFS
-        IFS=$'\n' reply=($(COMP_CWORD="$((CURRENT - 1))" COMP_LINE="$BUFFER" COMP_POINT="$CURSOR" cdktf --get-yargs-completions "${words[@]}"))
-        IFS=$si
-        _describe 'values' reply
-    }
-    compdef _cdktf_yargs_completions cdktf
-fi
-
-# ================================================================
-# RUNTIME VERSION MANAGEMENT
-# ================================================================
-# Note: Runtime management is handled by mise via common/tools.sh
-
-# ================================================================
-# FZF SETUP
-# ================================================================
-# Note: FZF setup is now handled by common/tools.sh
-# This is kept for immediate compatibility
-
-# ================================================================
-# ZSH ENHANCEMENTS
-# ================================================================
-# Modern ZSH plugins for better shell experience
-# Note: Autosuggestions and syntax highlighting are now loaded by common/tools.sh
-# This ensures consistent cross-platform plugin loading with proper fallback paths
-
-# Re-bind vi mode keys after autosuggestions loads (if it was loaded)
+# Re-bind vi mode keys after autosuggestions loads (plugins are loaded by
+# common/tools.sh, before this file reaches this point)
 if typeset -f _zsh_autosuggest_bind_widgets &>/dev/null; then
     bindkey -M viins 'jj' vi-cmd-mode
     bindkey -M viins '^A' beginning-of-line
     bindkey -M viins '^E' end-of-line
 fi
 
-# FZF integration
-if command -v fzf-share >/dev/null 2>&1; then
-    source "$(fzf-share)/key-bindings.zsh"
-    source "$(fzf-share)/completion.zsh"
-fi
-
-[[ -f ~/.fzf.zsh ]] && source ~/.fzf.zsh
-
-# ================================================================
-# PYTHON VIRTUAL ENVIRONMENT
-# ================================================================
-# Note: Python venv setup is now handled by common/tools.sh
-# This is kept for immediate compatibility
-
-# Legacy Python venv function (now handled by tools.sh)
-python_venv() {
-    local venv_dir=".venv"
-    if [[ -d "$venv_dir" ]]; then
-        source "$venv_dir/bin/activate" 2>/dev/null
-    else
-        if [[ -n "${VIRTUAL_ENV:-}" ]]; then
-            deactivate 2>/dev/null || true
-        fi
-    fi
-}
-
-# Set up chpwd hook
-autoload -U add-zsh-hook
-add-zsh-hook chpwd python_venv
-python_venv  # Run once for current directory
-
-# ================================================================
-# ADDITIONAL TOOL INITIALIZATION
-# ================================================================
-
-# Initialize thefuck if available (output cached by common/cached-eval.sh,
-# keyed on settings.py too since it can change the alias)
-if command -v thefuck >/dev/null 2>&1; then
-    _cached_eval --dep "${XDG_CONFIG_HOME:-$HOME/.config}/thefuck/settings.py" thefuck thefuck --alias
-fi
-
-# ================================================================
-# CARAPACE UNIVERSAL COMPLETION
-# ================================================================
-
-# Eager in zsh: registers the bridged completions with compdef (the lazy
-# wrapper in common/lazy-completions.sh only wraps the `carapace` command
-# itself). Runs after the single compinit, so it adds no compinit of its own.
-# Not cached: its output depends on carapace's specs and config.
-if command -v carapace >/dev/null 2>&1; then
-    export CARAPACE_BRIDGES='zsh,fish,bash,inshellisense'
-    zstyle ':completion:*' format $'\e[2;37mCompleting %d\e[m'
-    source <(carapace _carapace)
-fi
-
-# ================================================================
-# ZSH-SPECIFIC ALIASES
-# ================================================================
-# Note: Most aliases are now handled by common/aliases.sh
-# These are zsh-specific or legacy aliases
-
-# Legacy aliases (kept for backward compatibility)
-alias mtr="sudo mtr"
-
-# Editor shortcuts (enhanced from common)
-alias vi='nvim'
-alias vim='nvim'
-alias edit='$EDITOR'
-
-# Quick shortcuts
-alias g="git"
-alias v="vim"
-
-# TMUX shortcuts - defined in common/functions.sh and common/aliases.sh
-
-# Legacy macOS-specific aliases (should be in common/macos/aliases.sh)
-if is_macos; then
-    alias hosts='sudo $EDITOR /etc/hosts'
-    alias trimcopy="tr -d '\n' | pbcopy"
-    alias cleanup="find . -name '*.DS_Store' -type f -ls -delete"
-    alias emptytrash="sudo rm -rfv /Volumes/*/.Trashes; rm -rfv ~/.Trash/*"
-fi
-
-# ================================================================
-# ZSH-SPECIFIC MODERN TOOL ALIASES
-# ================================================================
-# Note: Most aliases are now in common/aliases.sh
-# These are zsh-specific enhancements
-
-# Enhanced eza aliases with icons (zsh-specific feature)
-if command -v eza >/dev/null 2>&1; then
-    alias la="eza -lg --all --group-directories-first --color always --icons always"
-    alias ld="eza -lDg --color always --icons always"
-    alias lf="eza -lfg --color always --icons always"
-    alias lh="eza -dlg .* --color always --icons always --group-directories-first"
-    alias lt="eza -alg --color always --icons always --group-directories-first --sort=modified"
-fi
-
-# 1Password run aliases
-if command -v op >/dev/null 2>&1; then
-    alias opr="op run --no-masking --"
-    alias opl="op run --no-masking"
-    alias ope="op run --no-masking --env-file"
-fi
-
-# Enhanced ripgrep
-if command -v rg >/dev/null 2>&1; then
-    alias rg="rg --hidden --smart-case"
-    alias rgr="rg --hidden --smart-case"  # Consistent with other configs
-fi
 
 # ================================================================
 # PROMPT SETUP - STARSHIP
@@ -350,44 +184,11 @@ ulimit -n 65536
 # FINAL PATH CLEANUP
 # ================================================================
 
-# Remove unwanted paths that may have been added by plugins/tools
-# This runs AFTER all shell initialization to ensure clean PATH
-
-# Debug: Store original PATH length
-_orig_path_len=$(echo "$PATH" | tr ':' '\n' | wc -l)
-
-# Remove Nix paths (not used on any platform)
-PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '\.nix-profile' | grep -v '^/nix/' | tr '\n' ':' | sed 's/:$//')
-
-# Platform-specific cleanup using DOTFILES_OS variable
-if [[ "$DOTFILES_OS" == "debian" ]] || [[ "$DOTFILES_OS" == "linux" ]] || [[ "$DOTFILES_OS" == "redhat" ]] || [[ "$DOTFILES_OS" == "arch" ]]; then
-    # Remove macOS-specific paths when on Linux
-    PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '/opt/homebrew' | grep -v '^/Users/' | tr '\n' ':' | sed 's/:$//')
-elif [[ "$DOTFILES_OS" == "macos" ]]; then
-    # Remove Linux-specific Homebrew paths when on macOS
-    PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '^/home/linuxbrew/.linuxbrew' | tr '\n' ':' | sed 's/:$//')
-fi
-
-# Final deduplication
-PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '^$' | awk '!seen[$0]++' | tr '\n' ':' | sed 's/:$//')
-
-# CRITICAL: After all cleanup, ensure Homebrew and custom paths are at the front
-# This fixes issues where path_helper or other tools may have reordered PATH
-if is_macos; then
-    # Force correct order: Homebrew and user paths before system paths
-    fix_homebrew_path_order
-fi
-
-# Debug: Calculate cleanup results
-_new_path_len=$(echo "$PATH" | tr ':' '\n' | wc -l)
-_removed=$((_orig_path_len - _new_path_len))
-
-# Only show debug if DOTFILES_DEBUG is set
-if [[ -n "${DOTFILES_DEBUG:-}" ]]; then
-    echo "[DOTFILES] PATH cleanup removed $_removed entries ($_orig_path_len -> $_new_path_len)"
-fi
-
-export PATH
+# Single owner: common/paths.sh:finalize_path — dedupe, drop Nix and
+# wrong-platform paths, macOS Homebrew ordering, debug line, export. Runs
+# after all shell initialization and before local.sh, so
+# dotfiles.local/paths.sh entries are neither reordered nor removed.
+finalize_path
 
 # Note: kubectl aliases are defined in common/aliases.sh
 # Note: kubectl completions are loaded by common/lazy-completions.sh

@@ -100,6 +100,7 @@ func DefaultTable() []LinkSpec {
 		{Src: "bash/bashrc", Dest: ".bashrc", Facet: FacetAll},
 		{Src: "bash/bash_profile", Dest: ".bash_profile", Facet: FacetAll},
 		{Src: "bash/profile", Dest: ".profile", Facet: FacetAll},
+		{Src: "bash/.fzf.bash", Dest: ".fzf.bash", Facet: FacetAll},
 
 		// zsh_files
 		{Src: "zsh/zshrc", Dest: ".zshrc", Facet: FacetAll},

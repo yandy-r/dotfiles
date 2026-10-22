@@ -27,6 +27,7 @@
 #
 # Environment:
 #   DOTFILES_NO_AUTO_TOOL_SETUP - Disable automatic setup on source
+#   DOTFILES_NO_VENV_AUTO       - Disable .venv auto-activation (bash + zsh)
 #   DOTFILES_DEBUG              - Enable debug output
 #
 # ================================================================
@@ -292,7 +293,7 @@ install_tool() {
                     esac
                     ;;
                 dnf|yum)
-                    sudo $DOTFILES_PKG_MGR install "$tool"
+                    sudo "$DOTFILES_PKG_MGR" install "$tool"
                     ;;
                 pacman)
                     case "$tool" in
@@ -329,27 +330,34 @@ install_modern_tools() {
 
 # Set up FZF fuzzy finder with keybindings and completions
 # Ctrl-T: File search, Ctrl-R: History search, Alt-C: Directory jump
+# Single owner of fzf shell integration: ~/.fzf.<shell> when linked by
+# `dotf link`, else the repo copy. Those files add Homebrew's fzf to PATH
+# themselves, so the Homebrew bin dir is checked here too.
 setup_fzf() {
-    if tool_exists fzf; then
-        # Set up FZF key bindings and completion
-        if [[ -n "${ZSH_VERSION:-}" ]]; then
-            # Zsh setup
-            if [[ -f ~/.fzf.zsh ]]; then
-                source ~/.fzf.zsh
-            elif [[ -f "$DOTFILES_HOMEBREW_PATH/opt/fzf/shell/key-bindings.zsh" ]]; then
-                source "$DOTFILES_HOMEBREW_PATH/opt/fzf/shell/key-bindings.zsh"
-                source "$DOTFILES_HOMEBREW_PATH/opt/fzf/shell/completion.zsh"
-            fi
-        elif [[ -n "${BASH_VERSION:-}" ]]; then
-            # Bash setup
-            if [[ -f ~/.fzf.bash ]]; then
-                source ~/.fzf.bash
-            elif [[ -f "$DOTFILES_HOMEBREW_PATH/opt/fzf/shell/key-bindings.bash" ]]; then
-                source "$DOTFILES_HOMEBREW_PATH/opt/fzf/shell/key-bindings.bash"
-                source "$DOTFILES_HOMEBREW_PATH/opt/fzf/shell/completion.bash"
-            fi
-        fi
+    local file
+    if [[ -n "${ZSH_VERSION:-}" ]]; then
+        file="$HOME/.fzf.zsh"
+        [[ -f "$file" ]] || file="${DOTFILES_ROOT:-$HOME/.config/dotfiles}/zsh/fzf.zsh"
+    elif [[ -n "${BASH_VERSION:-}" ]]; then
+        file="$HOME/.fzf.bash"
+        [[ -f "$file" ]] || file="${DOTFILES_ROOT:-$HOME/.config/dotfiles}/bash/.fzf.bash"
+    else
+        return 0
     fi
+    [[ -f "$file" ]] || return 0
+    if ! command -v fzf >/dev/null 2>&1 &&
+        [[ ! -x "${DOTFILES_HOMEBREW_PATH:-}/opt/fzf/bin/fzf" ]]; then
+        return 0
+    fi
+    # shellcheck source=/dev/null
+    source "$file"
+}
+
+# Set up thefuck (`fuck` alias). Output is cached; regenerated when the
+# binary or its settings file changes.
+setup_thefuck() {
+    command -v thefuck >/dev/null 2>&1 || return 0
+    _cached_eval --dep "${XDG_CONFIG_HOME:-$HOME/.config}/thefuck/settings.py" thefuck thefuck --alias
 }
 
 # Set up zoxide smart directory jumping
@@ -503,37 +511,106 @@ nvm() {
     return 1
 }
 
-# Set up Rust environment (sources ~/.cargo/env)
-setup_rust() {
-    if [[ -f "$HOME/.cargo/env" ]]; then
-        source "$HOME/.cargo/env"
+# Python virtual environment auto-activation (bash + zsh).
+#
+# python_venv activates the nearest ancestor .venv (searching $PWD upward) and
+# deactivates it again after leaving the tree. Only a venv this hook activated
+# is ever auto-deactivated or replaced; one the user activated by hand is left
+# alone. The activate script must be owned by the current user and not
+# group/world-writable, since it is sourced into the shell on every cd.
+#
+# State: _DOTF_VENV_AUTO (the .venv dir the hook activated, not exported) and
+# _DOTF_VENV_REAL (the $VIRTUAL_ENV value that activation produced).
+# Disable with DOTFILES_NO_VENV_AUTO=1 (no hook is installed).
+python_venv() {
+    # A manual deactivate ends our ownership before any later activation.
+    [[ -n "${VIRTUAL_ENV:-}" ]] || unset _DOTF_VENV_AUTO _DOTF_VENV_REAL
+    local dir="$PWD" venv="" act
+    while [[ -n "$dir" ]]; do
+        if [[ -f "$dir/.venv/bin/activate" ]]; then
+            act="$dir/.venv/bin/activate"
+            if [[ "${VIRTUAL_ENV:-}" == "$dir/.venv" ]]; then
+                venv="$dir/.venv" # already active: skip the permission check
+            elif [[ -O "$act" && -z "$(find -L "$act" \( -perm -020 -o -perm -002 \) -print 2>/dev/null)" ]]; then
+                venv="$dir/.venv"
+            elif [[ "${_dotf_venv_warned:-}" != "$act" ]]; then
+                _dotf_venv_warned="$act"
+                printf 'dotfiles: not activating %s (not owned by you or group/world-writable)\n' "$act" >&2
+            fi
+            break
+        fi
+        [[ "$dir" == "/" ]] && break
+        dir="${dir%/*}"
+        [[ -n "$dir" ]] || dir="/"
+    done
+
+    # A venv is "ours" when this hook activated it and it is still the active one.
+    local ours=""
+    if [[ -n "${VIRTUAL_ENV:-}" && -n "${_DOTF_VENV_AUTO:-}" ]] &&
+        [[ "$VIRTUAL_ENV" == "$_DOTF_VENV_AUTO" || "$VIRTUAL_ENV" == "${_DOTF_VENV_REAL:-}" ]]; then
+        ours=1
     fi
+
+    if [[ -n "$venv" ]]; then
+        [[ "${VIRTUAL_ENV:-}" == "$venv" ]] && return 0
+        if [[ -n "$ours" ]]; then
+            [[ "$_DOTF_VENV_AUTO" == "$venv" ]] && return 0
+            deactivate 2>/dev/null || true
+        elif [[ -n "${VIRTUAL_ENV:-}" ]]; then
+            return 0
+        fi
+        # shellcheck source=/dev/null
+        source "$venv/bin/activate" 2>/dev/null || true
+        _DOTF_VENV_AUTO="$venv"
+        _DOTF_VENV_REAL="${VIRTUAL_ENV:-}"
+    elif [[ -n "$ours" ]]; then
+        deactivate 2>/dev/null || true
+        unset _DOTF_VENV_AUTO _DOTF_VENV_REAL
+    fi
+    return 0
 }
 
-# Set up Python virtual environment auto-activation
-# Automatically activates .venv when entering a directory (zsh only)
-setup_python_venv() {
-    # Auto-activate Python virtual environments
-    if [[ -n "${ZSH_VERSION:-}" ]]; then
-        # Zsh version
-        python_venv() {
-            local venv_dir=".venv"
-            if [[ -d "$venv_dir" ]]; then
-                source "$venv_dir/bin/activate" 2>/dev/null
-            else
-                # Try to deactivate if we're in a virtual environment
-                if [[ -n "${VIRTUAL_ENV:-}" ]]; then
-                    deactivate 2>/dev/null || true
-                fi
-            fi
-        }
+# bash has no chpwd: run python_venv from PROMPT_COMMAND when $PWD changed.
+# Preserves the status of the last command for whatever runs after it.
+_dotf_venv_prompt_hook() {
+    local s=$?
+    if [[ "$PWD" != "${_dotf_venv_last_pwd:-}" ]]; then
+        _dotf_venv_last_pwd="$PWD"
+        python_venv
+    fi
+    return "$s"
+}
 
-        # Set up chpwd hook for zsh
-        if ! typeset -f add-zsh-hook > /dev/null; then
+# One-shot zsh startup activation, after common/local.sh has run.
+_dotf_venv_first() {
+    add-zsh-hook -d precmd _dotf_venv_first
+    python_venv
+}
+
+# Install the cd hook once; first activation waits until the first prompt,
+# after local overrides and all startup PATH changes have completed.
+setup_python_venv() {
+    [[ -z "${DOTFILES_NO_VENV_AUTO:-}" || "$DOTFILES_NO_VENV_AUTO" == 0 ]] || return 0
+
+    if [[ -n "${ZSH_VERSION:-}" ]]; then
+        if ! typeset -f add-zsh-hook >/dev/null; then
             autoload -U add-zsh-hook
         fi
         add-zsh-hook chpwd python_venv
-        python_venv  # Run once for current directory
+        add-zsh-hook precmd _dotf_venv_first
+    elif [[ -n "${BASH_VERSION:-}" ]]; then
+        # PROMPT_COMMAND is a string, or an array (bash >= 5.1 when the user made it one).
+        # shellcheck disable=SC2178,SC2128,SC2199,SC2076
+        if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == "declare -a"* ]]; then
+            [[ " ${PROMPT_COMMAND[*]} " == *" _dotf_venv_prompt_hook "* ]] ||
+                PROMPT_COMMAND+=(_dotf_venv_prompt_hook)
+        elif [[ "${PROMPT_COMMAND:-}" != *_dotf_venv_prompt_hook* ]]; then
+            # Strip trailing ";"/blanks first (zoxide sets "__zoxide_hook;"),
+            # or the join would produce ";;" and a syntax error every prompt.
+            local pc="${PROMPT_COMMAND:-}"
+            pc="${pc%"${pc##*[!; ]}"}"
+            PROMPT_COMMAND="${pc:+$pc; }_dotf_venv_prompt_hook"
+        fi
     fi
 }
 
@@ -590,41 +667,6 @@ setup_syntax_highlighting() {
         if [[ -n "$zsh_highlighting" && -f "$zsh_highlighting" ]]; then
             source "$zsh_highlighting"
         fi
-    fi
-}
-
-# ================================================================
-# COMPLETIONS SETUP
-# ================================================================
-# Basic completion initialization. Heavy completions (kubectl, helm,
-# docker, aws, terraform, carapace, etc.) are lazy-loaded via
-# lazy-completions.sh for faster startup on both bash and zsh.
-
-# Set up shell completions (basic setup, heavy ones are lazy-loaded)
-setup_completions() {
-    if [[ -n "${ZSH_VERSION:-}" ]]; then
-        # Zsh completions
-        autoload -U compinit && compinit
-
-        # Additional completion directories
-        if [[ -n "$DOTFILES_HOMEBREW_PATH" ]]; then
-            fpath=("$DOTFILES_HOMEBREW_PATH/share/zsh/site-functions" "${fpath[@]}")
-            fpath=("$DOTFILES_HOMEBREW_PATH/share/zsh-completions" "${fpath[@]}")
-        fi
-
-        # Note: kubectl, helm, docker, carapace completions are lazy-loaded
-        # via lazy-completions.sh for faster shell startup
-
-    elif [[ -n "${BASH_VERSION:-}" ]]; then
-        # Bash completions
-        if [[ -n "$DOTFILES_HOMEBREW_PATH" && -f "$DOTFILES_HOMEBREW_PATH/etc/profile.d/bash_completion.sh" ]]; then
-            source "$DOTFILES_HOMEBREW_PATH/etc/profile.d/bash_completion.sh"
-        elif [[ -f /etc/bash_completion ]]; then
-            source /etc/bash_completion
-        fi
-
-        # Note: kubectl, helm, docker completions are lazy-loaded
-        # via lazy-completions.sh for faster shell startup
     fi
 }
 
@@ -753,15 +795,14 @@ setup_atuin() {
 setup_all_tools() {
     # Version managers (mise replaces NVM)
     setup_mise
-    setup_rust
 
     # Modern alternatives
     setup_modern_alternatives
 
     # Interactive tools
-    setup_fzf
     setup_zoxide
     setup_atuin
+    setup_thefuck
 
     # Modern CLI tools
     setup_lazygit
@@ -777,16 +818,19 @@ setup_all_tools() {
     # Python environment
     setup_python_venv
 
-    # Load lazy completions (instead of eager loading)
-    # This significantly improves shell startup time
+    # Heavy completion generators remain lazy.
     if [[ -f "$SCRIPT_DIR/lazy-completions.sh" ]]; then
         source "$SCRIPT_DIR/lazy-completions.sh"
     fi
 
-    # Load comprehensive completions for tools not lazy-loaded
+    # Initialize compinit and register eager tool/carapace completions.
     if [[ -f "$SCRIPT_DIR/completions.sh" ]]; then
         source "$SCRIPT_DIR/completions.sh"
     fi
+
+    # fzf wraps existing completions: load after bash-completion (bashrc),
+    # compinit and carapace, so their loaders remain its fallback.
+    setup_fzf
 }
 
 # ================================================================

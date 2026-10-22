@@ -33,8 +33,10 @@ for file in ~/.{path,extra}; do
 done
 unset file
 
-# Cargo environment (if Rust is installed)
-if [[ -f "$HOME/.cargo/env" ]]; then
+# Cargo environment. Interactive shells already sourced ~/.cargo/env via
+# common/paths.sh:setup_rust_env inside bashrc; only non-interactive login
+# shells (e.g. `bash -l -c`) still need it here.
+if [[ $- != *i* ]] && [[ -f "$HOME/.cargo/env" ]]; then
     source "$HOME/.cargo/env"
 fi
 

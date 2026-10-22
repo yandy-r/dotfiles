@@ -161,8 +161,9 @@ git_status_color() {
 # SYSTEM STATUS FUNCTIONS
 # ================================================================
 
-# Get Python virtual environment
-python_venv() {
+# Get Python virtual environment segment. Not named python_venv: that is the
+# auto-activation hook in common/tools.sh, which this file would shadow.
+_dotf_ps1_venv_segment() {
     if [[ -n "$VIRTUAL_ENV" ]]; then
         echo " ($(basename "$VIRTUAL_ENV"))"
     fi
@@ -225,7 +226,7 @@ build_prompt() {
     prompt+="$_dotf_ps1_git"
 
     # Python virtual environment
-    _dotf_ps1_venv=$(python_venv)
+    _dotf_ps1_venv=$(_dotf_ps1_venv_segment)
     prompt+="${colors[magenta]}\${_dotf_ps1_venv}${colors[reset]}"
 
     # Background jobs
@@ -263,7 +264,16 @@ show_vi_mode() {
 
 # Rebuild PS1 before every prompt. build_prompt runs in the current shell so
 # the variables PS1 references are set where prompt expansion reads them.
-PROMPT_COMMAND='build_prompt'
+# Prepended, never assigned: hooks installed earlier (venv auto-activation in
+# common/tools.sh, direnv) must keep running, and build_prompt must run first
+# so it still sees the last command's $?. Bash 3.2-safe.
+# shellcheck disable=SC2178,SC2128
+if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == "declare -a"* ]]; then
+    [[ " ${PROMPT_COMMAND[*]} " == *" build_prompt "* ]] ||
+        PROMPT_COMMAND=(build_prompt "${PROMPT_COMMAND[@]}")
+elif [[ "${PROMPT_COMMAND:-}" != build_prompt* ]]; then
+    PROMPT_COMMAND="build_prompt${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+fi
 
 # Secondary prompt
 PS2="${colors[bright_white]}❯ ${colors[reset]}"

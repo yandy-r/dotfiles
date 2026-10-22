@@ -124,6 +124,7 @@ alias dus="du -sh"
 
 # Ripgrep (rg) is configured via ~/.config/ripgrep/config
 if has_command rg; then
+	alias rg="rg --hidden --smart-case"
 	alias rgr="rg --hidden --smart-case"  # explicit ripgrep alias
 else
 	alias grep="grep --color=auto"
@@ -385,6 +386,9 @@ fi
 alias ports="netstat -tulpn 2>/dev/null || netstat -p tcp -p udp"
 alias whois="whois -h whois-servers.net"
 
+# mtr needs root for its raw sockets
+has_command mtr && alias mtr="sudo mtr"
+
 # HTTP testing - aliases for HTTP methods (e.g., GET http://example.com)
 alias httpdump="sudo tcpdump -i any -n -s 0 -w - | grep -a -o -E 'Host\: .*|GET \/.*'"
 # Dynamic HTTP verb aliases: SC2139 suppressed (verb baked in per loop iteration).
@@ -460,12 +464,6 @@ if is_macos; then
     if has_command trash; then
         alias del="trash"
     fi
-
-    # Empty trash
-    alias emptytrash="sudo rm -rfv /Volumes/*/.Trashes; rm -rfv ~/.Trash/*"
-
-    # Recursively delete .DS_Store files
-    alias cleanup="find . -name '*.DS_Store' -type f -ls -delete"
 fi
 
 # Linux specific aliases - systemd services, package managers
@@ -545,6 +543,7 @@ alias v='$EDITOR'
 alias vi='$EDITOR'
 alias vim='$EDITOR'
 alias nano='$EDITOR'
+alias edit='$EDITOR'
 
 # Common development tasks (serve, urlencode, urldecode are functions in functions.sh)
 alias jsonpp="python3 -m json.tool"
@@ -814,22 +813,24 @@ _fabric_load_pattern_aliases() {
 
 	# Snapshot existing aliases once. Per-pattern `whence`/`type` checks across
 	# 250+ Fabric patterns previously cost ~400ms of every shell startup.
+	# zsh uses an associative array; the bash path (3.2-compatible, no
+	# `declare -A`) builds one newline-delimited string of "alias -p" names.
+	local _fabric_existing_aliases=""
 	if [[ -n "${ZSH_VERSION:-}" ]]; then
-		typeset -A _fabric_existing_aliases
+		typeset -A _fabric_alias_seen
 		local _fabric_alias_key
 		# Intentional zsh-only key expansion over the aliases assoc array.
 		# shellcheck disable=SC2296
 		for _fabric_alias_key in ${(k)aliases}; do
-			_fabric_existing_aliases[$_fabric_alias_key]=1
+			_fabric_alias_seen[$_fabric_alias_key]=1
 		done
 	elif [[ -n "${BASH_VERSION:-}" ]]; then
-		# Bash 4+ associative array of alias names (O(1) lookup below).
-		declare -A _fabric_existing_aliases=()
-		local _fabric_alias_line _fabric_alias_key
+		local _fabric_alias_line _fabric_alias_name
 		while IFS= read -r _fabric_alias_line; do
-			_fabric_alias_key="${_fabric_alias_line%%=*}"
-			_fabric_alias_key="${_fabric_alias_key#alias }"
-			_fabric_existing_aliases["$_fabric_alias_key"]=1
+			_fabric_alias_name="${_fabric_alias_line%%=*}"
+			_fabric_alias_name="${_fabric_alias_name#alias }"
+			[[ -n "$_fabric_alias_name" ]] || continue
+			_fabric_existing_aliases+=$'\n'"$_fabric_alias_name"$'\n'
 		done < <(alias -p 2>/dev/null)
 	fi
 
@@ -848,15 +849,20 @@ _fabric_load_pattern_aliases() {
 			continue
 		fi
 
-		if [[ "$overwrite" != "true" ]] && [[ -n "${_fabric_existing_aliases[$alias_name]:-}" ]]; then
-			continue
+		if [[ "$overwrite" != "true" ]]; then
+			if [[ -n "${ZSH_VERSION:-}" ]]; then
+				[[ -n "${_fabric_alias_seen[$alias_name]:-}" ]] && continue
+			elif [[ "$_fabric_existing_aliases" == *$'\n'"$alias_name"$'\n'* ]]; then
+				continue
+			fi
 		fi
 
 		# shellcheck disable=SC2139 # Capture this pattern name when the alias is generated.
 		alias -- "$alias_name=fabric --pattern $pattern_name"
 	done
 
-	unset _fabric_existing_aliases 2>/dev/null || true
+	# Clean up the snapshot vars (unset -f is not used: one may be a zsh assoc).
+	unset -v _fabric_existing_aliases _fabric_alias_seen 2>/dev/null || true
 }
 
 _fabric_load_pattern_aliases

@@ -36,6 +36,17 @@ source "$DOTFILES_ROOT/common/exports.sh"
 source "$DOTFILES_ROOT/common/paths.sh"
 source "$DOTFILES_ROOT/common/aliases.sh"
 source "$DOTFILES_ROOT/common/functions.sh"
+
+# Source at top level: bash-completion 2.1–2.8 declare global arrays here.
+# The candidate paths have one owner in common/paths.sh.
+if ! shopt -oq posix && [[ -z "${BASH_COMPLETION_VERSINFO:-}" ]]; then
+	if _dotf_completion_file="$(_dotf_bash_completion_file)"; then
+		# shellcheck source=/dev/null
+		source "$_dotf_completion_file"
+	fi
+	unset _dotf_completion_file
+fi
+
 source "$DOTFILES_ROOT/common/tools.sh"
 
 # ================================================================
@@ -111,24 +122,6 @@ else
 fi
 
 # ================================================================
-# COMPLETION SYSTEM
-# ================================================================
-
-# Load bash completion
-if ! shopt -oq posix; then
-	if [[ -f /usr/share/bash-completion/bash_completion ]]; then
-		source /usr/share/bash-completion/bash_completion
-	elif [[ -f /etc/bash_completion ]]; then
-		source /etc/bash_completion
-	fi
-fi
-
-# Homebrew completions
-if [[ -n "$DOTFILES_HOMEBREW_PATH" && -f "$DOTFILES_HOMEBREW_PATH/etc/profile.d/bash_completion.sh" ]]; then
-	source "$DOTFILES_HOMEBREW_PATH/etc/profile.d/bash_completion.sh"
-fi
-
-# ================================================================
 # LEGACY COMPATIBILITY
 # ================================================================
 
@@ -139,22 +132,6 @@ fi
 # Legacy profile loading - DISABLED to prevent circular sourcing
 # Note: ~/.profile sources ~/.bash_profile which sources ~/.bashrc creating a loop
 # [[ -f ~/.profile ]] && source ~/.profile
-
-# ================================================================
-# TOOL COMPLETIONS
-# ================================================================
-# Note: Most completions are handled by common/completions.sh via tools.sh
-
-# Vault completion (if installed locally)
-[[ -f /usr/local/bin/vault ]] && complete -C /usr/local/bin/vault vault
-
-# ================================================================
-# DEVELOPMENT ENVIRONMENT COMPATIBILITY
-# ================================================================
-# Note: These are handled by tools.sh but kept for immediate compatibility
-
-# Cargo (Rust) - handled by tools.sh but sourced directly for immediate availability
-[[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
 
 # ================================================================
 # DIRENV SETUP
@@ -181,6 +158,16 @@ elif [[ -f "$HOME/.atuin/bin/atuin" ]]; then
 fi
 
 # ================================================================
+# FINAL PATH CLEANUP
+# ================================================================
+
+# Single owner: common/paths.sh:finalize_path — dedupe, drop Nix and
+# wrong-platform paths, macOS Homebrew ordering, debug line, export. Same
+# point as zshrc (after atuin, before local.sh), so dotfiles.local/paths.sh
+# entries are neither reordered nor removed.
+finalize_path
+
+# ================================================================
 # POST-LOAD CUSTOMIZATIONS
 # ================================================================
 
@@ -195,7 +182,18 @@ xterm* | rxvt* | screen*)
 	_dotf_set_title() {
 		printf '\033]0;%s@%s: %s\007' "$USER" "$HOSTNAME" "$PWD"
 	}
-	PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND; }_dotf_set_title"
+	# PROMPT_COMMAND is a string, or an array (bash >= 5.1 when the user made
+	# it one). Strip a trailing ';' first (zoxide leaves "__zoxide_hook;"):
+	# ';;' in PROMPT_COMMAND is a syntax error at every prompt. Bash 3.2-safe.
+	# shellcheck disable=SC2178,SC2128
+	if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == "declare -a"* ]]; then
+		PROMPT_COMMAND+=(_dotf_set_title)
+	else
+		_pc="${PROMPT_COMMAND:-}"
+		_pc="${_pc%"${_pc##*[!; ]}"}"
+		PROMPT_COMMAND="${_pc:+$_pc; }_dotf_set_title"
+		unset -v _pc
+	fi
 	;;
 esac
 

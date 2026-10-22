@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # ================================================================
 # Bash Profile Loader
 # ================================================================
@@ -12,7 +13,15 @@ export DOTFILES_PROFILE_LOADED=1
 if [[ -f ~/.bash_profile ]]; then
     source ~/.bash_profile
 fi
-. "$HOME/.cargo/env"
+# POSIX only: this file is also read by /bin/sh login shells. Skip when the
+# file is missing or cargo's bin dir is already on PATH (setup_rust_env or a
+# prior shell did it).
+if [ -f "$HOME/.cargo/env" ]; then
+    case ":$PATH:" in
+    *":$HOME/.cargo/bin:"*) ;;
+    *) . "$HOME/.cargo/env" ;;
+    esac
+fi
 
 . "$HOME/.atuin/bin/env"
 

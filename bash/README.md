@@ -10,7 +10,7 @@ This directory contains the bash shell configuration for the dotfiles repository
 | `bash_profile` | Login shell configuration                   | `~/.bash_profile` |
 | `profile`      | Profile loader                              | `~/.profile`      |
 | `prompt.sh`    | Custom git-aware prompt (Starship fallback) | Sourced by bashrc |
-| `.fzf.bash`    | FZF keybindings for bash                    | Sourced by bashrc |
+| `.fzf.bash`    | FZF keybindings for bash                    | `~/.fzf.bash` (via `dotf link`) |
 
 ## How It Works
 
@@ -18,14 +18,16 @@ This directory contains the bash shell configuration for the dotfiles repository
 
 1. **Login shell** (`~/.bash_profile` or `~/.profile`):
    - Sources `~/.bashrc`
-   - Loads Cargo environment
-   - Initializes direnv
+   - Sources Cargo environment only in non-interactive shells
+   - Initializes direnv when missing
 
 2. **Interactive shell** (`~/.bashrc`):
    - Sources the common configuration system
    - Applies bash-specific settings
    - Initializes Starship prompt
-   - Loads completions and tools
+   - Sources bash-completion at top level before tools, then fzf after tool completions
+   - Runs `finalize_path` (from `common/paths.sh`) before local overrides
+   - Sources `common/local.sh` last
 
 ### Common System Integration
 
@@ -39,6 +41,10 @@ source "$DOTFILES_ROOT/common/aliases.sh"    # Shell aliases
 source "$DOTFILES_ROOT/common/functions.sh"  # Utility functions
 source "$DOTFILES_ROOT/common/tools.sh"      # Tool setup
 ```
+
+Before `tools.sh`, bashrc sources bash-completion at top level (unless POSIX mode
+or already loaded), so older frameworks' global arrays survive. The candidate
+file list is resolved by `common/paths.sh:_dotf_bash_completion_file`.
 
 This provides feature parity with zsh while maintaining bash-specific optimizations.
 
@@ -199,11 +205,25 @@ See the main [CLAUDE.md](../CLAUDE.md) for direnv usage instructions.
 
 ### FZF (Fuzzy Finder)
 
-[FZF](https://github.com/junegunn/fzf) provides fuzzy finding:
+[FZF](https://github.com/junegunn/fzf) integration is owned by
+`common/tools.sh:setup_fzf` for both shells: it sources `~/.fzf.bash` (linked
+to `bash/.fzf.bash` by `dotf link`) when present, else the repo file. The
+repo file prefers `fzf --bash` and falls back to the packaged
+key-bindings/completion scripts. It loads after bash-completion and carapace,
+preserving their completion loaders as fzf's fallback (carapace requires bash 4+).
 
 - `Ctrl+R` - Fuzzy history search (if Atuin not installed)
 - `Ctrl+T` - Fuzzy file search
 - `Alt+C` - Fuzzy directory change
+
+### Python Virtual Environments
+
+`common/tools.sh:setup_python_venv` auto-activates the nearest ancestor `.venv`
+in both shells (bash via `PROMPT_COMMAND`, zsh via a `chpwd` hook). Initial
+activation waits for the first prompt, after local overrides finish modifying
+PATH. Manually activated environments are left alone. Set
+`DOTFILES_NO_VENV_AUTO=1` to disable it.
+
 
 ## Troubleshooting
 

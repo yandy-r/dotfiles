@@ -17,11 +17,12 @@ name: Shell
 #     correctness lives as much in common/ and bin/ as it does in Go, and
 #     neither was gated by any workflow before.
 #   - regression: runs the hermetic shell regression scripts (scripts/test-*.sh
-#     for the local-overrides hook, the bash prompt, the startup cache and the
+#     for the local-overrides hook, shell parity, the bash prompt, the startup cache and the
 #     platform predicates) on Linux and macOS, with zsh installed so the zsh
 #     cases run too. On macOS the drivers run under Homebrew bash 5 (the prompt
 #     test needs bash >= 4.4), and the local-hook test runs a second time with
-#     the shells under test pinned to the system /bin/bash 3.2.
+#     the shells under test pinned to the system /bin/bash 3.2 (as does the
+#     shell parity test).
 
 on:
   pull_request:
@@ -112,6 +113,9 @@ jobs:
 
       - name: Local overrides hook
         run: bash scripts/test-shell-local-hook.sh
+
+      - name: Shell parity
+        run: bash scripts/test-shell-parity.sh
 
       - name: Bash prompt
         run: bash scripts/test-bash-prompt.sh

@@ -18,7 +18,7 @@
 #   - setup_all_paths()      - Main entry point, sets up everything
 #   - prepend_path()         - Add to front of PATH
 #   - append_path()          - Add to end of PATH
-#   - cleanup_path()         - Remove duplicates
+#   - finalize_path()        - Final cleanup pass, called late by both rc files
 #   - print_path()           - Debug: show PATH entries
 #
 # Guard Variables:
@@ -61,6 +61,22 @@ prepend_path() {
     if [[ -n "$dir" && -d "$dir" && ":$PATH:" != *":$dir:"* ]]; then
         export PATH="$dir:$PATH"
     fi
+}
+
+# Resolve bash-completion without sourcing it inside a function: older
+# releases use top-level declare -A, which must remain global in bashrc.
+_dotf_bash_completion_file() {
+    local completion_script
+    for completion_script in \
+        "${DOTFILES_HOMEBREW_PATH:-}/etc/profile.d/bash_completion.sh" \
+        /usr/share/bash-completion/bash_completion \
+        /etc/bash_completion; do
+        if [[ -f "$completion_script" ]]; then
+            printf '%s\n' "$completion_script"
+            return 0
+        fi
+    done
+    return 1
 }
 
 # Remove a specific directory from PATH (safe, won't corrupt PATH)
@@ -157,9 +173,14 @@ fix_homebrew_path_order() {
         local homebrew_paths=""
         local other_paths=""
 
-        # Split PATH by colons (zsh-specific parameter-expansion flag syntax).
-        # shellcheck disable=SC2296
-        local path_array=("${(@s/:/)PATH}")
+        # Split PATH using each shell's array syntax (including bash 3.2).
+        local -a path_array
+        if [[ -n "${ZSH_VERSION:-}" ]]; then
+            # shellcheck disable=SC2296
+            path_array=("${(@s/:/)PATH}")
+        else
+            IFS=: read -r -a path_array <<<"$PATH"
+        fi
 
         for dir in "${path_array[@]}"; do
             # Skip empty entries
@@ -671,6 +692,30 @@ cleanup_unwanted_paths() {
     for unwanted_path in "${unwanted_paths[@]}"; do
         remove_from_path "$unwanted_path"
     done
+}
+
+# Final PATH pass, run once AFTER all shell initialization (both rc files call
+# it late in startup; common/local.sh still runs after it, so machine-local
+# PATH additions in dotfiles.local/paths.sh keep their position).
+finalize_path() {
+    local colons orig_count new_count
+
+    # Entry counts via parameter expansion (no echo|wc pipelines); the count
+    # for the debug line is recomputed only when DOTFILES_DEBUG is set.
+    colons="${PATH//[^:]/}"
+    orig_count=$(( ${#colons} + 1 ))
+
+    cleanup_unwanted_paths
+    cleanup_path
+    is_macos && fix_homebrew_path_order
+
+    if [[ -n "${DOTFILES_DEBUG:-}" ]]; then
+        colons="${PATH//[^:]/}"
+        new_count=$(( ${#colons} + 1 ))
+        echo "[DOTFILES] PATH cleanup removed $((orig_count - new_count)) entries ($orig_count -> $new_count)"
+    fi
+
+    export PATH
 }
 
 # ================================================================

@@ -7,7 +7,7 @@ import (
 )
 
 func TestTable_Count(t *testing.T) {
-	if got, want := len(DefaultTable()), 43; got != want {
+	if got, want := len(DefaultTable()), 44; got != want {
 		t.Errorf("len(DefaultTable()) = %d, want %d", got, want)
 	}
 }
@@ -19,7 +19,7 @@ func TestTable_FacetCounts(t *testing.T) {
 	}
 
 	want := map[Facet]int{
-		FacetAll:         28,
+		FacetAll:         29,
 		FacetMacOS:       1,
 		FacetArch:        0,
 		FacetWindows:     0,
@@ -36,13 +36,14 @@ func TestTable_FacetCounts(t *testing.T) {
 }
 
 // TestTable_MatchesPlaybook is the parity guard: it encodes the expected
-// 43-entry set inline (transcribed from playbooks/vars/symlinks.yml) and diffs
+// 44-entry set inline (transcribed from playbooks/vars/symlinks.yml) and diffs
 // it against DefaultTable, so any drift fails CI. Zero new dependencies.
 func TestTable_MatchesPlaybook(t *testing.T) {
 	want := []LinkSpec{
 		{Src: "bash/bashrc", Dest: ".bashrc", Facet: FacetAll},
 		{Src: "bash/bash_profile", Dest: ".bash_profile", Facet: FacetAll},
 		{Src: "bash/profile", Dest: ".profile", Facet: FacetAll},
+		{Src: "bash/.fzf.bash", Dest: ".fzf.bash", Facet: FacetAll},
 		{Src: "zsh/zshrc", Dest: ".zshrc", Facet: FacetAll},
 		{Src: "zsh/zprofile", Dest: ".zprofile", Facet: FacetAll},
 		{Src: "zsh/functions.zsh", Dest: ".functions.zsh", Facet: FacetAll},

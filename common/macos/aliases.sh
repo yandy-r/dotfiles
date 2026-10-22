@@ -54,6 +54,9 @@ alias hidedesktop="defaults write com.apple.finder CreateDesktop -bool false && 
 alias desktop="cd ~/Desktop"
 alias emptytrash="sudo rm -rfv /Volumes/*/.Trashes; rm -rfv ~/.Trash/*; rm -rfv ~/.Trash/.*"
 
+# Recursively delete .DS_Store files
+alias cleanup="find . -name '*.DS_Store' -type f -ls -delete"
+
 # File operations (ql function is in macos/functions.sh)
 alias quicklook="qlmanage -p"
 

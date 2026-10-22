@@ -340,6 +340,12 @@ source <(dotf completion zsh)            # load into the current zsh session
 - **Comprehensive Completions**: Universal completion system for 50+ modern CLI tools
 - **Cross-Platform Functions**: Unified utility functions that work everywhere
 
+Bash sources its bash-completion framework at top level before shared tools
+(candidate paths are owned by `common/paths.sh`); both shells load fzf after tool
+completions so their fallback loaders survive. Shared `.venv` auto-activation
+waits until the first prompt after local overrides, and leaves manual environments
+alone. Set `DOTFILES_NO_VENV_AUTO=1` to disable it.
+
 ### 🛠️ Developer-Focused
 
 - **Cloud Provider CLIs**: Full support for AWS, GCP, Azure with completions
@@ -376,7 +382,8 @@ dotfiles/
 │   ├── bashrc             # Enhanced bash config (uses common system)
 │   ├── bash_profile       # Login shell configuration
 │   ├── profile            # Profile configuration
-│   └── prompt.sh          # Modern bash prompt with git integration
+│   ├── prompt.sh          # Modern bash prompt with git integration
+│   └── .fzf.bash         # fzf keybindings (sourced by common/tools.sh:setup_fzf)
 ├── bin/                   # Custom scripts and executables
 ├── common/                # Cross-platform configuration system ⭐
 │   ├── platform.sh        # OS/architecture detection
@@ -410,7 +417,7 @@ dotfiles/
 ├── zsh/                   # Zsh shell configurations
 │   ├── completions/       # Shell completions
 │   ├── functions.zsh      # Legacy zsh functions
-│   ├── fzf.zsh           # Fuzzy finder integration
+│   ├── fzf.zsh            # Fuzzy finder integration (sourced by common/tools.sh:setup_fzf)
 │   └── zshrc             # Enhanced zsh config (uses common system)
 ├── starship.toml          # Unified prompt configuration (bash + zsh)
 └── bootstrap.sh           # POSIX shim — downloads `dotf` and execs `dotf apply`

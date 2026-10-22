@@ -17,7 +17,8 @@
 LAZY_LOADED_KUBECTL=""
 LAZY_LOADED_DOCKER=""
 LAZY_LOADED_HELM=""
-LAZY_LOADED_CARAPACE=""
+# LAZY_LOADED_CARAPACE is set by setup_carapace_completions
+# (common/completions.sh), which loads carapace eagerly.
 LAZY_LOADED_AWS=""
 LAZY_LOADED_GCLOUD=""
 LAZY_LOADED_TERRAFORM=""
@@ -116,36 +117,11 @@ _setup_lazy_helm() {
 }
 
 # ================================================================
-# CARAPACE LAZY LOADING (Universal Completion Engine)
+# CARAPACE
 # ================================================================
-
-_setup_lazy_carapace() {
-    command -v carapace &>/dev/null || return 0
-    [[ -n "$LAZY_LOADED_CARAPACE" ]] && return 0
-
-    # Internal loader function
-    _load_carapace() {
-        [[ -n "$LAZY_LOADED_CARAPACE" ]] && return 0
-
-        export CARAPACE_BRIDGES='zsh,fish,bash,inshellisense'
-
-        if [[ -n "${ZSH_VERSION:-}" ]]; then
-            zstyle ':completion:*' format $'\e[2;37mCompleting %d\e[m'
-            source <(carapace _carapace) 2>/dev/null
-        elif [[ -n "${BASH_VERSION:-}" ]]; then
-            eval "$(carapace _carapace 2>/dev/null)" 2>/dev/null
-        fi
-
-        LAZY_LOADED_CARAPACE=1
-    }
-
-    # Wrapper that loads carapace on first use
-    function carapace() {
-        unset -f carapace 2>/dev/null
-        _load_carapace
-        command carapace "$@"
-    }
-}
+# No lazy wrapper: common/completions.sh:setup_carapace_completions is the
+# single owner and registers carapace eagerly at startup in both shells.
+# LAZY_LOADED_CARAPACE stays as the shared loaded-state flag it sets.
 
 # ================================================================
 # AWS CLI LAZY LOADING
@@ -235,10 +211,11 @@ _setup_lazy_terraform() {
 # ================================================================
 
 setup_lazy_completions() {
+    # carapace is NOT lazy anymore: setup_carapace_completions
+    # (common/completions.sh) owns it and registers it eagerly in both shells.
     _setup_lazy_kubectl
     _setup_lazy_docker
     _setup_lazy_helm
-    _setup_lazy_carapace
     _setup_lazy_aws
     _setup_lazy_gcloud
     _setup_lazy_terraform
@@ -269,7 +246,7 @@ force_load_all_completions() {
 
     if command -v carapace &>/dev/null; then
         echo "  Loading carapace..."
-        _load_carapace
+        setup_carapace_completions
     fi
 
     if command -v aws &>/dev/null; then
@@ -296,7 +273,7 @@ lazy_completion_status() {
     echo "  kubectl:   ${LAZY_LOADED_KUBECTL:-not loaded}"
     echo "  docker:    ${LAZY_LOADED_DOCKER:-not loaded}"
     echo "  helm:      ${LAZY_LOADED_HELM:-not loaded}"
-    echo "  carapace:  ${LAZY_LOADED_CARAPACE:-not loaded}"
+    echo "  carapace:  ${LAZY_LOADED_CARAPACE:-not loaded} (eager; owner is setup_carapace_completions)"
     echo "  aws:       ${LAZY_LOADED_AWS:-not loaded}"
     echo "  gcloud:    ${LAZY_LOADED_GCLOUD:-not loaded}"
     echo "  terraform: ${LAZY_LOADED_TERRAFORM:-not loaded}"
