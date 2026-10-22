@@ -114,6 +114,15 @@ debugpy_installed() {
 	"$DEBUG_PYTHON" -c 'import debugpy.adapter' >/dev/null 2>&1
 }
 
+# Homebrew marks its Python EXTERNALLY-MANAGED, but it is not distro-owned and
+# puts no unversioned python on PATH, so the ~/.local/bin link applies instead.
+homebrew_python() {
+	command -v brew >/dev/null 2>&1 || return 1
+	local prefix
+	prefix="$(brew --prefix 2>/dev/null)" || return 1
+	[[ "$(command -v "$DEBUG_PYTHON")" == "$prefix"/* ]]
+}
+
 # System Python is owned by the OS, not pip. Ubuntu/Debian also need the
 # unversioned command because omp's default adapter launches `python`.
 install_system_debugger() {
@@ -126,6 +135,9 @@ install_system_debugger() {
 		if [[ "$DEBUG_PYTHON" == python3 ]]; then command_args+=(python-unversioned-command); fi
 	elif command -v pacman >/dev/null 2>&1; then
 		command_args=(pacman -S --needed --noconfirm python-debugpy)
+	elif homebrew_python; then
+		log "WARNING: Homebrew Python is externally managed; run: $DEBUG_PYTHON -m pip install --user --break-system-packages debugpy, then rerun --debugger-only"
+		return 1
 	else
 		log "WARNING: install your distro's debugpy package and ensure python is on PATH; no supported system package manager found"
 		return 1
@@ -188,7 +200,7 @@ ensure_debugger() {
 		if [[ "$DEBUG_PYTHON" == python3 ]]; then
 			log "debugpy is available, but omp calls the unversioned python command"
 			mode="$(python_install_mode)" || mode=unknown
-			if [[ "$mode" == managed ]]; then install_system_debugger; return; fi
+			if [[ "$mode" == managed ]] && ! homebrew_python; then install_system_debugger; return; fi
 			ensure_python_command || return 1
 		fi
 		debugpy_installed || return 1
