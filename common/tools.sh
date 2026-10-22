@@ -41,6 +41,12 @@ if [[ -z "$DOTFILES_OS" ]]; then
     fi
 fi
 
+# _cached_eval (setup_zoxide) — the rc files source it right after platform.sh;
+# this covers tools.sh being sourced on its own.
+if ! typeset -f _cached_eval >/dev/null 2>&1; then
+    source "${DOTFILES_ROOT:-$HOME/.config/dotfiles}/common/cached-eval.sh"
+fi
+
 # ================================================================
 # TOOL CATEGORIES
 # ================================================================
@@ -353,11 +359,12 @@ setup_zoxide() {
     if tool_exists zoxide; then
         # Initialize zoxide with default 'z' command (not replacing cd)
         # This avoids issues with shell snapshots and subshells
-        # Use 'z' for smart jumping, 'cd' remains standard
+        # Use 'z' for smart jumping, 'cd' remains standard.
+        # Output is cached by common/cached-eval.sh (regenerated on upgrade).
         if [[ -n "${ZSH_VERSION:-}" ]]; then
-            eval "$(zoxide init zsh)"
+            _cached_eval zoxide zoxide init zsh
         elif [[ -n "${BASH_VERSION:-}" ]]; then
-            eval "$(zoxide init bash)"
+            _cached_eval zoxide zoxide init bash
         fi
     fi
 }

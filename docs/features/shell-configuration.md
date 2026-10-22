@@ -14,12 +14,59 @@ When you start a new shell session, the following files are loaded in order:
 bash/bashrc (bash) OR zsh/zshrc (zsh)
     |
     +-- common/platform.sh    (OS/architecture detection)
+    +-- common/cached-eval.sh (_cached_eval: cached tool init output)
     +-- common/exports.sh     (environment variables)
     +-- common/paths.sh       (PATH construction)
     +-- common/aliases.sh     (command shortcuts)
     +-- common/functions.sh   (utility functions)
     +-- common/tools.sh       (tool setup and detection)
 ```
+
+### Cached Tool Initialization
+
+zoxide, atuin, starship, direnv and (zsh only) thefuck are normally initialized
+with `eval "$(tool init <shell>)"`, which forks the tool on every shell start.
+The rc files call `_cached_eval` (`common/cached-eval.sh`) instead: the init
+output is written once to
+
+```
+${XDG_CACHE_HOME:-~/.cache}/dotfiles/eval/<tool>.<zsh|bash>
+```
+
+(directory mode 700) and sourced from there on later starts. The first line of
+each file records the shell, the resolved binary, the full command line and the
+inode, size and mtime of the binary — plus, for atuin, of
+`${ATUIN_CONFIG_DIR:-~/.config/atuin}/config.toml`. Any change (an upgrade, a
+reinstall, a config edit) regenerates that one file on the next start. A
+failing or silent init command is never cached, and a cache file not owned by
+you is never sourced. `mise activate` stays an uncached `eval`: its output
+embeds the current `$PATH`.
+
+| Control                       | Effect                                                    |
+| ----------------------------- | --------------------------------------------------------- |
+| `DOTFILES_NO_EVAL_CACHE=1`    | Bypass the cache: every start runs `eval "$(tool init)"`  |
+| `dotfiles_clear_eval_cache`   | Delete every cached init file (regenerated on next start) |
+
+Clear the cache after changing an environment variable that alters a tool's init
+output (for example `_ZO_*` for zoxide), since only files are tracked.
+
+### Single compinit (zsh)
+
+zsh runs `compinit` exactly once, in `common/completions.sh`, after
+`common/paths.sh:setup_fpath` has put every completion directory on `fpath`:
+Homebrew, `$DOTFILES_ROOT/zsh/completions` (repo-owned `_op`, `_bws`, …),
+`~/.zfunc`, `~/.docker/completions` and `~/.grok/completions/zsh`. When an
+installer appends `fpath=(… $fpath)` and `compinit` to `~/.zshrc`, move the
+directory into `setup_fpath` (guarded with `[[ -d ]]`) and drop the `compinit`:
+each extra call costs ~150ms and rewrites `~/.zcompdump`.
+
+Debian/Ubuntu's `/etc/zsh/zshrc` runs its own `compinit` (default `fpath`)
+before `~/.zshrc`. When that has happened, the dotfiles re-run `compinit` once
+with their full `fpath` into a separate dump,
+`${ZDOTDIR:-$HOME}/.zcompdump-dotfiles`, so neither dump is rebuilt on an
+unchanged startup. To skip the system call entirely, add
+`skip_global_compinit=1` to your own `~/.zshenv` (the dotfiles do not manage
+that file); the dotfiles then run the only `compinit`, into `~/.zcompdump`.
 
 ## Choosing Between Bash and Zsh
 
@@ -298,10 +345,15 @@ If your shell is slow to start:
    time bash -i -c exit
    ```
 
-3. **Check for heavy completions**:
+3. **Profile zsh in detail**: put `zmodload zsh/zprof` at the top of `~/.zshrc`,
+   start a shell, run `zprof`.
+   `compinit` should appear once; tool `init` commands should not appear at all
+   on a warm start (see [Cached Tool Initialization](#cached-tool-initialization)).
+
+4. **Check for heavy completions**:
    Completions for kubectl, docker, helm are lazy-loaded to improve startup time.
 
-4. **Disable debug output**:
+5. **Disable debug output**:
 
    ```bash
    unset DOTFILES_DEBUG

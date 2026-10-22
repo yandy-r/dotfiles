@@ -419,6 +419,13 @@ Each module can be disabled by setting environment variables:
 | `DOTFILES_NO_AUTO_TOOL_SETUP`  | Disable tools.sh auto-setup       |
 | `DOTFILES_NO_AUTO_COMPLETIONS` | Disable completions.sh auto-setup |
 | `DOTFILES_NO_LAZY_COMPLETIONS` | Disable lazy-completions.sh       |
+| `DOTFILES_NO_EVAL_CACHE`       | Bypass cached-eval.sh's cache     |
+
+`common/cached-eval.sh` caches tool init output (zoxide, atuin, starship,
+direnv, thefuck) in `${XDG_CACHE_HOME:-~/.cache}/dotfiles/eval/<tool>.<shell>`,
+keyed on the binary's (and atuin's config file's) inode, size and mtime. Run
+`dotfiles_clear_eval_cache` to delete it. See
+[Cached Tool Initialization](../features/shell-configuration.md#cached-tool-initialization).
 
 ## Debugging
 

@@ -36,6 +36,7 @@ The `zshrc` sources the shared configuration modules:
 
 ```zsh
 source "$DOTFILES_ROOT/common/platform.sh"   # Platform detection
+source "$DOTFILES_ROOT/common/cached-eval.sh" # _cached_eval (cached tool init)
 source "$DOTFILES_ROOT/common/exports.sh"    # Environment variables
 source "$DOTFILES_ROOT/common/paths.sh"      # PATH management
 source "$DOTFILES_ROOT/common/aliases.sh"    # Shell aliases
@@ -149,7 +150,8 @@ The configuration uses these plugins (loaded via `common/tools.sh`):
 
 ### Carapace (Universal Completion)
 
-If [Carapace](https://github.com/rsteube/carapace-bin) is installed:
+If [Carapace](https://github.com/rsteube/carapace-bin) is installed, `zshrc` loads it eagerly, after the single `compinit`
+(it is not cached, since its output depends on carapace's specs and config):
 
 ```zsh
 export CARAPACE_BRIDGES='zsh,fish,bash,inshellisense'

@@ -38,8 +38,12 @@ if [[ -f "$HOME/.cargo/env" ]]; then
     source "$HOME/.cargo/env"
 fi
 
-# Direnv (cross-platform support)
-if command -v direnv >/dev/null 2>&1; then
+# direnv: bash/bashrc normally installs the hook, but it returns early when
+# DOTFILES_BASHRC_LOADED is inherited from a parent shell (e.g. `bash -l` from
+# an interactive bash), leaving this login shell without one. Install it here
+# only when it is still missing, so a normal login never hooks twice.
+if [[ $- == *i* ]] && command -v direnv >/dev/null 2>&1 &&
+    [[ "${PROMPT_COMMAND[*]:-}" != *_direnv_hook* ]]; then
     eval "$(direnv hook bash)"
 fi
 

@@ -14,6 +14,7 @@ export DOTFILES_ROOT="${DOTFILES_ROOT:-$HOME/.config/dotfiles}"
 
 # Load platform detection and common configurations
 source "$DOTFILES_ROOT/common/platform.sh"
+source "$DOTFILES_ROOT/common/cached-eval.sh"
 source "$DOTFILES_ROOT/common/exports.sh"
 source "$DOTFILES_ROOT/common/paths.sh"
 source "$DOTFILES_ROOT/common/aliases.sh"
@@ -70,14 +71,11 @@ unsetopt MENU_COMPLETE      # Don't autoselect the first completion entry
 # ZSH COMPLETION SYSTEM
 # ================================================================
 
-# Enhanced completion system setup
-if [[ -n "$DOTFILES_HOMEBREW_PATH" ]]; then
-    FPATH="$DOTFILES_HOMEBREW_PATH/share/zsh/site-functions:$FPATH"
-    FPATH="$DOTFILES_HOMEBREW_PATH/share/zsh-completions:$FPATH"
-fi
-
-# Add custom completions
-FPATH="$DOTFILES_ROOT/zsh/completions:$FPATH"
+# Every completion directory (Homebrew, $DOTFILES_ROOT/zsh/completions,
+# ~/.zfunc, ~/.docker/completions, ~/.grok/completions/zsh, …) is put on fpath
+# by common/paths.sh:setup_fpath, which runs before the single compinit in
+# common/completions.sh. Add new directories there, not here: an fpath entry
+# added after compinit is invisible until a second (slow) compinit.
 
 # Completion styling
 zstyle ':completion:*' menu select
@@ -126,11 +124,8 @@ fi
 # OP_SERVICE_ACCOUNT_TOKEN and the AI API keys (GEMINI/OPENAI/ANTHROPIC) are
 # exported from ~/.config/secrets/ by common/local.sh, sourced at the end.
 
-# 1Password CLI completions
-if command -v op >/dev/null 2>&1; then
-    eval "$(op completion zsh)"
-    compdef _op op
-fi
+# 1Password CLI completions: zsh/completions/_op (on fpath via setup_fpath) is
+# autoloaded by compinit — no `op completion zsh` fork at startup.
 
 # ================================================================
 # CDKTF COMPLETIONS
@@ -207,15 +202,20 @@ python_venv  # Run once for current directory
 # ADDITIONAL TOOL INITIALIZATION
 # ================================================================
 
-# Initialize thefuck if available
+# Initialize thefuck if available (output cached by common/cached-eval.sh,
+# keyed on settings.py too since it can change the alias)
 if command -v thefuck >/dev/null 2>&1; then
-    eval "$(thefuck --alias)"
+    _cached_eval --dep "${XDG_CONFIG_HOME:-$HOME/.config}/thefuck/settings.py" thefuck thefuck --alias
 fi
 
 # ================================================================
 # CARAPACE UNIVERSAL COMPLETION
 # ================================================================
 
+# Eager in zsh: registers the bridged completions with compdef (the lazy
+# wrapper in common/lazy-completions.sh only wraps the `carapace` command
+# itself). Runs after the single compinit, so it adds no compinit of its own.
+# Not cached: its output depends on carapace's specs and config.
 if command -v carapace >/dev/null 2>&1; then
     export CARAPACE_BRIDGES='zsh,fish,bash,inshellisense'
     zstyle ':completion:*' format $'\e[2;37mCompleting %d\e[m'
@@ -283,14 +283,16 @@ fi
 # ================================================================
 
 # Initialize Starship prompt (unified for bash and zsh)
+# Init output is cached by common/cached-eval.sh (regenerated when the binary or
+# its config changes); DOTFILES_NO_EVAL_CACHE=1 restores the plain eval.
 if command -v starship >/dev/null 2>&1; then
-    eval "$(starship init zsh)"
+    _cached_eval starship starship init zsh
 else
     # Fallback: Auto-install Starship if not available
     if [[ -t 1 ]]; then
         echo "🌟 Setting up Starship prompt..."
         if command -v brew >/dev/null 2>&1; then
-            brew install starship 2>/dev/null && eval "$(starship init zsh)"
+            brew install starship 2>/dev/null && _cached_eval starship starship init zsh
         fi
     fi
 fi
@@ -301,19 +303,22 @@ fi
 
 # Initialize direnv for automatic environment management
 if command -v direnv >/dev/null 2>&1; then
-    eval "$(direnv hook zsh)"
+    _cached_eval direnv direnv hook zsh
 fi
 
 # ================================================================
 # ATUIN SETUP
 # ================================================================
 
-# Initialize atuin for shell history sync and search
+# Initialize atuin for shell history sync and search. Its init output depends
+# on config.toml (key bindings), so the cache is keyed on that file too.
 if command -v atuin >/dev/null 2>&1; then
-    eval "$(atuin init zsh)"
+    _cached_eval --dep "${ATUIN_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/atuin}/config.toml" \
+        atuin atuin init zsh
 elif [[ -f "$HOME/.atuin/bin/atuin" ]]; then
     export PATH="$HOME/.atuin/bin:$PATH"
-    eval "$(atuin init zsh)"
+    _cached_eval --dep "${ATUIN_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/atuin}/config.toml" \
+        atuin atuin init zsh
 fi
 
 
@@ -331,11 +336,6 @@ if is_macos; then
     # Turso CLI
     if [[ -d "$HOME/.turso" ]]; then
         append_path "$HOME/.turso"
-    fi
-
-    # Docker Desktop CLI completions (fpath only, compinit already loaded)
-    if [[ -d "$HOME/.docker/completions" ]]; then
-        fpath=("$HOME/.docker/completions" $fpath)
     fi
 
     # Unlock Keychain on SSH login
@@ -394,9 +394,11 @@ export PATH
 # Note: KUBECONFIG is defined in common/exports.sh
 # Note: Node.js runtime is managed by mise (configured in common/tools.sh)
 
-# rfmedia shell completion
-fpath=(~/.zfunc $fpath)
-autoload -Uz compinit && compinit
+# Installer-added blocks below. Installers that append `fpath=(… $fpath)` plus
+# `compinit` here: move the directory into common/paths.sh:setup_fpath (guarded
+# with [[ -d ]]) and delete the compinit — each extra compinit costs ~150ms and
+# rewrites ~/.zcompdump. rfmedia (~/.zfunc), Docker Desktop
+# (~/.docker/completions) and grok (~/.grok/completions/zsh) already live there.
 
 # pnpm 11+ globals live in $PNPM_HOME/bin. common/paths.sh adds the same dirs
 # when they exist; this block keeps a current-session PATH even before a
@@ -411,12 +413,6 @@ esac
 
 # Added by Antigravity
 export PATH="${HOME}/.antigravity/antigravity/bin:$PATH"
-# The following lines have been added by Docker Desktop to enable Docker CLI completions.
-fpath=("${HOME}/.docker/completions" $fpath)
-autoload -Uz compinit
-compinit
-# End of Docker CLI completions
-
 
 # Branchlet setup: added on 2026-03-01
 _branchlet() {
@@ -455,8 +451,7 @@ branchlet() {
 
 # >>> grok installer >>>
 export PATH="$HOME/.grok/bin:$PATH"
-fpath=(~/.grok/completions/zsh $fpath)
-autoload -Uz compinit && compinit -C
+# fpath entry lives in common/paths.sh:setup_fpath.
 # <<< grok installer <<<
 
 # Machine-local overrides, secrets and ~/.zshrc.local. MUST stay the last line.

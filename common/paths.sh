@@ -466,6 +466,12 @@ setup_library_paths() {
 # ================================================================
 # Configure Zsh function path for completion scripts.
 # Only applies when running in Zsh.
+#
+# This is the ONE place completion directories go on fpath: it runs (via
+# paths.sh) before the single compinit in common/completions.sh, so every entry
+# here is seen by that compinit. A directory appended to fpath later in zshrc
+# needs a second compinit, which costs ~150ms and rewrites ~/.zcompdump.
+# Each `fpath=(dir …)` prepends, so the LAST entry below wins on a name clash.
 
 setup_fpath() {
     local brew_path="$DOTFILES_HOMEBREW_PATH"
@@ -489,6 +495,15 @@ setup_fpath() {
         # Add system completions
         fpath=("/usr/local/share/zsh/site-functions" "${fpath[@]}")
         fpath=("/usr/share/zsh/site-functions" "${fpath[@]}")
+
+        # Repo-owned completions (_op, _bws, _fabric, …) outrank system ones.
+        [[ -d "$DOTFILES_ROOT/zsh/completions" ]] && fpath=("$DOTFILES_ROOT/zsh/completions" "${fpath[@]}")
+
+        # Installer-managed completion dirs, formerly appended by their own
+        # zshrc blocks followed by an extra compinit each.
+        [[ -d "$HOME/.zfunc" ]] && fpath=("$HOME/.zfunc" "${fpath[@]}")                                     # rfmedia et al.
+        [[ -d "$HOME/.docker/completions" ]] && fpath=("$HOME/.docker/completions" "${fpath[@]}")           # Docker Desktop
+        [[ -d "$HOME/.grok/completions/zsh" ]] && fpath=("$HOME/.grok/completions/zsh" "${fpath[@]}")       # grok
 
         export fpath
     fi

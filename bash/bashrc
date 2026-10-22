@@ -31,6 +31,7 @@ export DOTFILES_ROOT="${DOTFILES_ROOT:-$HOME/.config/dotfiles}"
 
 # Load platform detection and common configurations
 source "$DOTFILES_ROOT/common/platform.sh"
+source "$DOTFILES_ROOT/common/cached-eval.sh"
 source "$DOTFILES_ROOT/common/exports.sh"
 source "$DOTFILES_ROOT/common/paths.sh"
 source "$DOTFILES_ROOT/common/aliases.sh"
@@ -84,15 +85,17 @@ bind '"\e[B": history-search-forward'
 # PROMPT SETUP - STARSHIP
 # ================================================================
 
-# Initialize Starship prompt (unified for bash and zsh)
+# Initialize Starship prompt (unified for bash and zsh). `starship init bash`
+# only prints `eval "$(starship init bash --print-full-init)"`, so the full init
+# is what gets cached (common/cached-eval.sh; DOTFILES_NO_EVAL_CACHE=1 bypasses).
 if command -v starship >/dev/null 2>&1; then
-	eval "$(starship init bash)"
+	_cached_eval starship starship init bash --print-full-init
 else
 	# Fallback: Auto-install Starship if not available
 	if [[ -t 1 ]]; then
 		echo "🌟 Setting up Starship prompt..."
 		if command -v brew >/dev/null 2>&1; then
-			brew install starship 2>/dev/null && eval "$(starship init bash)"
+			brew install starship 2>/dev/null && _cached_eval starship starship init bash --print-full-init
 		else
 			# Use custom prompt if Starship can't be installed
 			source "$DOTFILES_ROOT/bash/prompt.sh" 2>/dev/null || {
@@ -159,19 +162,22 @@ fi
 
 # Initialize direnv for automatic environment management
 if command -v direnv >/dev/null 2>&1; then
-	eval "$(direnv hook bash)"
+	_cached_eval direnv direnv hook bash
 fi
 
 # ================================================================
 # ATUIN SETUP
 # ================================================================
 
-# Initialize atuin for shell history sync and search
+# Initialize atuin for shell history sync and search. Its init output depends
+# on config.toml (key bindings), so the cache is keyed on that file too.
 if command -v atuin >/dev/null 2>&1; then
-	eval "$(atuin init bash)"
+	_cached_eval --dep "${ATUIN_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/atuin}/config.toml" \
+		atuin atuin init bash
 elif [[ -f "$HOME/.atuin/bin/atuin" ]]; then
 	export PATH="$HOME/.atuin/bin:$PATH"
-	eval "$(atuin init bash)"
+	_cached_eval --dep "${ATUIN_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/atuin}/config.toml" \
+		atuin atuin init bash
 fi
 
 # ================================================================

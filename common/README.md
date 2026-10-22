@@ -16,6 +16,7 @@ This system provides:
 ```
 common/
 ├── platform.sh         # OS, architecture, and package manager detection
+├── cached-eval.sh      # _cached_eval: cached tool init output (zoxide, starship, …)
 ├── exports.sh          # Environment variables (XDG, editor, pager)
 ├── paths.sh            # PATH management with platform awareness
 ├── aliases.sh          # Smart aliases with tool fallbacks
@@ -201,6 +202,17 @@ or in a directory not owned by the user. Files are sourced at top level
 In zsh, if an override file changes `fpath`, `compinit -i` is re-run afterwards
 with a separate dump, `${ZDOTDIR:-$HOME}/.zcompdump-local`.
 Regression test: `scripts/test-shell-local-hook.sh`.
+
+### cached-eval.sh - Cached Tool Initialization
+
+`_cached_eval [--dep FILE]... <name> <cmd> [args...]` replaces
+`eval "$(cmd args)"` for init commands whose output depends only on the binary
+(and the `--dep` files): the output is cached in
+`${XDG_CACHE_HOME:-~/.cache}/dotfiles/eval/<name>.<shell>` and regenerated when
+the binary's or a dep's inode/size/mtime changes. `DOTFILES_NO_EVAL_CACHE=1`
+bypasses it; `dotfiles_clear_eval_cache` empties it. Do not use it for output
+that depends on the environment (`mise activate` embeds `$PATH`). Regression
+test: `scripts/test-shell-startup-cache.sh`.
 
 ### completions.sh - Universal Completions
 

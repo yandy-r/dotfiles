@@ -276,11 +276,14 @@ go install github.com/rsteube/carapace-bin@latest
 
 ### Configuration
 
-Carapace is lazy-loaded and bridges completions across shells:
+Carapace bridges completions across shells:
 
 ```bash
 export CARAPACE_BRIDGES='zsh,fish,bash,inshellisense'
 ```
+
+In zsh, `zsh/zshrc` sources `carapace _carapace` eagerly, after the single `compinit`, so every bridged completion is
+registered at startup. In bash, `common/lazy-completions.sh` loads it the first time the `carapace` command runs.
 
 ### Benefits
 

@@ -641,8 +641,8 @@ setup_carapace_completions() {
 #     zsh: compdef: command not found...
 #
 # fpath is already complete at this point: common/paths.sh:setup_fpath runs when
-# zshrc sources paths.sh, which precedes tools.sh — so compinit here sees every
-# completion directory it would have seen later.
+# zshrc sources paths.sh, which precedes tools.sh — so this is the ONE compinit
+# and it sees every completion directory. zsh/zshrc must not call compinit again.
 #
 # Idempotent and cheap: each half is skipped when the shell already provides it,
 # so a caller that initialized the system first pays nothing, and zshrc's later
@@ -654,9 +654,48 @@ _ensure_completion_system() {
     # "insecure directories" prompt when any fpath entry is group-writable, which
     # is exactly the state a freshly provisioned machine can land in. -i skips
     # those directories instead (never -u, which would load them anyway).
-    if ! typeset -f compdef >/dev/null 2>&1; then
+    #
+    # _dotfiles_compinit_done (not exported) makes this run once per shell, so
+    # re-sourcing ~/.zshrc does not pay for compinit again.
+    if [[ -n "${_dotfiles_compinit_done:-}" ]]; then
+        :
+    elif ! typeset -f compdef >/dev/null 2>&1; then
         autoload -Uz compinit && compinit -i
+    else
+        # A system zshrc already ran compinit with the default fpath — Debian/
+        # Ubuntu's /etc/zsh/zshrc does unless skip_global_compinit=1 is set in
+        # ~/.zshenv (users may set it there to skip that call entirely). Re-run
+        # once so our fpath counts, into a separate dump: sharing ~/.zcompdump
+        # with the system call (default fpath) would rebuild it on every start.
+        #
+        # compinit never re-binds a name that is already an autoload stub, so a
+        # system copy (e.g. vendor-completions/_docker) would keep winning over
+        # ours. Drop every not-yet-loaded completion stub first (~5ms) so the
+        # re-run binds each name to the first match on our fpath.
+        #
+        # The re-run also replaces _comps wholesale from the dump, losing what
+        # was registered since the system compinit with a function that is
+        # already defined (e.g. zoxide's `compdef __zoxide_z_complete z` from
+        # setup_zoxide). Those entries are kept and put back when the new
+        # table lacks them.
+        local _dotf_fn _dotf_key
+        local -A _dotf_kept
+        # shellcheck disable=SC2296,SC2154 # zsh-only branch: (k)/(u) flags, $_comps
+        for _dotf_key in ${(k)_comps}; do
+            _dotf_fn="${_comps[$_dotf_key]}"
+            if [[ "${functions[$_dotf_fn]-}" == "builtin autoload -X"* ]]; then
+                unfunction "$_dotf_fn"
+            elif (( ${+functions[$_dotf_fn]} )); then
+                _dotf_kept[$_dotf_key]="$_dotf_fn"
+            fi
+        done
+        autoload -Uz compinit && compinit -i -d "${ZDOTDIR:-$HOME}/.zcompdump-dotfiles"
+        # shellcheck disable=SC2296 # zsh-only (k) flag
+        for _dotf_key in ${(k)_dotf_kept}; do
+            (( ${+_comps[$_dotf_key]} )) || _comps[$_dotf_key]="${_dotf_kept[$_dotf_key]}"
+        done
     fi
+    _dotfiles_compinit_done=1
 
     # bashcompinit provides `complete`/`compgen` so the bash-style registrations
     # below (complete -C terraform, complete -C aws_completer, …) work in zsh.
