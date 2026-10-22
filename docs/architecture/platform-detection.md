@@ -330,15 +330,21 @@ This is a **deliberate, recorded divergence** from the Go side, which demotes `b
 
 ### Platform check functions
 
-| Function       | Returns true if...                                                | Example                                          |
-| -------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
-| `is_macos`     | `detect_os` is `macos`                                            | `if is_macos; then open .; fi`                   |
-| `is_linux`     | `detect_os` matches `debian`, `redhat`, `arch`, `suse` or `linux` | `if is_linux; then xdg-open .; fi`               |
-| `is_wsl`       | `detect_os` is `wsl`, or `detect_container` is `wsl`              | `if is_wsl; then explorer.exe .; fi`             |
-| `is_container` | `detect_container` is anything but `none`                         | `if is_container; then echo "containerized"; fi` |
-| `is_arm64`     | `detect_arch` is `arm64`                                          | `if is_arm64; then echo "Apple Silicon"; fi`     |
-| `is_x86_64`    | `detect_arch` is `x86_64`                                         | `if is_x86_64; then echo "Intel/AMD"; fi`        |
-| `is_ssh`       | Connected via SSH                                                 | `if is_ssh; then use_osc52_clipboard; fi`        |
+| Function       | Returns true if...                                              | Example                                          |
+| -------------- | --------------------------------------------------------------- | ------------------------------------------------ |
+| `is_macos`     | `$DOTFILES_OS` is `macos`                                       | `if is_macos; then open .; fi`                   |
+| `is_linux`     | `$DOTFILES_OS` is `debian`, `redhat`, `arch`, `suse` or `linux` | `if is_linux; then xdg-open .; fi`               |
+| `is_wsl`       | `$DOTFILES_OS` is `wsl`, or `$DOTFILES_CONTAINER` is `wsl`      | `if is_wsl; then explorer.exe .; fi`             |
+| `is_container` | `$DOTFILES_CONTAINER` is anything but `none`                    | `if is_container; then echo "containerized"; fi` |
+| `is_arm64`     | `$DOTFILES_ARCH` is `arm64`                                     | `if is_arm64; then echo "Apple Silicon"; fi`     |
+| `is_x86_64`    | `$DOTFILES_ARCH` is `x86_64`                                    | `if is_x86_64; then echo "Intel/AMD"; fi`        |
+| `is_ssh`       | Connected via SSH                                               | `if is_ssh; then use_osc52_clipboard; fi`        |
+
+The OS, container and architecture predicates read the variables `setup_platform_env` exported and
+start no subshell. Only when a variable is unset or empty do they fall back to `detect_os`,
+`detect_container` or `detect_arch`. They trust whatever value is exported, so with
+`DOTFILES_NO_AUTO_SETUP=1` call `setup_platform_env` before the first predicate; otherwise a
+value inherited from a parent process (a host shell, a distrobox) is believed as is.
 
 Note that `is_linux` does **not** cover a bare `wsl` result — the same distinction the two Go predicates draw.
 

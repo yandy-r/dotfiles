@@ -398,29 +398,53 @@ print_platform_info() {
 
 # Platform check functions - return 0 (true) or 1 (false)
 # Usage: is_macos && echo "On macOS"
+# They read the cached DOTFILES_OS / DOTFILES_CONTAINER / DOTFILES_ARCH exported
+# by setup_platform_env, so no subshell runs on the hot path; only when a var is
+# unset or empty do they fall back to live detect_* (YAN-1340).
 is_macos() {
-    [[ "$(detect_os)" == "macos" ]]
+    case "${DOTFILES_OS:-$(detect_os)}" in
+        macos) return 0 ;;
+    esac
+    return 1
 }
 
 is_linux() {
-    [[ "$(detect_os)" =~ (debian|redhat|arch|suse|linux) ]]
+    case "${DOTFILES_OS:-$(detect_os)}" in
+        debian|redhat|arch|suse|linux) return 0 ;;
+    esac
+    return 1
 }
 
 is_wsl() {
-    [[ "$(detect_os)" == "wsl" ]] || [[ "$(detect_container)" == "wsl" ]]
+    case "${DOTFILES_OS:-$(detect_os)}" in
+        wsl) return 0 ;;
+    esac
+    case "${DOTFILES_CONTAINER:-$(detect_container)}" in
+        wsl) return 0 ;;
+    esac
+    return 1
 }
 
 is_container() {
-    [[ "$(detect_container)" != "none" ]]
+    case "${DOTFILES_CONTAINER:-$(detect_container)}" in
+        none) return 1 ;;
+    esac
+    return 0
 }
 
 # Architecture check functions
 is_arm64() {
-    [[ "$(detect_arch)" == "arm64" ]]
+    case "${DOTFILES_ARCH:-$(detect_arch)}" in
+        arm64) return 0 ;;
+    esac
+    return 1
 }
 
 is_x86_64() {
-    [[ "$(detect_arch)" == "x86_64" ]]
+    case "${DOTFILES_ARCH:-$(detect_arch)}" in
+        x86_64) return 0 ;;
+    esac
+    return 1
 }
 
 # Check if running over SSH (detected via SSH_* environment variables)
