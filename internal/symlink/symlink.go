@@ -92,9 +92,9 @@ type Plan struct {
 type ValidationResult struct {
 	// Dest is the $HOME-relative destination that was checked.
 	Dest string
-	// Valid is true when Dest is a symlink that resolves, a dangling one whose
-	// source is also missing (dotf cannot fix it; Plan skips it), or a path
-	// that already is its source through a symlinked parent dir.
+	// Valid is true when Dest is a symlink that resolves, or a path that
+	// already is its source through a symlinked parent dir. A dangling
+	// symlink is never Valid.
 	Valid bool
 	// Broken is true when Dest is a real file where a symlink was expected,
 	// or a dangling or looping symlink whose source exists (the validation

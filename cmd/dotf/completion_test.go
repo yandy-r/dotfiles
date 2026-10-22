@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -936,6 +937,80 @@ func TestGeneratedScripts_PathPositional(t *testing.T) {
 		}
 		if !strings.HasSuffix(strings.TrimSpace(line), "-F") {
 			t.Errorf("fish deb rule does not force file completion: %q", line)
+		}
+	})
+}
+
+// TestGeneratedScripts_UnlinkAndPrune asserts, per shell, what only the
+// unlink command and link's --prune flag add: unlink is a top-level command
+// candidate (not plasma's --unlink flag), its --all/--restore flags sit in
+// unlink's own flag rules, and --prune sits in link's (not backup's prune verb).
+func TestGeneratedScripts_UnlinkAndPrune(t *testing.T) {
+	m := buildCompletionModel()
+	// caseBlock returns the bash/zsh `name)` case arm, up to its `;;`.
+	caseBlock := func(t *testing.T, script, name string) string {
+		t.Helper()
+		loc := regexp.MustCompile(`(?m)^\s+` + regexp.QuoteMeta(name) + `\)\n`).FindStringIndex(script)
+		if loc == nil {
+			t.Fatalf("no %q case arm in script", name)
+		}
+		arm := script[loc[1]:]
+		if j := strings.Index(arm, ";;"); j >= 0 {
+			arm = arm[:j]
+		}
+		return arm
+	}
+
+	t.Run("bash", func(t *testing.T) {
+		got := generateBashCompletion(m)
+		cmds := regexp.MustCompile(`local commands="([^"]*)"`).FindStringSubmatch(got)
+		if cmds == nil || !slices.Contains(strings.Fields(cmds[1]), "unlink") {
+			t.Errorf("bash command words %q lack unlink", cmds)
+		}
+		flagsOf := func(name string) []string {
+			f := regexp.MustCompile(`flags="([^"]*)"`).FindStringSubmatch(caseBlock(t, got, name))
+			if f == nil {
+				t.Fatalf("bash %s arm has no flags= list", name)
+			}
+			return strings.Fields(f[1])
+		}
+		for _, f := range []string{"--all", "--restore"} {
+			if !slices.Contains(flagsOf("unlink"), f) {
+				t.Errorf("bash unlink flags %v lack %s", flagsOf("unlink"), f)
+			}
+		}
+		if !slices.Contains(flagsOf("link"), "--prune") {
+			t.Errorf("bash link flags %v lack --prune", flagsOf("link"))
+		}
+	})
+
+	t.Run("zsh", func(t *testing.T) {
+		got := generateZshCompletion(m)
+		if !regexp.MustCompile(`(?m)^\s+'unlink:[^']+'$`).MatchString(got) {
+			t.Error("zsh _describe commands lack an unlink entry")
+		}
+		unlink := caseBlock(t, got, "unlink")
+		for _, f := range []string{"'--all[", "'--restore["} {
+			if !strings.Contains(unlink, f) {
+				t.Errorf("zsh unlink arm lacks %s: %q", f, unlink)
+			}
+		}
+		if link := caseBlock(t, got, "link"); !strings.Contains(link, "'--prune[") {
+			t.Errorf("zsh link arm lacks --prune: %q", link)
+		}
+	})
+
+	t.Run("fish", func(t *testing.T) {
+		got := generateFishCompletion(m)
+		for _, want := range []string{
+			"complete -c dotf -n '__fish_use_subcommand' -a unlink ",
+			"-n '__fish_seen_subcommand_from unlink; and not __fish_seen_subcommand_from help' -l all ",
+			"-n '__fish_seen_subcommand_from unlink; and not __fish_seen_subcommand_from help' -l restore ",
+			"-n '__fish_seen_subcommand_from link; and not __fish_seen_subcommand_from help' -l prune ",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("fish completion lacks %q", want)
+			}
 		}
 	})
 }

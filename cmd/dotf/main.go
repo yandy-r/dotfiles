@@ -75,6 +75,8 @@ func run(args []string) int {
 		return runDoctor(rest, os.Stdout, os.Stderr, exec.New())
 	case "link":
 		return runLink(rest, os.Stdout, os.Stderr, exec.New())
+	case "unlink":
+		return runUnlink(rest, os.Stdout, os.Stderr)
 	case "backup":
 		return runBackup(rest, os.Stdout, os.Stderr, os.Stdin)
 	case "sysconfig":

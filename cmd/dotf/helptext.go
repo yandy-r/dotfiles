@@ -163,15 +163,17 @@ var helpRegistry = []commandHelp{
 			"\"doctor.total/ok/warn/fail\" summary line. stdout is status-only and stable\n" +
 			"(greppable check.*=status lines only); all human detail goes to stderr. Every\n" +
 			"non-ok check prints an aggregate remedy line on stderr, and — for\n" +
-			"packages.drift, symlinks.pending and plasma.drift — one indented \"  - item\"\n" +
-			"line per missing package (name, backend, class), pending link (action + dest)\n" +
-			"or drifted plasma file (action + dest). With\n" +
+			"packages.drift, symlinks.pending, symlinks.stale and plasma.drift — one\n" +
+			"indented \"  - item\" line per missing package (name, backend, class), pending\n" +
+			"link (action + dest), stale link (reason + dest) or drifted plasma file\n" +
+			"(action + dest). With\n" +
 			"--verbose, ok checks also print their evidence on stderr (the platform tuple,\n" +
 			"prerequisite paths found, the full applicable-package tally, symlink health,\n" +
 			"and sysconfig support level). Checks cover platform compatibility, required\n" +
 			"prerequisites (git, a download tool, the package manager, sudo),\n" +
 			"declared-package drift (via the same truthful probe as status/diff), symlink\n" +
-			"health (broken and not-yet-created links), the symlink backup dirs (count and\n" +
+			"health (broken, not-yet-created, and stale links into the repo — the latter\n" +
+			"warn with a dotf link --prune remedy), the symlink backup dirs (count and\n" +
 			"size; warns above 10 with a dotf backup prune remedy), sysconfig support for\n" +
 			"this OS, and KDE Plasma drift plus whether plasma/files/ has been exported\n" +
 			"(both omitted entirely on an OS plasma does not target).\n" +
@@ -203,16 +205,59 @@ var helpRegistry = []commandHelp{
 			"spelling of the default (--backup=false does NOT disable backups; use\n" +
 			"--no-backup).\n" +
 			"After applying, links are validated; a real file where a symlink was expected,\n" +
-			"or a dangling link whose source exists, exits 1. The opt-in desktop set is the\n" +
-			"Hyprland/wlroots stack and is not what a KDE/Plasma host wants\n" +
+			"or a dangling link whose source exists, exits 1. --prune first removes stale\n" +
+			"symlinks into the repo, found in the parent dirs of the table's dests: a\n" +
+			"non-table link whose target in the repo is missing, or that still points at\n" +
+			"a managed source from an old location; and a table link whose source was\n" +
+			"deleted. Parent-dir links (e.g. ~/.config/zed -> repo zed), links under\n" +
+			"plasma/files/ (left to dotf plasma), links to the repo root and live links\n" +
+			"to other repo paths (e.g. ~/.claude) are never pruned, nor are real files.\n" +
+			"With --dry-run the prune candidates are listed as link.prune= and nothing is\n" +
+			"removed. To remove managed links on purpose, use dotf unlink. The opt-in\n" +
+			"desktop set is the Hyprland/wlroots stack and is not what a KDE/Plasma host\n" +
+			"wants\n" +
 			"(that is dotf plasma).",
 		examples: []string{
 			"dotf link --dry-run",
 			"dotf link",
 			"dotf link --no-backup",
 			"dotf link --dry-run --hyprland",
+			"dotf link --prune --dry-run",
+			"dotf link --prune",
 		},
 		setFlags: func(fs *flag.FlagSet) { setLinkFlags(fs) },
+	},
+	{
+		name:    "unlink",
+		summary: "Remove managed symlinks, optionally restoring backups",
+		usage:   "dotf unlink <dest...|--all> [flags]",
+		long: "Remove the named managed symlinks from $HOME. Dests are $HOME-relative link\n" +
+			"table names (a leading ~/ is accepted); --all targets every table entry\n" +
+			"across all facets. Unknown names fail before anything changes; giving no\n" +
+			"dest and no --all, or dests together with --all, is a usage error.\n" +
+			"\n" +
+			"Only a symlink that points into the dotfiles repo is removed. Real files and\n" +
+			"directories are never touched; foreign symlinks, missing dests and the Zed\n" +
+			"copy entry are skipped and reported on stderr (dotf: unlink: skip <dest>:\n" +
+			"<reason>); under --all, missing dests and the copy entry are only counted in\n" +
+			"the summary. No backup is taken: a symlink holds no data.\n" +
+			"\n" +
+			"--restore puts back each unlinked dest from the newest manifest backup that\n" +
+			"holds it, through dotf backup restore's safety checks; a dest with no backup\n" +
+			"is left unlinked and named on stderr. --dry-run previews everything.\n" +
+			"\n" +
+			"stdout carries unlink.remove=, unlink.skip= and unlink.restore= lines (sorted\n" +
+			"dests; dry-run=true header on a preview); stderr ends with a\n" +
+			"\"dotf: unlink summary: removed=N skipped=N restored=N\" line.\n" +
+			"\n" +
+			"Exit codes: 0 ok, 1 failure, 2 usage error or unknown dest.",
+		examples: []string{
+			"dotf unlink .bashrc .zshrc",
+			"dotf unlink ~/.config/nvim --restore",
+			"dotf unlink --all --dry-run",
+			"dotf unlink --all --restore",
+		},
+		setFlags: func(fs *flag.FlagSet) { setUnlinkFlags(fs) },
 	},
 	{
 		name:    "backup",

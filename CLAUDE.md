@@ -22,7 +22,8 @@ cd ~/.config/dotfiles
 ### Symlink Management
 
 - Symlinks are provisioned by the **native Go engine**: `dotf link` (`internal/symlink`) as of Phase 4
-- `dotf link` supports `--dry-run` (preview), `--no-backup` (opt out of the default backup of real files before replacing; `--backup` is the explicit default), and `--linux-desktop` (opt-in Hyprland desktop set), plus post-apply validation
+- `dotf link` supports `--dry-run` (preview), `--no-backup` (opt out of the default backup of real files before replacing; `--backup` is the explicit default), `--linux-desktop` (opt-in Hyprland desktop set), and `--prune` (first remove stale symlinks into the repo: dangling links, links duplicating a managed source at an old location, and table links whose source was deleted — never parent-dir links, `plasma/files` links, or live links to other repo paths), plus post-apply validation. `dotf doctor` warns on stale links (`symlinks.stale`)
+- `dotf unlink <dest...>|--all [--restore] [--dry-run]` removes managed links (only symlinks into the repo; real files are never touched); `--restore` puts back the newest backup holding each dest
 - Backups land in `~/.config/dotfiles_backup_<epoch>` with a `.dotf-backup.json` manifest (one dir per `link`/`apply`/`setup` run); `dotf backup list|restore <id> [path...]|prune` manages them (`restore` refuses to overwrite real files without `--force`, which backs them up first; `prune` keeps the newest 10 and needs `--yes` non-interactively). `dotf doctor` warns above 10 backups
 - The Ansible playbook (`ansible-playbook playbooks/symlinks.yml`) is **historical-rollback-only** — do not run it in normal provisioning (see `playbooks/README.md`)
 - Symlinks cover bash, zsh, common configs, and application directories, linked to their expected locations in `$HOME`
@@ -186,6 +187,10 @@ dotf link
 dotf backup list
 dotf backup restore <id> --dry-run       # then without --dry-run (or --force)
 dotf backup prune --keep 10 --dry-run    # then --yes
+
+# Remove stale links into the repo, or managed links on purpose
+dotf link --prune --dry-run              # then without --dry-run
+dotf unlink .bashrc --restore            # unlink and restore the backed-up file
 
 # Rollback path only: the retired Ansible playbook is retained one release
 # ansible-playbook playbooks/symlinks.yml

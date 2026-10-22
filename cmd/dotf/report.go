@@ -121,8 +121,9 @@ const (
 )
 
 // doctorItem is one structured finding attached to a doctor check: a missing
-// package, a pending symlink, or a drifted plasma file. It carries the identity the check builders
-// already compute (package name/backend/class, or symlink action/dest/src) so
+// package, a pending symlink, a stale symlink, or a drifted plasma file. It
+// carries the identity the check builders already compute (package
+// name/backend/class, symlink action/dest/src, or stale reason/dest) so
 // consumers see WHICH thing drifted, not just an aggregate count. The field set
 // is a superset across kinds; each kind populates only the fields it can honestly
 // report and every field is omitempty, so a package item never encodes a symlink
@@ -136,7 +137,8 @@ type doctorItem struct {
 	Backend string `json:"backend,omitempty"`
 	// Class is the package effective update-policy class, when set (package kind).
 	Class string `json:"class,omitempty"`
-	// Action is the pending symlink operation: "create" or "repoint" (symlink kind).
+	// Action is the symlink finding (symlink kind): "create" or "repoint" for
+	// symlinks.pending, "orphaned" or "dangling" for symlinks.stale.
 	Action string `json:"action,omitempty"`
 	// Dest is the symlink destination, $HOME-relative (symlink kind).
 	Dest string `json:"dest,omitempty"`

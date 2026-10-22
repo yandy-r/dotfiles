@@ -111,6 +111,10 @@ dotf link
 dotf backup list
 dotf backup restore <id> --dry-run
 dotf backup prune --dry-run
+
+# Remove stale links, or managed links on purpose
+dotf link --prune --dry-run
+dotf unlink <dest> --restore --dry-run
 ```
 
 ### Reload shell configuration

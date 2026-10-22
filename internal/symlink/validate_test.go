@@ -26,12 +26,11 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			// dotf cannot fix a link whose source is gone (Plan skips it), so
-			// it is not flagged.
-			name: "dangling-symlink-source-missing-not-flagged",
+			// it is not Broken, but it does not resolve, so it is not Valid.
+			name: "dangling-symlink-source-missing-not-valid",
 			setup: func(t *testing.T, _, home string) {
 				mkSymlink(t, filepath.Join(home, "gone"), filepath.Join(home, ".bashrc"))
 			},
-			wantValid: true,
 		},
 		{
 			name: "dangling-symlink-source-present-broken",

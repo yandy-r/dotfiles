@@ -64,13 +64,25 @@ dir, named once at the end of the run.
 | `--no-backup`     | Replace real files without backing them up first                                                                        |
 | `--backup`        | Explicit spelling of the default; `--backup=false` does not disable backups (use `--no-backup`); not with `--no-backup` |
 | `--linux-desktop` | Manage the opt-in Linux desktop config set (hypr/waybar/swayosd/fuzzel)                                                 |
+| `--prune`         | Remove stale repo links first: dangling, or a managed source at an old spot; table links whose source was deleted       |
 
 ```bash
 dotf link --dry-run          # preview the plan (link.backup= lists what will be copied)
 dotf link                    # apply, backing up real files first
 dotf link --no-backup        # apply without backups
 dotf link --linux-desktop    # include the opt-in Hyprland desktop set
+dotf link --prune --dry-run  # list stale links (link.prune=) without removing them
+dotf link --prune            # remove stale links, then link as usual
 ```
+
+`--prune` scans only the parent dirs of the table's dests, one level deep, and judges each symlink
+by its own target (never following a chain). A link that is not a table dest is pruned only when
+its target in the repo is missing, or is a table entry's source (the same source linked from an
+old location); a table dest is pruned only when its source was deleted. Real files are never
+touched, and parent-dir links of table dests (e.g. `~/.config/zed -> $REPO/zed`), links under
+`plasma/files/` (owned by `dotf plasma`), links to the repo root, and live links to other repo
+paths (e.g. `~/.claude -> $REPO/.claude`) are always kept. `dotf doctor` warns about stale links
+as `check.symlinks.stale`.
 
 The Ansible playbook (`playbooks/symlinks.yml`) is **historical-rollback-only**; it is not run
 during normal provisioning.
@@ -96,6 +108,28 @@ dotf backup restore 1729543200 --dry-run        # preview the restore plan
 dotf backup restore 1729543200 .bashrc          # restore one file
 dotf backup restore 1729543200 --force          # overwrite real files (they are backed up first)
 dotf backup prune --older-than 30d --dry-run    # preview, then rerun with --yes
+```
+
+### `dotf unlink` — remove managed links
+
+`dotf unlink <dest...>` removes the named managed symlinks (`$HOME`-relative link-table names; a
+leading `~/` is accepted), and `--all` targets every table entry. Unknown names fail (exit 2)
+before anything changes. Only a symlink that points into the repo is removed: real files and
+directories are never touched, and foreign symlinks, missing dests and the Zed copy entry are
+skipped with a reason on stderr (under `--all`, missing dests and the copy entry are only counted in
+the summary). stdout carries `unlink.remove=`, `unlink.skip=` and
+`unlink.restore=` lines.
+
+| Flag        | Effect                                                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `--all`     | Unlink every table entry (all facets); cannot be combined with named dests                                               |
+| `--restore` | Restore each unlinked dest from the newest backup holding it, with `dotf backup restore`'s checks; no backup = unlinked  |
+| `--dry-run` | Preview what would be unlinked and restored                                                                              |
+
+```bash
+dotf unlink .bashrc .zshrc              # remove two links
+dotf unlink ~/.config/nvim --restore    # put your pre-dotfiles config back
+dotf unlink --all --dry-run             # preview removing every managed link
 ```
 
 ### `dotf sysconfig` — per-OS system configuration

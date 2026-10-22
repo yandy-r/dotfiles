@@ -9,18 +9,18 @@ import (
 	"testing"
 )
 
-// dispatchableCommands are the sixteen commands routed by main.go's switch.
+// dispatchableCommands are the seventeen commands routed by main.go's switch.
 // "help" is a registry entry but is handled before the switch, so it is
 // excluded here.
 var dispatchableCommands = []string{
 	"version", "platform", "plan", "install", "status",
-	"diff", "doctor", "link", "backup", "sysconfig", "apply", "lock", "self-update", "setup", "plasma", "completion",
+	"diff", "doctor", "link", "unlink", "backup", "sysconfig", "apply", "lock", "self-update", "setup", "plasma", "completion",
 }
 
 // allRegistryNames is the full ordered set the registry must expose.
 var allRegistryNames = []string{
 	"version", "platform", "plan", "install", "status",
-	"diff", "doctor", "link", "backup", "sysconfig", "apply", "lock", "self-update", "setup", "plasma", "deb", "completion", "help",
+	"diff", "doctor", "link", "unlink", "backup", "sysconfig", "apply", "lock", "self-update", "setup", "plasma", "deb", "completion", "help",
 }
 
 func TestIsHelpToken(t *testing.T) {
@@ -694,7 +694,9 @@ func TestSetFlags_ExactFlagNames(t *testing.T) {
 		names []string
 	}{
 		{"link", func(fs *flag.FlagSet) { setLinkFlags(fs) },
-			[]string{"backup", "dry-run", "force", "hyprland", "linux-desktop", "no-backup", "no-validate"}},
+			[]string{"backup", "dry-run", "force", "hyprland", "linux-desktop", "no-backup", "no-validate", "prune"}},
+		{"unlink", func(fs *flag.FlagSet) { setUnlinkFlags(fs) },
+			[]string{"all", "dry-run", "restore"}},
 		// install/plan/status/diff/sysconfig/lock each add --no-user-config via a
 		// SEPARATE setNoUserConfigFlag call (their runX + help closures), which is
 		// why these cases wrap the base setter with it — mirroring the real

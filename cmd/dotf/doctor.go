@@ -236,12 +236,13 @@ func missingPackages(m *manifest.Manifest, engine *backend.Engine, info platform
 	return missing, applicable, nil
 }
 
-// checkSymlinks composes the symlink engine's read-only Plan/Validate over the
-// built-in DefaultTable (so, like `dotf link`, there is no manifest coupling). It
-// emits two checks: symlinks.broken fails when a real file sits where a managed
-// symlink belongs, and symlinks.pending warns when links are declared but not
-// yet created. A missing repo root or source tree collapses to a single broken
-// fail, since nothing else can be planned.
+// checkSymlinks composes the symlink engine's read-only Plan/Validate/FindStale
+// over the built-in DefaultTable (so, like `dotf link`, there is no manifest
+// coupling). It emits three checks: symlinks.broken fails when a real file sits
+// where a managed symlink belongs, symlinks.pending warns when links are
+// declared but not yet created, and symlinks.stale warns when stale links into
+// the repo linger. A missing repo root or source tree collapses to a single
+// broken fail, since nothing else can be planned.
 func checkSymlinks(repoRoot, home string, info platform.Info) []doctorCheck {
 	if repoRoot == "" {
 		return []doctorCheck{{
@@ -278,6 +279,36 @@ func checkSymlinks(repoRoot, home string, info platform.Info) []doctorCheck {
 	return []doctorCheck{
 		symlinkBrokenCheck(eng, specs, info, opts),
 		symlinkPendingCheck(plan),
+		symlinkStaleCheck(eng),
+	}
+}
+
+// symlinkStaleCheck lists stale links into the repo (orphaned: a non-table
+// link whose target is missing or is a managed source linked from an old
+// location; dangling: a table link whose source is gone; see FindStale) over
+// the full table, so a disabled facet's links are never reported. Each stale
+// link becomes an item carrying its reason and $HOME-relative dest. Stale links
+// are an advisory warn, as is a scan error.
+func symlinkStaleCheck(eng *symlink.Engine) doctorCheck {
+	stale, err := eng.FindStale(symlink.DefaultTable())
+	if err != nil {
+		return doctorCheck{
+			Category: "symlinks", Name: "stale", Status: checkWarn,
+			Detail: err.Error(), Remedy: "resolve the stale-link scan error",
+		}
+	}
+	if len(stale) == 0 {
+		return doctorCheck{Category: "symlinks", Name: "stale", Status: checkOK, Detail: "no stale links"}
+	}
+	items := make([]doctorItem, 0, len(stale))
+	for _, s := range stale {
+		items = append(items, doctorItem{Kind: "symlink", Action: s.Reason, Dest: s.Dest})
+	}
+	return doctorCheck{
+		Category: "symlinks", Name: "stale", Status: checkWarn,
+		Detail: fmt.Sprintf("%d stale link(s) into the repo", len(stale)),
+		Remedy: "run `dotf link --prune`",
+		Items:  items,
 	}
 }
 

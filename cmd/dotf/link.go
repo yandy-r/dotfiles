@@ -76,8 +76,34 @@ func runLink(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 		return reportErr(stderr, err)
 	}
 
+	var stale []symlink.StaleLink
+	if o.prune {
+		// The full table (all facets): turning a facet off must never make
+		// its links look orphaned.
+		if stale, err = eng.FindStale(symlink.DefaultTable()); err != nil {
+			return reportErr(stderr, err)
+		}
+	}
+
 	if o.dryRun {
-		return linkDryRun(stdout, stderr, eng, specs, info, opts, plan)
+		return linkDryRun(stdout, stderr, eng, specs, info, opts, plan, staleDests(stale))
+	}
+
+	// Prune before Apply, then re-plan: removing a link can change what Plan
+	// would do at (or beneath) that path, so the earlier plan is stale.
+	if len(stale) > 0 {
+		removed, perr := eng.Prune(stale)
+		if werr := printLinkPrune(stdout, staleDests(removed)); werr != nil {
+			return reportErr(stderr, werr)
+		}
+		if perr != nil {
+			return reportErr(stderr, perr)
+		}
+		if len(removed) > 0 {
+			if plan, err = eng.Plan(specs, info, opts); err != nil {
+				return reportErr(stderr, err)
+			}
+		}
 	}
 
 	report, err := eng.Apply(plan, opts)
@@ -98,13 +124,34 @@ func runLink(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	return linkValidate(stderr, eng, specs, info, opts)
 }
 
-// linkDryRun prints the planned actions and runs Validate for reporting only.
+// staleDests returns the $HOME-relative dests of links, sorted.
+func staleDests(links []symlink.StaleLink) []string {
+	dests := make([]string, 0, len(links))
+	for _, l := range links {
+		dests = append(dests, l.Dest)
+	}
+	sort.Strings(dests)
+	return dests
+}
+
+// printLinkPrune writes the `link.prune=` line for the removed stale links. It
+// writes nothing when none was removed.
+func printLinkPrune(stdout io.Writer, dests []string) error {
+	if len(dests) == 0 {
+		return nil
+	}
+	_, err := io.WriteString(stdout, "link.prune="+strings.Join(dests, ",")+"\n")
+	return err
+}
+
+// linkDryRun prints the planned actions (and, with --prune, the stale links
+// that would be removed) and runs Validate for reporting only.
 // It ALWAYS returns 0 — a deliberate divergence from Ansible, whose validation
 // fail task fires even in check mode. This port treats --dry-run as a pure,
 // non-failing preview: broken dests are surfaced on stdout as `link.broken=`
 // rather than through a non-zero exit, so a preview never signals drift via the
 // exit code (the real apply path still exits 1 on a broken link).
-func linkDryRun(stdout, stderr io.Writer, eng *symlink.Engine, specs []symlink.LinkSpec, info platform.Info, opts symlink.Options, plan *symlink.Plan) int {
+func linkDryRun(stdout, stderr io.Writer, eng *symlink.Engine, specs []symlink.LinkSpec, info platform.Info, opts symlink.Options, plan *symlink.Plan, prune []string) int {
 	broken := []string(nil)
 	if opts.Validate {
 		if _, verr := eng.Validate(specs, info, opts); verr != nil {
@@ -117,7 +164,7 @@ func linkDryRun(stdout, stderr io.Writer, eng *symlink.Engine, specs []symlink.L
 		}
 	}
 
-	if err := printLinkDryRun(stdout, plan, broken); err != nil {
+	if err := printLinkDryRun(stdout, plan, broken, prune); err != nil {
 		return reportErr(stderr, err)
 	}
 	return 0
@@ -143,7 +190,7 @@ func linkValidate(stderr io.Writer, eng *symlink.Engine, specs []symlink.LinkSpe
 // Backups are on by default: backup is the explicit (redundant) spelling of
 // the default, kept so existing scripts keep working, and noBackup opts out.
 type linkOpts struct {
-	dryRun, backup, noBackup, force, noValidate, hyprland, linuxDesktop bool
+	dryRun, backup, noBackup, force, noValidate, hyprland, linuxDesktop, prune bool
 }
 
 // setLinkFlags registers link's flags on fs and returns the opts pointer they
@@ -156,6 +203,8 @@ func setLinkFlags(fs *flag.FlagSet) *linkOpts {
 	fs.BoolVar(&o.noBackup, "no-backup", false, "replace real files without backing them up first")
 	fs.BoolVar(&o.force, "force", false, "force symlink recreation (parity; cleanup owns real-file removal)")
 	fs.BoolVar(&o.noValidate, "no-validate", false, "skip post-apply validation")
+	fs.BoolVar(&o.prune, "prune", false,
+		"remove stale symlinks into the repo (dangling, or a managed source at an old location; table links whose source is gone)")
 	fs.BoolVar(&o.hyprland, "hyprland", false, "manage the opt-in Hyprland/wlroots desktop config set")
 	fs.BoolVar(&o.linuxDesktop, "linux-desktop", false, "deprecated alias for --hyprland")
 	return o
@@ -207,11 +256,15 @@ func linkActionLines(prefix string, actions []symlink.Action) []string {
 }
 
 // printLinkDryRun writes the dry-run preview to stdout: a literal dry-run=true
-// header, the per-bucket planned actions, and (when validation found any) the
+// header, the stale links --prune would remove (sorted, when any), the
+// per-bucket planned actions, and (when validation found any) the
 // currently-broken dests. The whole preview is emitted with a single checked
 // write so a broken stdout surfaces rather than being silently dropped.
-func printLinkDryRun(stdout io.Writer, plan *symlink.Plan, broken []string) error {
+func printLinkDryRun(stdout io.Writer, plan *symlink.Plan, broken, prune []string) error {
 	lines := []string{"dry-run=true"}
+	if len(prune) > 0 {
+		lines = append(lines, "link.prune="+strings.Join(prune, ","))
+	}
 	lines = append(lines, linkActionLines("link", plan.Actions)...)
 	if len(broken) > 0 {
 		b := append([]string(nil), broken...)

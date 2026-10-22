@@ -187,3 +187,70 @@ func TestRunLink_BackupDefault(t *testing.T) {
 		})
 	}
 }
+
+// TestRunLink_Prune pins --prune: the dry run lists the orphaned (dangling,
+// into the repo) link as link.prune= and removes nothing; the real run
+// removes it, prints the same line, and still links the table.
+func TestRunLink_Prune(t *testing.T) {
+	for _, dryRun := range []bool{true, false} {
+		t.Run(map[bool]string{true: "dry-run", false: "apply"}[dryRun], func(t *testing.T) {
+			repoRoot := t.TempDir()
+			home := t.TempDir()
+			seedRepoFile(t, repoRoot, "bash/bashrc", "# bashrc\n")
+			old := filepath.Join(repoRoot, "bash/oldrc") // deleted from the repo
+			orphan := filepath.Join(home, ".oldrc")
+			if err := os.Symlink(old, orphan); err != nil {
+				t.Fatalf("Symlink error = %v", err)
+			}
+			t.Setenv("DOTFILES_ROOT", repoRoot)
+			t.Setenv("HOME", home)
+
+			args := []string{"--prune"}
+			if dryRun {
+				args = append(args, "--dry-run")
+			}
+			var stdout, stderr bytes.Buffer
+			if code := runLink(args, &stdout, &stderr, exec.NewFake()); code != 0 {
+				t.Fatalf("runLink(%v) code = %d, want 0; stderr=%q", args, code, stderr.String())
+			}
+			if !strings.Contains(stdout.String(), "link.prune=.oldrc\n") {
+				t.Errorf("stdout = %q, want link.prune=.oldrc", stdout.String())
+			}
+			_, err := os.Lstat(orphan)
+			if dryRun && err != nil {
+				t.Errorf("dry run removed the orphan (Lstat err=%v)", err)
+			}
+			if !dryRun && !os.IsNotExist(err) {
+				t.Errorf("orphan still present after --prune (Lstat err=%v)", err)
+			}
+			if _, err := os.Lstat(filepath.Join(home, ".bashrc")); dryRun == (err == nil) {
+				t.Errorf(".bashrc link present=%v, want %v", err == nil, !dryRun)
+			}
+		})
+	}
+}
+
+// TestRunLink_NoPruneLeavesOrphan proves stale links are only removed on
+// request.
+func TestRunLink_NoPruneLeavesOrphan(t *testing.T) {
+	repoRoot := t.TempDir()
+	home := t.TempDir()
+	old := filepath.Join(repoRoot, "bash/oldrc") // deleted from the repo
+	orphan := filepath.Join(home, ".oldrc")
+	if err := os.Symlink(old, orphan); err != nil {
+		t.Fatalf("Symlink error = %v", err)
+	}
+	t.Setenv("DOTFILES_ROOT", repoRoot)
+	t.Setenv("HOME", home)
+
+	var stdout, stderr bytes.Buffer
+	if code := runLink(nil, &stdout, &stderr, exec.NewFake()); code != 0 {
+		t.Fatalf("runLink() code = %d; stderr=%q", code, stderr.String())
+	}
+	if strings.Contains(stdout.String(), "link.prune=") {
+		t.Errorf("stdout = %q, want no link.prune= without --prune", stdout.String())
+	}
+	if _, err := os.Lstat(orphan); err != nil {
+		t.Errorf("orphan removed without --prune: %v", err)
+	}
+}

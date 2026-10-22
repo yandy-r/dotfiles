@@ -11,8 +11,9 @@ import (
 // per-dest result. It is not gated by DryRun — it reports actual on-disk
 // state. A real file where a symlink was expected is Broken, and so is a
 // dangling or looping symlink whose source exists (os.Stat on the dest fails).
-// A dangling symlink whose source is also missing is not flagged: dotf cannot
-// fix it and Plan skips it. A missing dest is neither Valid nor Broken. When
+// A dangling symlink whose source is also missing is neither Valid nor
+// Broken: it does not resolve, but dotf cannot fix it (Plan skips it; dotf
+// link --prune removes it). A missing dest is neither Valid nor Broken. When
 // any dest is Broken it returns a BrokenLinkError alongside the results. A
 // dest that already is its source through a symlinked parent dir (the case
 // Plan skips as already correct) is Valid. The Zed copy dest is excluded from
@@ -37,6 +38,8 @@ func (e *Engine) Validate(specs []LinkSpec, info platform.Info, opts Options) ([
 				res.Broken = true
 			case e.danglingWithSource(spec, destAbs):
 				res.Broken = true
+			case !resolves(destAbs):
+				// Dangling with the source gone: not valid, not repairable.
 			default:
 				res.Valid = true
 			}
@@ -74,4 +77,10 @@ func (e *Engine) destIsSource(spec LinkSpec, destAbs string) bool {
 	}
 	destLoc, ok := resolvedLocation(destAbs)
 	return ok && destLoc == srcReal
+}
+
+// resolves reports whether the symlink at destAbs resolves (os.Stat succeeds).
+func resolves(destAbs string) bool {
+	_, err := os.Stat(destAbs)
+	return err == nil
 }

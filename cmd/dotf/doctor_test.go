@@ -12,6 +12,7 @@ import (
 	"github.com/yandy-r/dotfiles/internal/manifest"
 	"github.com/yandy-r/dotfiles/internal/plasma"
 	"github.com/yandy-r/dotfiles/internal/platform"
+	"github.com/yandy-r/dotfiles/internal/symlink"
 )
 
 // findCheck returns the check with the given category/name, or (zero, false).
@@ -307,8 +308,36 @@ func TestCheckSymlinks(t *testing.T) {
 		checks := checkSymlinks(t.TempDir(), t.TempDir(), archInfo())
 		broken, _ := findCheck(checks, "symlinks", "broken")
 		pending, _ := findCheck(checks, "symlinks", "pending")
+		stale, ok := findCheck(checks, "symlinks", "stale")
 		if broken.Status != checkOK || pending.Status != checkOK {
 			t.Errorf("broken=%q pending=%q, want both ok", broken.Status, pending.Status)
+		}
+		if !ok || stale.Status != checkOK {
+			t.Errorf("stale = %+v (found=%v), want ok", stale, ok)
+		}
+	})
+
+	t.Run("stale-warns", func(t *testing.T) {
+		// ~/.oldrc points into the repo at a file that no longer exists and is
+		// no table entry's link: an orphan, surfaced as a warn item with the
+		// prune remedy.
+		repoRoot := t.TempDir()
+		home := t.TempDir()
+		old := filepath.Join(repoRoot, "bash/oldrc")
+		if err := os.Symlink(old, filepath.Join(home, ".oldrc")); err != nil {
+			t.Fatalf("Symlink error = %v", err)
+		}
+		checks := checkSymlinks(repoRoot, home, archInfo())
+		stale, _ := findCheck(checks, "symlinks", "stale")
+		if stale.Status != checkWarn {
+			t.Fatalf("stale = %+v, want warn", stale)
+		}
+		if !strings.Contains(stale.Remedy, "dotf link --prune") {
+			t.Errorf("stale remedy = %q, want dotf link --prune", stale.Remedy)
+		}
+		if len(stale.Items) != 1 || stale.Items[0].Kind != "symlink" ||
+			stale.Items[0].Action != symlink.StaleReasonOrphaned || stale.Items[0].Dest != ".oldrc" {
+			t.Errorf("stale items = %+v, want one symlink/orphaned/.oldrc", stale.Items)
 		}
 	})
 
@@ -590,6 +619,7 @@ func TestRunDoctor_Healthy(t *testing.T) {
 		"check.packages.drift=ok",
 		"check.symlinks.broken=ok",
 		"check.symlinks.pending=ok",
+		"check.symlinks.stale=ok",
 		"check.sysconfig.support=ok",
 	} {
 		if !strings.Contains(out, key) {
