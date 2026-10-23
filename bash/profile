@@ -5,9 +5,12 @@
 # This file is symlinked to ~/.profile and loads the main bash_profile
 # for login shells. NVM and Cargo are handled by the modern config system.
 
-# Prevent circular loading
-[[ -n "$DOTFILES_PROFILE_LOADED" ]] && return 0
-export DOTFILES_PROFILE_LOADED=1
+# Prevent circular loading. Per-process (PID) guard, never exported: nested
+# login shells load their own config, re-sourcing stays a no-op. POSIX only:
+# this file is also read by /bin/sh login shells.
+[ "${DOTFILES_PROFILE_LOADED:-}" = "$$" ] && return 0
+unset DOTFILES_PROFILE_LOADED
+DOTFILES_PROFILE_LOADED=$$
 
 # Source .bash_profile if it exists
 if [[ -f ~/.bash_profile ]]; then

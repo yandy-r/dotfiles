@@ -5,14 +5,26 @@
 # This file is loaded for login shells. It should be kept minimal
 # and delegate to the modern configuration system.
 
-# Prevent circular loading
-[[ -n "$DOTFILES_BASH_PROFILE_LOADED" ]] && return 0
-export DOTFILES_BASH_PROFILE_LOADED=1
+# Prevent circular loading. Per-process (PID) guard, never exported: nested
+# `bash -l` shells load their own login config, re-sourcing stays a no-op.
+if [[ "${DOTFILES_BASH_PROFILE_LOADED:-}" == "$$" ]]; then
+    return 0
+fi
+unset DOTFILES_BASH_PROFILE_LOADED
+DOTFILES_BASH_PROFILE_LOADED=$$
 
-# Installer-added PATH lines stay here, BEFORE ~/.bashrc: bashrc returns early in
-# non-interactive shells (so `bash -l -c` still needs them), and for interactive
-# login shells bashrc's final common/local.sh must run after them so
-# dotfiles.local/paths.sh entries stay first on PATH.
+# Non-interactive login shells (e.g. `bash -l -c …`) never read ~/.bashrc:
+# bashrc returns early for them, so they would end up with no DOTFILES_OS and
+# no PATH setup. Mirror zsh/zprofile: source platform and paths (the common
+# subset that is safe outside an interactive shell) before anything else.
+# Interactive login shells get the full config via ~/.bashrc below.
+if [[ $- != *i* ]]; then
+    DOTFILES_ROOT="${DOTFILES_ROOT:-$HOME/.config/dotfiles}"
+    [[ -f "$DOTFILES_ROOT/common/platform.sh" ]] &&
+        source "$DOTFILES_ROOT/common/platform.sh"
+    [[ -f "$DOTFILES_ROOT/common/paths.sh" ]] &&
+        source "$DOTFILES_ROOT/common/paths.sh"
+fi
 
 # Added by CodeRabbit CLI installer
 export PATH="/home/yandy/.local/bin:$PATH"
@@ -33,17 +45,9 @@ for file in ~/.{path,extra}; do
 done
 unset file
 
-# Cargo environment. Interactive shells already sourced ~/.cargo/env via
-# common/paths.sh:setup_rust_env inside bashrc; only non-interactive login
-# shells (e.g. `bash -l -c`) still need it here.
-if [[ $- != *i* ]] && [[ -f "$HOME/.cargo/env" ]]; then
-    source "$HOME/.cargo/env"
-fi
-
-# direnv: bash/bashrc normally installs the hook, but it returns early when
-# DOTFILES_BASHRC_LOADED is inherited from a parent shell (e.g. `bash -l` from
-# an interactive bash), leaving this login shell without one. Install it here
-# only when it is still missing, so a normal login never hooks twice.
+# direnv: bash/bashrc installs the hook for interactive shells. Only a shell
+# where ~/.bashrc was unreadable or failed early can reach here interactive
+# without one; install it then, so a normal login never hooks twice.
 if [[ $- == *i* ]] && command -v direnv >/dev/null 2>&1 &&
     [[ "${PROMPT_COMMAND[*]:-}" != *_direnv_hook* ]]; then
     eval "$(direnv hook bash)"

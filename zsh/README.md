@@ -386,6 +386,13 @@ source ~/.zshrc
 exec zsh -l
 ```
 
+### Regression suites
+
+```bash
+bash scripts/test-shell-startup-smoke.sh   # rc syntax (bash + zsh), quiet hermetic startup, login DOTFILES_OS, time budget
+bats tests/shell                           # platform detection, PATH cleanup, rc reload guards
+```
+
 ## Comparison with Bash
 
 | Feature             | Zsh           | Bash     |

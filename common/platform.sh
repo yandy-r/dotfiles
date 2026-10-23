@@ -71,13 +71,18 @@
 # Detect operating system
 # Returns: macos, debian, redhat, arch, suse, linux, wsl, windows, or unknown
 detect_os() {
+    # Test seam: defaults are the real paths; the bats suite points the
+    # DOTFILES_*_FILE overrides at fixture copies. `uname -s` stays live and is
+    # stubbed as a shell function by tests instead.
+    local os_release="${DOTFILES_OS_RELEASE_FILE:-/etc/os-release}"
+    local proc_version="${DOTFILES_PROC_VERSION_FILE:-/proc/version}"
     case "$(uname -s)" in
         Darwin*)
             echo "macos"
             ;;
         Linux*)
-            if [[ -f /etc/os-release ]]; then
-                . /etc/os-release
+            if [[ -f "$os_release" ]]; then
+                . "$os_release"
                 case "$ID" in
                     ubuntu|debian) echo "debian" ;;
                     fedora|fedora-asahi-remix|asahi-fedora-remix|rhel|centos|rocky|almalinux) echo "redhat" ;;
@@ -94,7 +99,7 @@ detect_os() {
                         esac
                         ;;
                 esac
-            elif [[ -f /proc/version ]] && grep -qi microsoft /proc/version; then
+            elif [[ -f "$proc_version" ]] && grep -qi microsoft "$proc_version"; then
                 echo "wsl"
             else
                 echo "linux"

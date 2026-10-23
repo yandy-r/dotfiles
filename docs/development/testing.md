@@ -81,18 +81,41 @@ zsh  -l -c 'echo "Zsh config loaded successfully"'
 dotf link --dry-run
 ```
 
+### Shell regression suites
+
+Two hermetic suites cover the shell config; neither depends on the host OS:
+
+```bash
+bash scripts/test-shell-startup-smoke.sh   # rc syntax, quiet startup, login DOTFILES_OS, startup time budget
+bats tests/shell                           # platform detection, PATH cleanup, rc reload guards
+```
+
+The smoke driver runs every shell under `env -i` with a temp `HOME` (rc files
+symlinked from the checkout, fake no-op tools on `PATH`), so a failure is
+always a dotfiles regression and never host noise. `TEST_BASH=/bin/bash`
+points the bash under test at another binary; `SHELL_STARTUP_BUDGET_MS`
+(default 1000) and `SHELL_STARTUP_RUNS` (default 5) tune the time budget.
+
+bats-core is not vendored: install the pinned release locally under `/tmp`
+(the same commands CI runs) with
+`git clone --depth 1 --branch v1.11.1 https://github.com/bats-core/bats-core /tmp/bats-core && /tmp/bats-core/install.sh /tmp/bats`
+and run `/tmp/bats/bin/bats tests/shell`. The bats cases drive platform
+behaviour through `DOTFILES_OS` and the `DOTFILES_OS_RELEASE_FILE` /
+`DOTFILES_PROC_VERSION_FILE` seams in `common/platform.sh`, so they never
+read the host's `/etc/os-release`.
+
 ### CI jobs
 
 Every CI edit is a **paired** edit: Forgejo reads workflows from `.forgejo/workflows/` in preference to
 `.github/workflows/` and never merges the two directories, so each workflow exists twice and the pair must stay in
 sync.
 
-| Workflow                       | Jobs             | Path filters                                                                                                                            |
-| ------------------------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `.github/workflows/go.yml`     | `test`, `fedora` | `**.go`, `go.mod`, `go.sum`, `manifest/**`, `bootstrap.sh`, `.goreleaser.yml`, `.goreleaser.forgejo.yml`, its own path, `.golangci.yml` |
-| `.forgejo/workflows/go.yml`    | `test`, `fedora` | Identical, with `.forgejo/workflows/go.yml` in place of the `.github` path                                                              |
-| `.github/workflows/shell.yml`  | `shellcheck`     | `**.sh`, `common/**`, `bin/**`, `bash/**`, `zsh/**`, `shellcheck/**`, its own path                                                      |
-| `.forgejo/workflows/shell.yml` | `shellcheck`     | Identical, with `.forgejo/workflows/shell.yml` in place of the `.github` path                                                           |
+| Workflow                       | Jobs                       | Path filters                                                                                                                            |
+| ------------------------------ | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `.github/workflows/go.yml`     | `test`, `fedora`           | `**.go`, `go.mod`, `go.sum`, `manifest/**`, `bootstrap.sh`, `.goreleaser.yml`, `.goreleaser.forgejo.yml`, its own path, `.golangci.yml` |
+| `.forgejo/workflows/go.yml`    | `test`, `fedora`           | Identical, with `.forgejo/workflows/go.yml` in place of the `.github` path                                                              |
+| `.github/workflows/shell.yml`  | `shellcheck`, `regression` | `**.sh`, `common/**`, `bin/**`, `bash/**`, `zsh/**`, `shellcheck/**`, `tests/**`, its own path                                          |
+| `.forgejo/workflows/shell.yml` | `shellcheck`, `regression` | Identical, with `.forgejo/workflows/shell.yml` in place of the `.github` path                                                           |
 
 The Forgejo twin **cannot use third-party actions**: only `actions/*` and `forgejo/*` resolve from its
 `DEFAULT_ACTIONS_URL` (`data.forgejo.org`). That is why `golangci/golangci-lint-action` is replaced there by a raw
@@ -123,6 +146,13 @@ No arm64 runner is bought — architecture variance is rehearsed locally instead
 `shell.yml` runs `bin/lint.sh --shell` — the same dispatcher `npm run lint` uses — so CI and local linting cannot
 drift apart. shellcheck is pinned to `v0.9.0` and installed from its upstream tarball under `$HOME` (no sudo, no
 third-party action, so the Forgejo twin needs no divergence here).
+
+Its `regression` job runs every `scripts/test-*.sh` driver plus the bats-core
+suite in `tests/shell` (bats-core v1.11.1 installed from its pinned upstream
+release tag under `$HOME` — again no sudo and no third-party action, so the
+Forgejo twin runs the identical install). The GitHub job also covers macOS
+with Homebrew bash 5 and re-runs the local-hook, parity, smoke and bats steps
+against the system `/bin/bash` 3.2; the Forgejo twin is Linux-only.
 
 The gap: `bin/lint.sh --shell` discovers files by the **`.sh` extension only**. The extensionless shell files are
 therefore never linted by CI or by `npm run lint`:

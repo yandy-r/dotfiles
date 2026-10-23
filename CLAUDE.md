@@ -763,6 +763,14 @@ zsh  -l -c 'echo "Zsh config loaded successfully"'
 dotf link --dry-run
 ```
 
+Shell config (bash/, zsh/, common/) changes must also pass the hermetic
+suites CI runs (see docs/development/testing.md → Shell regression suites):
+
+```bash
+bash scripts/test-shell-startup-smoke.sh
+bats tests/shell
+```
+
 For Go (`dotf` CLI) changes, additionally run:
 
 ```bash

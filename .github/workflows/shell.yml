@@ -7,12 +7,13 @@ name: Shell
 #     correctness lives as much in common/ and bin/ as it does in Go, and
 #     neither was gated by any workflow before.
 #   - regression: runs the hermetic shell regression scripts (scripts/test-*.sh
-#     for the local-overrides hook, shell parity, the bash prompt, the startup cache and the
-#     platform predicates) on Linux and macOS, with zsh installed so the zsh
-#     cases run too. On macOS the drivers run under Homebrew bash 5 (the prompt
-#     test needs bash >= 4.4), and the local-hook test runs a second time with
-#     the shells under test pinned to the system /bin/bash 3.2 (as does the
-#     shell parity test).
+#     for the local-overrides hook, shell parity, the bash prompt, the startup
+#     cache, the platform predicates and the startup smoke driver) plus the
+#     bats-core suite in tests/shell, on Linux and macOS, with zsh installed so
+#     the zsh cases run too. On macOS the drivers run under Homebrew bash 5
+#     (the prompt test needs bash >= 4.4), and the local-hook, parity and smoke
+#     tests run a second time with the shells under test pinned to the system
+#     /bin/bash 3.2.
 
 on:
   pull_request:
@@ -23,6 +24,7 @@ on:
       - 'bash/**'
       - 'zsh/**'
       - 'shellcheck/**'
+      - 'tests/**'
       - '.github/workflows/shell.yml'
   push:
     branches:
@@ -34,6 +36,7 @@ on:
       - 'bash/**'
       - 'zsh/**'
       - 'shellcheck/**'
+      - 'tests/**'
       - '.github/workflows/shell.yml'
 
 permissions:
@@ -117,6 +120,16 @@ jobs:
           bash --version | head -n 1
           zsh --version
 
+      - name: Install bats
+        # bats-core from the pinned upstream release tag, installed under
+        # $HOME (no sudo, no third-party action), so the Forgejo twin can run
+        # the identical install. Local runs use the same commands under /tmp.
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v1.11.1 https://github.com/bats-core/bats-core /tmp/bats-core
+          /tmp/bats-core/install.sh "$HOME/.local"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Local overrides hook
         run: bash scripts/test-shell-local-hook.sh
 
@@ -144,3 +157,22 @@ jobs:
 
       - name: Platform predicates
         run: bash scripts/test-platform-predicates.sh
+
+      - name: Shell startup smoke
+        run: bash scripts/test-shell-startup-smoke.sh
+
+      - name: Shell startup smoke (system bash 3.2)
+        # The rc-file edits (bash_profile non-interactive login sources,
+        # per-process reload guards) must hold on the stock /bin/bash too.
+        if: runner.os == 'macOS'
+        run: TEST_BASH=/bin/bash bash scripts/test-shell-startup-smoke.sh
+
+      - name: Bats suite
+        run: bats tests/shell
+
+      - name: Bats suite (system bash 3.2)
+        # TEST_BASH is passed through TEST_ENV and detect_os_result, so the
+        # reload guards and detect_os seam run under the stock bash as well;
+        # bats itself needs bash >= 3.2 only.
+        if: runner.os == 'macOS'
+        run: TEST_BASH=/bin/bash bats tests/shell

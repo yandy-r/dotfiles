@@ -11,11 +11,15 @@ case $- in
 *) return ;;
 esac
 
-# Prevent infinite loading loops
-if [[ -n "${DOTFILES_BASHRC_LOADED}" ]]; then
+# Prevent infinite loading loops. The guard is per-process (PID) and never
+# exported: a child interactive bash must load its own config, while
+# re-sourcing ~/.bashrc in the same shell stays a no-op. An inherited exported
+# value from an older dotfiles release no longer blocks a nested shell.
+if [[ "${DOTFILES_BASHRC_LOADED:-}" == "$$" ]]; then
 	return 0
 fi
-export DOTFILES_BASHRC_LOADED=1
+unset DOTFILES_BASHRC_LOADED
+DOTFILES_BASHRC_LOADED=$$
 
 # Ensure we have a minimal PATH (critical for system stability)
 if [[ -z "$PATH" ]]; then
