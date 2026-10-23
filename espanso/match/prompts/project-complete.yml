@@ -1,0 +1,75 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/espanso/espanso/dev/schemas/match.schema.json
+#
+# :projdone - finish a Linear project: loop the :e2e ship workflow over every
+# remaining issue until the project is done. Profile-free: the agent finds the
+# workspace and team from the repo. (Not ":e2e..." - espanso would expand :e2e
+# mid-word.)
+
+matches:
+  - trigger: ':projdone'
+    vars:
+      - name: form
+        type: form
+        params:
+          layout: |
+            Linear project to complete [[project]]
+          fields:
+            project:
+              default: ''
+    replace: |
+      /goal Complete the Linear project **{{form.project}}**: ship every remaining issue end to end, one at a time, until the project is done.
+
+      ## Scope
+
+      - Workspace/team: from RELEASING.md/AGENTS.md, else the repo name; project missing or ambiguous? stop and ask
+      - Inventory every open issue in the project, sub-issues included
+      - Order by blocking relations, then milestone, then priority; batch small related issues sharing a target release into one PR
+      - Skip issues assigned to others or with a PR/branch you didn't make; resume your own in-flight work
+
+      ## Before Starting
+
+      - RELEASING.md ("Where does my change go?") sets base branch, PR target, backport. Absent? Run `/ycc:release-model --yes`; commit it to the default branch first
+      - Follow CLAUDE.md/AGENTS.md (commits, PR template, labels, verification)
+      - Move the project to In Progress
+
+      ## Loop
+
+      Repeat until no workable issue remains. Orchestrate with sub-agents; skills are hints.
+
+      1. Pick the next issue; read it fully (comments, links, sub-issues). Acceptance criteria are the spec (none? add them). Set a target release (RELEASING.md rule 1) and link a GitHub issue (create if missing). Move it to In Progress
+      2. Worktree `<area-or-type>/<issue-id>-<slug>` off the freshly pulled RELEASING.md base; docs-only: commit to the default branch instead
+      3. Research and plan, scaled to size: `/ycc:feature-research`, `/ycc:prp-plan --parallel --enhanced --no-worktree`. Favor security, data integrity, stability; log decisions in the PR
+      4. Implement: `/ycc:prp-implement --parallel --no-worktree`. A bug fix starts with a failing regression test; unfinished user-reachable work stays behind a RELEASING.md switch (off)
+      5. Verify (lint, type-check, build, tests for the change); adversarial review, fix findings: `/ycc:code-review --parallel`
+      6. PR (`Closes <TEAM>-N`, `Closes #N`, template, labels): `/ycc:git-workflow --pr --ci --ci-yes`, then `/ycc:pr-autofix <pr#> --parallel --severity low --yes --ci --ci-yes`. CodeRabbit (if present): first turn only
+      7. Squash merge on green CI. Patch-line target? Label `backport:X.Y`, run `/ycc:backport <PR#> --ci`, merge it
+      8. Remove the worktree and merged branches; close the Linear and GitHub issues
+      9. Re-read the project (new or unblocked issues) before picking again
+
+      ## Scope Control
+
+      - Follow-ups the project's goal needs join this project and the loop; file others in the fitting project, don't work them
+      - Never widen an issue past its acceptance criteria
+      - Duplicate or obsolete? Cancel with a comment saying why; never cancel just to finish
+
+      ## Blockers
+
+      - One blocked issue never ends the run: comment the blocker on it, mark it blocked, continue
+      - Stop the run only for repo-wide problems (no access, trunk CI red and not a small fix, contradictory project goal); report what you need
+      - Ask only on irreversible or regressing choices (destructive migration, data loss, security, API break)
+
+      ## Must Not Do
+
+      - No sync PRs between long-lived branches, tags, releases, or CHANGELOG.md edits
+      - No direct or force pushes to trunk or release branches
+      - Never bypass checks (`--no-verify`, skipped tests, admin merges on red CI)
+      - Security fixes: exploit details in Linear only
+      - Never touch changes, worktrees, or branches you didn't make
+      - Never print, log, or commit secret values
+
+      ## Done When
+
+      - Every project issue is Done, or Canceled with a reason; every PR (and backport) merged on green CI; cleanup done
+      - Then mark the project Completed and post a Linear project update
+      - Only blocked or others' issues left? Keep it In Progress; post an update listing them and why
+      - Final report: issues shipped (PR links, target releases), canceled, blocked, follow-ups filed, decisions

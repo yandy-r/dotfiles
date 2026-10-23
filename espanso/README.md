@@ -12,6 +12,7 @@ match/prompts/release.yml      :release
 match/prompts/op-secrets.yml   :opsecrets
 match/prompts/project-init.yml :projinit
 match/prompts/linear-issue.yml :linissue
+match/prompts/project-complete.yml :projdone
 match/prompts/env-setup.yml    :envsetup
 scripts/agent-prompt           renders the end-to-end workflow prompt
 scripts/check-prompt-length    checks every prompt fits the 4000-char limit
@@ -25,6 +26,14 @@ match/packages/                `espanso install` packages (git-ignored)
 `:e2e` opens a form (profile, task, skill hints, target) and pastes the
 end-to-end Linear-to-merge workflow prompt. The text comes from
 `scripts/agent-prompt`, so one template covers every repo.
+
+`:projdone` is the project-sized sibling: give it a Linear project name and the
+agent loops the same ship workflow over every remaining issue (dependency
+order, re-reading the project after each merge) until the project is done. It
+has no profiles; the workspace comes from the repo. A blocked issue is marked
+and skipped rather than ending the run, follow-ups the project needs join the
+loop, and the project is marked Completed only when every issue is Done or
+Canceled with a reason.
 
 **Profile** says where the Linear names come from:
 
@@ -103,5 +112,6 @@ espanso reloads on save. Check a change with `espanso log` or `espanso match lis
 | `:projinit`  | `/goal` to initialize a project or update an existing one |
 | `:opsecrets` | `/goal` to back up secrets to a 1Password secure note     |
 | `:linissue`  | `/goal` to file an agent-ready Linear issue (no code)     |
+| `:projdone`  | `/goal` to ship every remaining issue in a Linear project |
 | `:envsetup`  | `/env-setup` for Cursor cloud agents (not `/goal`)        |
 | `:search`    | fuzzy search over all snippets (also `ALT+SPACE`)         |
