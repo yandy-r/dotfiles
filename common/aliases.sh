@@ -22,8 +22,9 @@
 #
 # Modern Tool Aliases:
 #   - eza  -> ls (with icons, git integration)
-#   - bat  -> cat (with syntax highlighting)
+#   - bat/batcat -> cat (with syntax highlighting; Debian/Ubuntu name: batcat)
 #   - rg   -> grep (faster, smarter search)
+#   - fd/fdfind used when present (Debian/Ubuntu name: fdfind)
 #
 # ================================================================
 
@@ -43,6 +44,14 @@ if [[ -z "$DOTFILES_OS" ]]; then
     if [[ -f "$SCRIPT_DIR/platform.sh" ]]; then
         source "$SCRIPT_DIR/platform.sh"
     fi
+fi
+
+# Re-resolve bat/batcat + fd/fdfind now that paths.sh has run (the rc order
+# loads exports.sh before paths.sh, so the exports-time lookup missed tools
+# only reachable via ~/.cargo/bin, Homebrew, etc.). This refreshes PAGER,
+# MANPAGER and the FZF commands for the aliases below.
+if command -v dotfiles_resolve_tool_cmds >/dev/null 2>&1; then
+	dotfiles_resolve_tool_cmds
 fi
 
 # ================================================================
@@ -136,13 +145,20 @@ alias egrep="egrep --color=auto"
 alias grep="grep --color=auto"
 
 
-# Enhanced cat
-if has_command bat; then
-	alias bat="bat --paging=never"
-	alias less="bat --paging=always"
+# Enhanced cat (bat, or batcat on Debian/Ubuntu)
+if [[ -n "${DOTFILES_BAT_CMD:-}" ]]; then
+	# shellcheck disable=SC2139 # resolved command name is baked in at definition
+	alias bat="$DOTFILES_BAT_CMD --paging=never"
+	# shellcheck disable=SC2139 # resolved command name is baked in at definition
+	alias less="$DOTFILES_BAT_CMD --paging=always"
 else
 	# Keep original cat
 	alias cat="cat"
+fi
+
+# fd is fdfind on Debian/Ubuntu; alias only when the resolved name differs
+if [[ "${DOTFILES_FD_CMD:-}" == "fdfind" ]]; then
+	alias fd="fdfind"
 fi
 
 # Text utilities
@@ -237,23 +253,25 @@ alias dcb="docker compose build"
 # Kubernetes CLI shortcuts. Use kubectx/kubens (kctx/kns) to switch
 # contexts and namespaces. Consider k9s for a terminal UI.
 
-# kubectl shortcuts
-alias k="kubectl"
-alias kg="kubectl get"
-alias kd="kubectl describe"
-alias kdel="kubectl delete"
-alias ka="kubectl apply"
-alias kl="kubectl logs"
-alias kex="kubectl exec"
+# kubectl shortcuts (only when kubectl is on PATH)
+if has_command kubectl; then
+	alias k="kubectl"
+	alias kg="kubectl get"
+	alias kd="kubectl describe"
+	alias kdel="kubectl delete"
+	alias ka="kubectl apply"
+	alias kl="kubectl logs"
+	alias kex="kubectl exec"
 
-# Common resource shortcuts
-alias pods="kubectl get pods"
-alias svc="kubectl get services"
-alias ing="kubectl get ingress"
-alias ns="kubectl get namespaces"
-alias pvc="kubectl get pvc"
-alias pv="kubectl get pv"
-alias deps="kubectl get deployments"
+	# Common resource shortcuts
+	alias pods="kubectl get pods"
+	alias svc="kubectl get services"
+	alias ing="kubectl get ingress"
+	alias ns="kubectl get namespaces"
+	alias pvc="kubectl get pvc"
+	alias pv="kubectl get pv"
+	alias deps="kubectl get deployments"
+fi
 
 # Kubernetes context
 if has_command kubectx; then

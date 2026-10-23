@@ -413,7 +413,7 @@ setup_yazi() {
     fi
 }
 
-# Set up modern CLI alternatives (eza, bat, rg, delta)
+# Set up modern CLI alternatives (eza, bat/batcat, rg, delta)
 # Configures environment variables and creates ripgrep config
 setup_modern_alternatives() {
     # Enhanced ls
@@ -422,11 +422,16 @@ setup_modern_alternatives() {
         # Note: aliases are set in aliases.sh
     fi
 
-    # Enhanced cat
-    if tool_exists bat; then
+    # Enhanced cat (bat, or batcat on Debian/Ubuntu)
+    if [[ -n "${DOTFILES_BAT_CMD:-}" ]] || tool_exists bat || tool_exists batcat; then
+        local _bat_cmd="${DOTFILES_BAT_CMD:-}"
+        if [[ -z "$_bat_cmd" ]]; then
+            if tool_exists bat; then _bat_cmd="bat"; else _bat_cmd="batcat"; fi
+        fi
         export BAT_THEME="${BAT_THEME:-Sublime Snazzy}"
         export BAT_PAGER="less -RF"
-        export MANPAGER="sh -c 'col -bx | bat -l man -p'"
+        export MANPAGER="sh -c 'col -bx | $_bat_cmd -l man -p'"
+        unset _bat_cmd
     fi
 
     # Enhanced grep

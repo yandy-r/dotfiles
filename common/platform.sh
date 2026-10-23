@@ -278,6 +278,60 @@ get_homebrew_path() {
 # Utility functions for checking tool/file/directory availability.
 # These are used throughout the dotfiles for conditional configuration.
 
+# Print the first argument found on PATH (e.g. `first_command bat batcat`
+# resolves Debian/Ubuntu's batcat/fdfind names); returns 1 if none is found.
+# PATH lookup only (`type -P` / zsh `whence -p`): aliases and functions are
+# ignored, so `alias bat=…` neither hides a real bat nor stands in for one.
+# Usage: first_command bat batcat
+first_command() {
+    local _first_cmd
+    for _first_cmd in "$@"; do
+        if [[ -n "${ZSH_VERSION:-}" ]]; then
+            whence -p "$_first_cmd" >/dev/null 2>&1 || continue
+        else
+            type -P "$_first_cmd" >/dev/null 2>&1 || continue
+        fi
+        printf '%s\n' "$_first_cmd"
+        return 0
+    done
+    return 1
+}
+
+# Resolve bat/batcat and fd/fdfind once, and (re)export the settings that
+# depend on them: DOTFILES_BAT_CMD/DOTFILES_FD_CMD (plain vars, not exported;
+# child shells re-resolve), PAGER/MANPAGER/LESS and the FZF commands.
+# exports.sh calls this, and aliases.sh calls it again: the rc order is
+# platform -> exports -> paths -> aliases, so the exports-time lookup runs
+# before paths.sh has added ~/.cargo/bin, Homebrew and friends, and the
+# aliases-time re-run picks up tools only reachable via paths.sh.
+dotfiles_resolve_tool_cmds() {
+    DOTFILES_BAT_CMD="$(first_command bat batcat)" || DOTFILES_BAT_CMD=""
+    DOTFILES_FD_CMD="$(first_command fd fdfind)" || DOTFILES_FD_CMD=""
+
+    if [[ -n "${DOTFILES_BAT_CMD:-}" ]]; then
+        export PAGER="$DOTFILES_BAT_CMD --paging=always"
+        export MANPAGER="$DOTFILES_BAT_CMD --language=man --paging=always"
+    elif has_command less; then
+        export PAGER="less"
+        export MANPAGER="less -X" # Don't clear screen after quitting
+        # Less options: -R raw colours, -F quit if one screen, -X no clear
+        export LESS="-R -F -X"
+    else
+        export PAGER="more"
+        export MANPAGER="more"
+    fi
+
+    export FZF_DEFAULT_OPTS="--height 40% --layout=reverse --border --inline-info"
+    if [[ -n "${DOTFILES_FD_CMD:-}" ]]; then
+        export FZF_DEFAULT_COMMAND="$DOTFILES_FD_CMD --type f --hidden --follow --exclude .git 2>/dev/null || find . -type f -not -path \"*/\\.git/*\""
+        export FZF_ALT_C_COMMAND="$DOTFILES_FD_CMD --type d --hidden --follow --exclude .git 2>/dev/null || find . -type d -not -path \"*/\\.git/*\""
+    else
+        export FZF_DEFAULT_COMMAND='find . -type f -not -path "*/\.git/*"'
+        export FZF_ALT_C_COMMAND='find . -type d -not -path "*/\.git/*"'
+    fi
+    export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+}
+
 # Check if command exists in PATH
 # Usage: has_command git && echo "Git installed"
 has_command() {

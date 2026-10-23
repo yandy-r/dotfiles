@@ -191,24 +191,13 @@ export GIT_EDITOR="$EDITOR"
 # PAGER CONFIGURATION
 # ================================================================
 # Configures the pager for viewing command output and man pages.
-# Priority: bat (with syntax highlighting) > less > more
+# Priority: bat/batcat (with syntax highlighting) > less > more.
+# Resolution (incl. the FZF commands below) lives in
+# dotfiles_resolve_tool_cmds (platform.sh); aliases.sh re-runs it after
+# paths.sh, because the rc order loads exports.sh before paths.sh.
 
-# Set pager with fallbacks and options
-if has_command bat; then
-    export PAGER="bat --paging=always"
-    export MANPAGER="bat --language=man --paging=always"
-elif has_command less; then
-    export PAGER="less"
-    export MANPAGER="less -X" # Don't clear screen after quitting
-
-    # Less options
-    export LESS="-R -F -X"
-    # -R: Allow raw control characters (for colors)
-    # -F: Quit if entire file fits on one screen
-    # -X: Don't clear screen after quitting
-else
-    export PAGER="more"
-    export MANPAGER="more"
+if command -v dotfiles_resolve_tool_cmds >/dev/null 2>&1; then
+    dotfiles_resolve_tool_cmds
 fi
 
 # ================================================================
@@ -515,11 +504,9 @@ export HOMEBREW_CASK_OPTS="--require-sha"
 # Modern CLI tool configurations: FZF, ripgrep, bat, eza, delta.
 # These tools are "better" replacements for standard Unix tools.
 
-# FZF - fuzzy finder defaults (Ctrl-T for files, Alt-C for directories)
-export FZF_DEFAULT_OPTS="--height 40% --layout=reverse --border --inline-info"
-export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git 2>/dev/null || find . -type f -not -path "*/\.git/*"'
-export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
-export FZF_ALT_C_COMMAND='fd --type d --hidden --follow --exclude .git 2>/dev/null || find . -type d -not -path "*/\.git/*"'
+# FZF_DEFAULT_OPTS/FZF_DEFAULT_COMMAND/FZF_CTRL_T_COMMAND/FZF_ALT_C_COMMAND
+# are set by dotfiles_resolve_tool_cmds (platform.sh), called in the pager
+# section above and again from aliases.sh after paths.sh.
 
 # Ripgrep configuration
 export RIPGREP_CONFIG_PATH="$XDG_CONFIG_HOME/ripgrep/config"

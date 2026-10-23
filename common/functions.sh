@@ -174,21 +174,23 @@ mkf() {
     touch "$file"
 }
 
-# Find files by name (uses fd if available, falls back to find)
+# Find files by name (uses fd/fdfind if available, falls back to find)
 # Usage: f "*.ts"
 f() {
-    if has_command fd; then
-        fd "$@"
+    local _fd_cmd
+    if _fd_cmd="$(first_command fd fdfind)"; then
+        "$_fd_cmd" "$@"
     else
         find . -name "*$1*" -type f
     fi
 }
 
-# Find directories by name (uses fd if available)
+# Find directories by name (uses fd/fdfind if available)
 # Usage: fd_dir "node_modules"
 fd_dir() {
-    if has_command fd; then
-        fd --type d "$@"
+    local _fd_cmd
+    if _fd_cmd="$(first_command fd fdfind)"; then
+        "$_fd_cmd" --type d "$@"
     else
         find . -name "*$1*" -type d
     fi
@@ -310,9 +312,11 @@ archive() {
 # ================================================================
 # Text transformation, encoding, and formatting utilities.
 
-# JSON pretty print with syntax highlighting (uses jq + bat when available)
+# JSON pretty print with syntax highlighting (uses jq + bat/batcat when available)
 # Usage: echo '{"a":1}' | json   OR   json '{"a":1}'
 json() {
+    local _bat_cmd=""
+    _bat_cmd="$(first_command bat batcat)" || _bat_cmd=""
     if [[ -p /dev/stdin ]]; then
         # Input from pipe
         if has_command jq; then
@@ -331,7 +335,7 @@ json() {
         else
             echo "$*"
         fi
-    fi | (has_command bat && bat -l json --paging=never || cat)
+    fi | (if [[ -n "$_bat_cmd" ]]; then "$_bat_cmd" -l json --paging=never; else cat; fi)
 }
 
 # URL encode a string (spaces become %20, etc.)
@@ -523,10 +527,12 @@ gz() {
 # Compare two files with syntax-highlighted diff (uses delta if available)
 # Usage: compare file1.txt file2.txt
 compare() {
+    local _bat_cmd=""
+    _bat_cmd="$(first_command bat batcat)" || _bat_cmd=""
     if has_command delta; then
         delta "$1" "$2"
     elif has_command diff; then
-        diff -u "$1" "$2" | (has_command bat && bat -l diff --paging=never || cat)
+        diff -u "$1" "$2" | (if [[ -n "$_bat_cmd" ]]; then "$_bat_cmd" -l diff --paging=never; else cat; fi)
     else
         echo "No diff tool available"
     fi

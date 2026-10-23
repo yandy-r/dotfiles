@@ -22,6 +22,7 @@ bash_files:
   - { src: 'bash/bashrc', dest: '.bashrc' }
   - { src: 'bash/bash_profile', dest: '.bash_profile' }
   - { src: 'bash/profile', dest: '.profile' }
+  - { src: 'bash/.fzf.bash', dest: '.fzf.bash' }
 
 zsh_files:
   - { src: 'zsh/zshrc', dest: '.zshrc' }
