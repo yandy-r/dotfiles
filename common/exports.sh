@@ -139,6 +139,18 @@ else
     unset TOKENHOP_OPENCODE_API_KEY
 fi
 
+if tokenhop_openai_api_key="$(read_env_file "$XDG_CONFIG_HOME/env/tokenhop_openai_api_key")"; then
+    export TOKENHOP_OPENAI_API_KEY="$tokenhop_openai_api_key"
+else
+    unset TOKENHOP_OPENAI_API_KEY
+fi
+
+if tokenhop_openai_base_url="$(read_env_file "$XDG_CONFIG_HOME/env/tokenhop_openai_base_url")"; then
+    export TOKENHOP_OPENAI_BASE_URL="$tokenhop_openai_base_url"
+else
+    unset TOKENHOP_OPENAI_BASE_URL
+fi
+
 if claude_code_oauth_token="$(read_env_file "$XDG_CONFIG_HOME/env/claude_code_oauth_token")"; then
     export CLAUDE_CODE_OAUTH_TOKEN="$claude_code_oauth_token"
 else
