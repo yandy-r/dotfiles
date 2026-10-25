@@ -73,6 +73,39 @@ opencode-raw() {
     command opencode "$@"
 }
 
+# Run graphify against the tokenhop OpenAI-compatible endpoint.
+#
+# graphify auto-detects gemini before openai, so the exported GEMINI_API_KEY
+# would otherwise win; pin the backend explicitly. GRAPHIFY_BACKEND or
+# --backend still override per call. Falls through untouched when the
+# tokenhop key is absent (see common/exports.sh).
+graphify() {
+    if [[ -z "${TOKENHOP_OPENAI_API_KEY:-}" ]]; then
+        command graphify "$@"
+        return
+    fi
+
+    local -a env_args=(
+        "GRAPHIFY_BACKEND=${GRAPHIFY_BACKEND:-openai}"
+        "OPENAI_API_KEY=$TOKENHOP_OPENAI_API_KEY"
+    )
+    if [[ -n "${TOKENHOP_OPENAI_BASE_URL:-}" ]]; then
+        env_args+=("OPENAI_BASE_URL=$TOKENHOP_OPENAI_BASE_URL")
+    fi
+    if [[ -n "${TOKENHOP_OPENAI_MODEL:-}" ]]; then
+        env_args+=(
+            "OPENAI_MODEL=$TOKENHOP_OPENAI_MODEL"
+            "GRAPHIFY_OPENAI_MODEL=$TOKENHOP_OPENAI_MODEL"
+        )
+    fi
+
+    env "${env_args[@]}" graphify "$@"
+}
+
+graphify-raw() {
+    command graphify "$@"
+}
+
 # Resolve the Fabric binary without considering aliases or shell functions.
 _fabric_command() {
 	if [[ -n "${ZSH_VERSION:-}" ]]; then
