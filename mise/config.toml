@@ -1,9 +1,10 @@
 [tools]
 bun = "latest"
 deno = "latest"
+dotenvx = "latest"
 go = "1.26"
 golangci-lint = "2.11.4"
-node = "latest"
+node = "26.12.0"
 npm = "latest"
 pnpm = "latest"
 railway = "5.57.7"
