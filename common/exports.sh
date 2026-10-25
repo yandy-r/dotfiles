@@ -151,6 +151,12 @@ else
     unset TOKENHOP_OPENAI_BASE_URL
 fi
 
+if tokenhop_openai_model="$(read_env_file "$XDG_CONFIG_HOME/env/tokenhop_openai_model")"; then
+    export TOKENHOP_OPENAI_MODEL="$tokenhop_openai_model"
+else
+    unset TOKENHOP_OPENAI_MODEL
+fi
+
 if claude_code_oauth_token="$(read_env_file "$XDG_CONFIG_HOME/env/claude_code_oauth_token")"; then
     export CLAUDE_CODE_OAUTH_TOKEN="$claude_code_oauth_token"
 else
