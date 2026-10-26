@@ -196,7 +196,16 @@ If Starship is unavailable, bash falls back to a custom prompt defined in `bash/
 - Shows user@host and current directory
 - Git integration (branch name and status indicators)
 - Exit code indicator for failed commands
-- Vi mode indicator (Normal/Insert)
+
+Git branch, status, and virtualenv text are stored in variables the prompt
+references, so characters such as backticks or `$(...)` in a branch name are
+shown literally.
+
+### Terminal title (bash)
+
+On `xterm`, `rxvt`, and `screen` terminals, bash sets the title to
+`$USER@$HOSTNAME: $PWD` on every prompt. The same function runs with Starship
+and with the fallback prompt.
 
 ## Shell-Specific Settings
 

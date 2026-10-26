@@ -104,10 +104,16 @@ Text search and manipulation aliases.
 
 ### Cat Aliases (with bat)
 
-| Alias  | Command               | Description               | Fallback                  |
-| ------ | --------------------- | ------------------------- | ------------------------- |
-| `bat`  | `bat --paging=never`  | Syntax highlighted cat    | Only when `bat` available |
-| `less` | `bat --paging=always` | Paged syntax highlighting | Only when `bat` available |
+| Alias  | Command                          | Description               | Fallback                                      |
+| ------ | -------------------------------- | ------------------------- | --------------------------------------------- |
+| `bat`  | `bat` or `batcat` `--paging=never`  | Syntax highlighted cat    | When `bat` or `batcat` is on PATH (`bat` wins) |
+| `less` | `bat` or `batcat` `--paging=always` | Paged syntax highlighting | When `bat` or `batcat` is on PATH (`bat` wins) |
+
+### fd
+
+| Alias | Command  | Description                         | Condition                                        |
+| ----- | -------- | ----------------------------------- | ------------------------------------------------ |
+| `fd`  | `fdfind` | `fd` name for Debian/Ubuntu's binary | Only when `fd` is absent and `fdfind` is on PATH |
 
 ### Text Utilities
 
@@ -206,7 +212,8 @@ Docker and Docker Compose shortcuts.
 
 ## Kubernetes Aliases
 
-kubectl and Kubernetes ecosystem shortcuts.
+kubectl and Kubernetes ecosystem shortcuts. The kubectl and resource aliases
+below are defined only when `kubectl` is on PATH.
 
 ### kubectl Shortcuts
 
@@ -456,6 +463,13 @@ Development environment shortcuts.
 ---
 
 ## AI / Fabric Aliases
+
+### Claude
+
+| Alias   | Command                                                                                                                                    | Description                                      |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| `ccdp`  | `claude --allow-dangerously-skip-permissions --dangerously-skip-permissions --permission-mode bypassPermissions`                            | Start Claude with permission checks bypassed    |
+| `cc-rc` | `DO_NOT_TRACK=0 claude --dangerously-skip-permissions --allow-dangerously-skip-permissions rc --permission-mode bypassPermissions`         | Same bypass, plus `rc` and `DO_NOT_TRACK=0`     |
 
 Fabric aliases are loaded when either `fabric` or `fabric-ai` is available. If only `fabric-ai` exists, the shell integration normalizes the `fabric` command name to `fabric-ai` for the aliases and helper functions below.
 

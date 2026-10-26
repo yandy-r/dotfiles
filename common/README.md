@@ -150,7 +150,7 @@ Cross-platform utility functions for common tasks.
 
 - `mkd` - Create directory and cd into it
 - `mkf` - Create file with directory structure
-- `f` - Find files by name (uses fd if available)
+- `f` - Find files by name (uses `fd` or `fdfind` if available)
 - `fd_dir` - Find directories by name
 
 **Network:**
@@ -164,6 +164,8 @@ Cross-platform utility functions for common tasks.
 - `serve` - Start a simple HTTP server
 - `extract` - Extract various archive formats
 - `json` - Pretty print JSON
+- `graphify` - Run graphify, via the tokenhop OpenAI endpoint when `TOKENHOP_OPENAI_API_KEY` is set
+- `graphify-raw` - Run the graphify binary with no tokenhop environment
 
 **Git:**
 
@@ -185,7 +187,7 @@ per tool, shared by both shells:
 
 **Tool Categories:**
 
-- **Modern CLI**: eza, bat, ripgrep, fd, fzf, zoxide, delta, atuin
+- **Modern CLI**: eza, bat/batcat, ripgrep, fd/fdfind, fzf, zoxide, delta, atuin
 - **Development**: git, nvim, tmux, jq, yq
 - **Cloud/DevOps**: docker, kubectl, helm, terraform, ansible
 - **Languages**: node, python3, go, rust, cargo

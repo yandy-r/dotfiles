@@ -77,7 +77,7 @@ mkf src/components/Button/Button.tsx
 
 ### f
 
-Find files by name. Uses `fd` if available, falls back to `find`.
+Find files by name. Uses `fd` or `fdfind` (`fd` preferred) when one is on PATH, otherwise `find`.
 
 ```bash
 f <pattern> [additional_args]
@@ -102,14 +102,14 @@ f config
 
 **Fallback Behavior:**
 
-- With `fd`: `fd "$@"`
-- Without `fd`: `find . -name "*$1*" -type f`
+- With `fd` or `fdfind`: that command, `"$@"`
+- With neither: `find . -name "*$1*" -type f`
 
 ---
 
 ### fd_dir
 
-Find directories by name. Uses `fd` if available, falls back to `find`.
+Find directories by name. Uses `fd` or `fdfind` (`fd` preferred) when one is on PATH, otherwise `find`.
 
 ```bash
 fd_dir <pattern> [additional_args]
@@ -339,7 +339,7 @@ cat data.json | json
 
 1. Uses `jq` if available
 2. Falls back to `python3 -m json.tool`
-3. Pipes through `bat` for syntax highlighting if available
+3. Pipes through `bat` or `batcat` (`bat` preferred) for syntax highlighting when one is on PATH
 
 ---
 
@@ -804,7 +804,7 @@ compare old-config.json new-config.json
 **Tool Fallback:**
 
 1. Uses `delta` if available (with syntax highlighting)
-2. Falls back to `diff -u` piped through `bat`
+2. Falls back to `diff -u` piped through `bat` or `batcat` (`bat` preferred)
 
 ---
 
@@ -889,6 +889,31 @@ whoisport 8080
 ## Development Functions
 
 Functions for development workflows.
+
+### graphify
+
+Run graphify. When `TOKENHOP_OPENAI_API_KEY` is unset, this calls the real
+binary with the arguments unchanged.
+
+When that key is set, the call exports:
+
+- `GRAPHIFY_BACKEND` — `openai`, unless `GRAPHIFY_BACKEND` is already set
+- `OPENAI_API_KEY` — the tokenhop key
+- `OPENAI_BASE_URL` — `TOKENHOP_OPENAI_BASE_URL`, when that variable is set
+- `OPENAI_MODEL` and `GRAPHIFY_OPENAI_MODEL` — `TOKENHOP_OPENAI_MODEL`, when that variable is set
+
+`common/exports.sh` loads those `TOKENHOP_OPENAI_*` variables from
+`$XDG_CONFIG_HOME/env/tokenhop_openai_api_key`,
+`tokenhop_openai_base_url`, and `tokenhop_openai_model`. A `--backend` argument
+is passed through.
+
+### graphify-raw
+
+Run the `graphify` binary directly, with no tokenhop environment.
+
+```bash
+graphify-raw update .
+```
 
 ### serve
 

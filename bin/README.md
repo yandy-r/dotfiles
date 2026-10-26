@@ -12,7 +12,7 @@ repository. All scripts are designed to be cross-platform and follow consistent 
 | Cloud Tools      | `install-aws-tools.sh`, `install-azure-cli.sh`, `install-1password-cli.sh`           | Cloud CLI tools             |
 | DevOps           | `install-hashicorp-tools.sh`, `k8s-tools.sh`, `install-docker.sh`                    | Infrastructure tools        |
 | Modern CLI       | `install-modern-cli.sh`, `install-yazi.sh`, `install-espanso.sh`                     | Modern command-line tools   |
-| AI/Development   | `install-claude.sh`, `install-codex.sh`, `install-opencode.sh`, `install-omp.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-neovim.sh` | Development tools           |
+| AI/Development   | `install-claude.sh`, `install-codex.sh`, `install-opencode.sh`, `install-omp.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-graphify.sh`, `install-neovim.sh` | Development tools           |
 | Utilities        | `sync-configs.sh`, `cursor-export-secrets.sh`, `dc-manage.sh`, `cleanup-*.sh`, `markdown-tools.sh` | System utilities |
 | Style / Lint     | `style.sh`, `lint.sh`, `format.sh`                                                   | Multi-language lint/format  |
 
@@ -296,6 +296,32 @@ The command is a symlink at `~/.local/bin/codex` (override with `CODEX_INSTALL_D
 into `~/.codex/packages/standalone`. The PATH block upstream appends to shell profiles is
 stripped, because this repo manages PATH. Uninstall removes only the symlink and the standalone
 packages; `~/.codex` configuration, auth, sessions, and skills are preserved.
+
+#### install-graphify.sh
+
+Install [graphify](https://pypi.org/project/graphifyy/) (`graphifyy`) as a uv tool with its
+optional extras. The default extra is `all`, so `graphify update`, `extract`, and `label` are
+not missing grammars or LLM backends. Requires `uv`. This script is not a manifest package.
+
+```bash
+./bin/install-graphify.sh                       # graphifyy[all]; skip when already present
+./bin/install-graphify.sh --update
+./bin/install-graphify.sh --extras sql,terraform,openai
+./bin/install-graphify.sh --version 0.9.95 --update
+./bin/install-graphify.sh --check
+./bin/install-graphify.sh --force               # reinstall and approve prompts
+./bin/install-graphify.sh --dry-run
+./bin/install-graphify.sh --uninstall           # uv tool and any pipx install
+```
+
+If a pipx install of the same package is present, install asks before removing it
+(`--force` and `NON_INTERACTIVE=true` approve). Both tools link `~/.local/bin/graphify`,
+and the pipx venv would shadow the uv tool. `--uninstall` removes the uv tool and any
+pipx install, and leaves `graphify-out/` directories and agent skills in place. Run
+`graphify uninstall` first if the skills should go too.
+
+When `TOKENHOP_OPENAI_API_KEY` is set, the shell function `graphify` (in `common/functions.sh`)
+sends invocations to that OpenAI-compatible endpoint. `graphify-raw` calls the binary directly.
 
 #### install-omp.sh
 

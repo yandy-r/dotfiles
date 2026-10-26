@@ -96,9 +96,8 @@ bat provides syntax highlighting for viewing files, with git integration and lin
 # macOS
 brew install bat
 
-# Ubuntu/Debian (note: binary is named 'batcat')
+# Ubuntu/Debian (the binary is named batcat; the shell aliases bat to it)
 apt install bat
-ln -sf /usr/bin/batcat ~/.local/bin/bat
 
 # Fedora (ships /usr/bin/bat — no rename shim needed)
 dnf install bat
@@ -118,16 +117,21 @@ export BAT_THEME="Sublime Snazzy"
 # Pager settings
 export BAT_PAGER="less -RF"
 
-# Use bat as man page viewer
+# Final MANPAGER. The command name is batcat when that is the binary on PATH.
 export MANPAGER="sh -c 'col -bx | bat -l man -p'"
+
+# PAGER is left as this (batcat when that is the binary on PATH).
+export PAGER="bat --paging=always"
 ```
+
+`bat` is preferred over `batcat`. No `~/.local/bin/bat` symlink is required.
 
 ### Integrated Aliases
 
-| Alias  | Command               | Description              |
-| ------ | --------------------- | ------------------------ |
-| `bat`  | `bat --paging=never`  | View file without paging |
-| `less` | `bat --paging=always` | View file with paging    |
+| Alias  | Command                              | Description                                      |
+| ------ | ------------------------------------ | ------------------------------------------------ |
+| `bat`  | `bat` or `batcat` `--paging=never`   | View file without paging (`bat` preferred)       |
+| `less` | `bat` or `batcat` `--paging=always`  | View file with paging                            |
 
 ### Usage Examples
 
@@ -153,7 +157,7 @@ bat -l python data.txt
 
 ### Fallback Behavior
 
-When bat is not installed, `cat` is used directly without any modifications.
+When neither `bat` nor `batcat` is installed, `cat` is used directly.
 
 ## ripgrep (Better grep)
 
@@ -248,9 +252,8 @@ fd is a simple, fast alternative to `find` with sensible defaults.
 # macOS
 brew install fd
 
-# Ubuntu/Debian (note: binary is named 'fdfind')
+# Ubuntu/Debian (the binary is named fdfind; the shell aliases fd to it)
 apt install fd-find
-ln -sf /usr/bin/fdfind ~/.local/bin/fd
 
 # Fedora (fd-find ships /usr/bin/fd — no rename shim needed)
 dnf install fd-find
@@ -264,10 +267,11 @@ pacman -S fd
 The dotfiles provide these wrapper functions in `common/functions.sh`:
 
 ```bash
-# Find files by name
+# Find files by name. `fd` is preferred over `fdfind`.
 f() {
-    if has_command fd; then
-        fd "$@"
+    local _fd_cmd
+    if _fd_cmd="$(first_command fd fdfind)"; then
+        "$_fd_cmd" "$@"
     else
         find . -name "*$1*" -type f
     fi
@@ -275,13 +279,17 @@ f() {
 
 # Find directories by name
 fd_dir() {
-    if has_command fd; then
-        fd --type d "$@"
+    local _fd_cmd
+    if _fd_cmd="$(first_command fd fdfind)"; then
+        "$_fd_cmd" --type d "$@"
     else
         find . -name "*$1*" -type d
     fi
 }
 ```
+
+When `fd` is not on PATH and `fdfind` is, `fd` is aliased to `fdfind`. No
+`~/.local/bin/fd` symlink is required.
 
 ### Usage Examples
 
@@ -313,7 +321,7 @@ fd --changed-within 24h
 
 ### Fallback Behavior
 
-When fd is not installed, the `f` and `fd_dir` functions automatically use `find`:
+When neither `fd` nor `fdfind` is installed, the `f` and `fd_dir` functions use `find`:
 
 ```bash
 # Falls back to
@@ -439,17 +447,8 @@ diff -u file1.txt file2.txt | delta
 
 ### Fallback Behavior
 
-The dotfiles provide a `compare` function that falls back to standard diff:
-
-```bash
-compare() {
-    if has_command delta; then
-        delta "$1" "$2"
-    elif has_command diff; then
-        diff -u "$1" "$2" | (has_command bat && bat -l diff || cat)
-    fi
-}
-```
+`compare` runs `delta` when it is on PATH. Otherwise it runs `diff -u` and
+highlights the result with `bat` or `batcat` (`bat` preferred).
 
 ## zoxide (Smart cd)
 

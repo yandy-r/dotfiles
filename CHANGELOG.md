@@ -18,6 +18,68 @@ This project adheres to [Conventional Commits](https://www.conventionalcommits.o
 - Copy live private env directories and a fixed agent and editor file list to other
   hosts with `bin/sync-configs.sh` (`-n`, `-d`, `-g`, `-l`). This replaces
   `sync-agent-configs.sh` and `sync-private-env.sh`.
+- Back up a real file before `dotf link` or `dotf apply` replaces it. Each run
+  writes `~/.config/dotfiles_backup_<epoch>` and a `.dotf-backup.json` manifest.
+  `dotf backup list`, `restore`, and `prune` manage those directories (#63, #70).
+- `dotf link` does not modify files inside the repo. The Zed settings copy is
+  written only when the destination is missing, a symlink, or different, and a
+  real file that differs is backed up first. The repo root is resolved to an
+  absolute path before linking (#71).
+- `dotf link --prune` removes stale managed symlinks. `dotf unlink` removes
+  named managed links; `--restore` puts back the newest backup of each one (#77).
+- Bash and zsh load machine-local overrides and secrets last, from
+  `common/local.sh` (#73).
+- Cache the output of eval'd tool init, and run zsh `compinit` once (#78).
+  `_dotfiles_compinit` keeps `~/.zcompdump` from being rewritten on every start
+  when `compaudit` flags `fpath` entries (#85).
+- Platform predicates read the cached `DOTFILES_*` variables (#80).
+  `dotf platform --env` is what the shell uses for platform detection (#82).
+- Each shell setup step has one owner, shared by bash and zsh (fzf, venv
+  auto-activation, aliases). Fabric pattern aliases no longer use `declare -A`,
+  so they load under macOS `/bin/bash` 3.2 (#89).
+- Define kubectl aliases only when `kubectl` is on PATH. Prefer `bat` over
+  `batcat` and `fd` over `fdfind` for the `bat`, `less`, and `fd` aliases,
+  `PAGER`, and the fzf file commands, so the Debian/Ubuntu names work without
+  symlinks (#94).
+- Install graphify with `bin/install-graphify.sh` (uv tool `graphifyy`, extra
+  `all` by default). The `graphify` function routes calls through the tokenhop
+  OpenAI endpoint when `TOKENHOP_OPENAI_API_KEY` is set; `graphify-raw` calls
+  the binary directly.
+- Add Claude aliases `ccdp` and `cc-rc` (permission checks bypassed; `cc-rc`
+  also sets `DO_NOT_TRACK=0` and runs `rc`).
+- Add the Espanso `:projdone` snippet, which asks to finish every remaining
+  issue in a Linear project.
+- Launch-test the arm64 desktop apps on Fedora Asahi Remix. Obsidian's arm64
+  AppImage requires `appimage-libz` so `libz.so` is present (#57).
+
+### Fixes
+
+- Leave dnf repo files that dotf does not own in place. `repo_gpgcheck = true`
+  on a `baseurl` repo also checks the signed repository metadata (#51).
+- Expand `requires` only from packages that apply to this host (#54). Reject
+  `requires` cycles when the manifest is loaded, on every host (#56).
+- Install only the pinned apt repository key, with its subkeys, into the
+  `signed-by` keyring (#60).
+- Show git branch, status, and virtualenv text literally in the bash fallback
+  prompt. Set the bash terminal title from `$PWD` on every prompt (#64).
+- Pass `--non-interactive` to the atuin installer and install the binary in
+  `~/.atuin/bin`, which is already on PATH.
+- Run `mise reshim` after `bin/install-playwright-cli.sh` installs the npm
+  package when `mise` is on PATH, so a mise-managed Node can see
+  `playwright-cli`.
+- Treat Homebrew Python as user-owned in `bin/install-omp.sh` when ensuring
+  debugpy. It does not install the distro debugpy package, and it prints
+  `$DEBUG_PYTHON -m pip install --user --break-system-packages debugpy`.
+- Non-interactive login bash (`bash -l -c`) sources platform and path setup,
+  so `DOTFILES_OS` is set. Reload guards are per-process, so a nested bash
+  loads its own config (#91).
+
+### Tests
+
+- Assert one applicable install route per OS family and architecture for every
+  manifest package family (#50).
+- Run `scripts/test-*.sh` and the bats suite in `tests/shell` on Linux and
+  macOS CI (#85, #91).
 
 ## [0.3.0] - 2026-09-16
 

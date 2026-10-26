@@ -158,11 +158,16 @@ fi
 
 Variables controlling output pagination.
 
-| Variable   | Default                              | Fallback            | Description    |
-| ---------- | ------------------------------------ | ------------------- | -------------- |
-| `PAGER`    | `bat --paging=always`                | `less` -> `more`    | Default pager  |
-| `MANPAGER` | `bat --language=man --paging=always` | `less -X` -> `more` | Man page pager |
-| `LESS`     | `-R -F -X`                           | N/A                 | Less options   |
+| Variable   | Default                                         | Fallback            | Description    |
+| ---------- | ----------------------------------------------- | ------------------- | -------------- |
+| `PAGER`    | `bat --paging=always` (or `batcat`)             | `less` -> `more`    | Default pager  |
+| `MANPAGER` | `col -bx` through `bat` or `batcat`             | `less -X` -> `more` | Man page pager |
+| `LESS`     | `-R -F -X`                                      | N/A                 | Less options   |
+
+`bat` is preferred over `batcat`. `PAGER` is `<cmd> --paging=always`.
+`setup_modern_alternatives` then sets `MANPAGER` to
+`sh -c 'col -bx | <cmd> -l man -p'` when `bat` or `batcat` exists.
+`LESS` is exported only on the `less` fallback.
 
 **Less Options Explained:**
 
@@ -403,9 +408,9 @@ Variables for specific CLI tools.
 | Variable              | Default                                                           | Description            |
 | --------------------- | ----------------------------------------------------------------- | ---------------------- |
 | `FZF_DEFAULT_OPTS`    | `--height 40% --layout=reverse --border --inline-info`            | Default FZF options    |
-| `FZF_DEFAULT_COMMAND` | `fd --type f --hidden --follow --exclude .git` (fallback to find) | Default file search    |
+| `FZF_DEFAULT_COMMAND` | `fd` or `fdfind` `--type f --hidden --follow --exclude .git` (fallback to find) | Default file search    |
 | `FZF_CTRL_T_COMMAND`  | Same as `FZF_DEFAULT_COMMAND`                                     | Ctrl+T file search     |
-| `FZF_ALT_C_COMMAND`   | `fd --type d --hidden --follow --exclude .git` (fallback to find) | Alt+C directory search |
+| `FZF_ALT_C_COMMAND`   | `fd` or `fdfind` `--type d --hidden --follow --exclude .git` (fallback to find) | Alt+C directory search |
 
 ### Ripgrep
 
