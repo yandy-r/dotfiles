@@ -6,11 +6,14 @@
 # machines during testing; skills, agents, commands, plugins and MCP servers
 # live in their own repo and are deliberately not synced.
 #
-# Usage: sync-configs.sh [-n] [-d] [-g group]... [-l] [host ...]
+# Usage: sync-configs.sh [-n] [-d] [-g group]... [-a agent[,agent]...]... [-l] [host ...]
 #   -n        dry run (rsync --dry-run)
 #   -d        delete remote files missing locally (rsync --delete; only
 #             affects synced directories, i.e. the env group)
 #   -g group  sync only this group (repeatable): env, agents
+#   -a list   sync only these agents (comma-separated, repeatable): claude,
+#             codex, opencode, antigravity, omp, cursor, zed; default all.
+#             Without -g, implies -g agents
 #   -l        list the paths that would be sent, then exit
 #   host      override the default host list
 #
@@ -29,7 +32,7 @@ hosts=(
   yrpls-mbp16
   hstr-bosub
   hstr-amsub
-  eve
+  eve # use -a omp (to only sync omp configs)
 )
 
 env_paths=(
@@ -38,39 +41,29 @@ env_paths=(
 )
 
 # Per-host state (sessions, history, *.db, caches, logs, auth/credentials,
-# settings.local.json) must never be listed here.
-agents_paths=(
-  # claude
-  .claude/settings.json
-  .claude/CLAUDE.md
-  # codex
-  .codex/config.toml
-  # opencode
-  .config/opencode/opencode.json
-  .config/opencode/opencode-mem.jsonc
-  .config/opencode/tui.jsonc
-  .config/opencode/cli.json
-  # antigravity
-  .gemini/antigravity-cli/settings.json
-  .gemini/GEMINI.md
-  # omp
-  .omp/agent/config.yml
-  .omp/agent/models.yml
-  .omp/agent/AGENTS.md
-  .omp/agent/SYSTEM.md
-  .omp/agent/APPEND_SYSTEM.md
-  # cursor
-  .cursor/cli-config.json
-  # zed (keymap.json is a dotfiles symlink, so only settings.json is sent)
-  .config/zed/settings.json
+# settings.local.json) must never be listed here. Keys are the -a names;
+# all_agents fixes the default order.
+all_agents=(claude codex opencode antigravity omp cursor zed)
+declare -A agent_paths=(
+  [claude]=".claude/settings.json .claude/CLAUDE.md"
+  [codex]=".codex/config.toml"
+  [opencode]=".config/opencode/opencode.json .config/opencode/opencode-mem.jsonc
+    .config/opencode/tui.jsonc .config/opencode/cli.json"
+  [antigravity]=".gemini/antigravity-cli/settings.json .gemini/GEMINI.md"
+  [omp]=".omp/agent/config.yml .omp/agent/models.yml .omp/agent/AGENTS.md
+    .omp/agent/SYSTEM.md .omp/agent/APPEND_SYSTEM.md"
+  [cursor]=".cursor/cli-config.json"
+  # keymap.json is a dotfiles symlink, so only settings.json is sent
+  [zed]=".config/zed/settings.json"
 )
 
-usage() { sed -n '9,15s/^# \{0,1\}//p' "$0"; }
+usage() { sed -n '9,18s/^# \{0,1\}//p' "$0"; }
 
 rsync_opts=(-azR --no-implied-dirs -e "ssh -o BatchMode=yes -o ConnectTimeout=5")
 groups=()
+agents=()
 list=0
-while getopts ndg:lh opt; do
+while getopts ndg:a:lh opt; do
   case "$opt" in
   n) rsync_opts+=(--dry-run) ;;
   d) rsync_opts+=(--delete) ;;
@@ -82,6 +75,16 @@ while getopts ndg:lh opt; do
       exit 2
       ;;
     esac
+    ;;
+  a)
+    IFS=, read -ra names <<<"$OPTARG"
+    for a in "${names[@]}"; do
+      [[ -v "agent_paths[$a]" ]] || {
+        echo "unknown agent: $a (expected one of: ${all_agents[*]})" >&2
+        exit 2
+      }
+      agents+=("$a")
+    done
     ;;
   l) list=1 ;;
   h)
@@ -96,13 +99,23 @@ while getopts ndg:lh opt; do
 done
 shift $((OPTIND - 1))
 (($#)) && hosts=("$@")
+if ((${#agents[@]})); then
+  ((${#groups[@]})) || groups=(agents)
+else
+  agents=("${all_agents[@]}")
+fi
 ((${#groups[@]})) || groups=(env agents)
 
 paths=()
 for g in "${groups[@]}"; do
   case "$g" in
   env) paths+=("${env_paths[@]}") ;;
-  agents) paths+=("${agents_paths[@]}") ;;
+  agents)
+    for a in "${agents[@]}"; do
+      read -ra ap <<<"${agent_paths[$a]//$'\n'/ }"
+      paths+=("${ap[@]}")
+    done
+    ;;
   esac
 done
 
