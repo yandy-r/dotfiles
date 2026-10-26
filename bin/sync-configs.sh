@@ -29,6 +29,7 @@ hosts=(
   yrpls-mbp16
   hstr-bosub
   hstr-amsub
+  eve
 )
 
 env_paths=(
