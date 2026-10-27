@@ -54,20 +54,22 @@ usage() {
     cat <<EOF
 Usage: $SCRIPT_NAME [OPTIONS]
 
-Install or uninstall CodeRabbit CLI for AI-powered code reviews.
+Install, update, or uninstall CodeRabbit CLI for AI-powered code reviews.
 
 OPTIONS:
     --install           Install CodeRabbit CLI (default)
+    --update            Update CodeRabbit CLI to the latest version
     --uninstall         Uninstall CodeRabbit CLI
     --force             Force installation even if already installed
     -h, --help          Show this help message
 
 ENVIRONMENT VARIABLES:
-    ACTION             Action to perform (install, uninstall)
+    ACTION             Action to perform (install, update, uninstall)
     FORCE_INSTALL      Force installation (true/false)
 
 EXAMPLES:
     $SCRIPT_NAME --install
+    $SCRIPT_NAME --update
     $SCRIPT_NAME --uninstall
     $SCRIPT_NAME --force
 
@@ -477,6 +479,10 @@ parse_args() {
                 ACTION="install"
                 shift
                 ;;
+            --update)
+                ACTION="update"
+                shift
+                ;;
             --uninstall)
                 ACTION="uninstall"
                 shift
@@ -505,6 +511,12 @@ main() {
     case "$ACTION" in
         "install")
             install_coderabbit_main
+            ;;
+        "update")
+            if ! check_coderabbit_installed; then
+                error_exit "CodeRabbit CLI is not installed; run without --update to install it"
+            fi
+            update_coderabbit
             ;;
         "uninstall")
             uninstall_coderabbit

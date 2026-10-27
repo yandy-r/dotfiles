@@ -46,7 +46,6 @@ func TestEngine_Update_UnsupportedBackend(t *testing.T) {
 
 	backends := []manifest.Backend{
 		manifest.BackendScriptURL,
-		manifest.BackendGitHubRelease,
 		manifest.BackendGitClone,
 	}
 	for _, b := range backends {

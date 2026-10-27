@@ -1217,7 +1217,7 @@ name = "coderabbit"
 backend = "custom-script"
 script = "bin/install-coderabbit.sh"
 provides = ["coderabbit"]
-actions = ["remove"]
+actions = ["update", "remove"]
 class = "rolling"
 justification = "vendor curl installer tracks latest"
 

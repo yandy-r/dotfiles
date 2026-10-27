@@ -54,6 +54,10 @@ This project adheres to [Conventional Commits](https://www.conventionalcommits.o
 
 ### Fixes
 
+- `dotf install --update` no longer fails `github-release` packages (such as
+  `github-mcp-server`) or `coderabbit`: the `github-release` backend now updates by
+  re-installing the pinned or locked asset, and `bin/install-coderabbit.sh` accepts
+  `--update`.
 - Leave dnf repo files that dotf does not own in place. `repo_gpgcheck = true`
   on a `baseurl` repo also checks the signed repository metadata (#51).
 - Expand `requires` only from packages that apply to this host (#54). Reject

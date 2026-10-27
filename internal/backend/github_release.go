@@ -116,6 +116,13 @@ func (b *githubReleaseBackend) Install(pkg manifest.Package, info platform.Info)
 	return nil
 }
 
+// Update re-installs the package: it re-downloads the pinned (or locked) asset,
+// re-verifies its checksum, and overwrites ~/.local/bin/<Binary||Name>. Bumping
+// the manifest tag/lock is what moves the version; Update converges the host to it.
+func (b *githubReleaseBackend) Update(pkg manifest.Package, info platform.Info) error {
+	return b.Install(pkg, info)
+}
+
 // Installed reports whether the package is present, honoring an explicit
 // Provides/InstalledWhen probe and falling back to a PATH lookup of pkg.Name.
 func (b *githubReleaseBackend) Installed(pkg manifest.Package, _ platform.Info) (bool, error) {
