@@ -76,11 +76,19 @@ sha256_of() {
     fi
 }
 
-# install_blesh downloads, verifies and installs the nightly tarball. The
-# upstream `ble.sh --install <prefix>` step copies the tree into <prefix>/blesh.
+# install_blesh downloads, verifies and installs the nightly tarball by copying
+# the tree into $INSTALL_DIR — the same three steps upstream's nightly
+# `ble.sh --install <prefix>` performs (mkdir -p, cp -R, empty cache.d).
+#
+# ble.sh is deliberately NOT executed here. `--install` sources the whole
+# ble.sh runtime first, and its environment check reads /dev/tty whenever the
+# locale is unusable (common on macOS, e.g. an SSH-forwarded LC_ALL=C.UTF-8).
+# dotf runs installers in their own process group, i.e. in the background
+# relative to the terminal, so that read stops the process with SIGTTIN and
+# the install hangs silently after the sha256 check.
 install_blesh() {
     if [[ "$DRY_RUN" == "true" ]]; then
-        log "DRY-RUN: Would download $BLESH_URL and run: bash ble-nightly/ble.sh --install $DATA_HOME"
+        log "DRY-RUN: Would download $BLESH_URL and copy ble-nightly/ into $INSTALL_DIR"
         return 0
     fi
 
@@ -108,9 +116,9 @@ install_blesh() {
     tar -xJf "$tmp/$BLESH_ASSET" -C "$tmp" || error_exit "failed to extract $BLESH_ASSET"
     [[ -f "$tmp/ble-nightly/ble.sh" ]] || error_exit "unexpected archive layout: ble-nightly/ble.sh missing"
 
-    mkdir -p "$DATA_HOME"
-    bash "$tmp/ble-nightly/ble.sh" --install "$DATA_HOME" ||
-        error_exit "ble.sh --install failed"
+    mkdir -p "$INSTALL_DIR" || error_exit "failed to create $INSTALL_DIR"
+    cp -Rf "$tmp/ble-nightly/." "$INSTALL_DIR/" || error_exit "failed to copy ble.sh into $INSTALL_DIR"
+    rm -rf "${INSTALL_DIR:?}/cache.d"/*
 
     [[ -f "$INSTALL_DIR/ble.sh" ]] || error_exit "install finished but $INSTALL_DIR/ble.sh is missing"
     log_success "ble.sh installed to $INSTALL_DIR"

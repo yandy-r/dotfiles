@@ -672,7 +672,8 @@ justification = "official installer tracks latest; no single pinnable artifact"
 # ble.sh (Bash Line Editor) is a sourced bash library, not a PATH binary, so the
 # probe is the installed ble.sh file bash/bashrc loads. Its source tree needs
 # make + gawk to build and the prebuilt nightly is a whole tree (lib/, contrib/)
-# installed by its own `ble.sh --install`, which no native backend expresses.
+# copied into place (mirroring upstream's `ble.sh --install`), which no native
+# backend expresses.
 [[package]]
 name = "blesh"
 backend = "custom-script"
@@ -680,7 +681,7 @@ script = "bin/install-blesh.sh"
 installed_when = { path = "~/.local/share/blesh/ble.sh" }
 actions = ["update", "remove"]
 class = "rolling"
-justification = "prebuilt nightly tree installed by upstream's own ble.sh --install (digest-verified); no single-binary artifact"
+justification = "prebuilt nightly tree copied into place like upstream's ble.sh --install (digest-verified); no single-binary artifact"
 
 # runtimes intent
 [[package]]
