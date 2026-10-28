@@ -340,6 +340,8 @@ setup_user_paths() {
     append_path "$HOME/.claude/bin"             # Claude CLI
     append_path "$HOME/.cursor-agent/bin"       # Cursor Agent CLI
     append_path "$HOME/.coderabbit/bin"         # CodeRabbit CLI
+    append_path "$HOME/.grok/bin"               # Grok CLI
+    append_path "$HOME/.antigravity/antigravity/bin" # Antigravity CLI
     append_path "$HOME/.atuin/bin"              # Atuin shell history
     append_path "$HOME/.turso"                  # Turso database CLI
 

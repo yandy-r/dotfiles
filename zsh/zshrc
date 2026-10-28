@@ -212,8 +212,7 @@ case ":$PATH:" in
 esac
 # pnpm end
 
-# Added by Antigravity
-export PATH="${HOME}/.antigravity/antigravity/bin:$PATH"
+# Added by Antigravity — PATH entry lives in common/paths.sh:setup_user_paths.
 
 # Branchlet setup: added on 2026-03-01
 _branchlet() {
@@ -251,8 +250,8 @@ branchlet() {
 
 
 # >>> grok installer >>>
-export PATH="$HOME/.grok/bin:$PATH"
-# fpath entry lives in common/paths.sh:setup_fpath.
+# PATH entry lives in common/paths.sh:setup_user_paths; fpath entry in
+# common/paths.sh:setup_fpath.
 # <<< grok installer <<<
 
 # Machine-local overrides, secrets and ~/.zshrc.local. MUST stay the last line.

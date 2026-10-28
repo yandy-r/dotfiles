@@ -217,9 +217,6 @@ esac
 # Note: KUBECONFIG is defined in common/exports.sh
 # Note: zoxide uses 'z' command (not replacing cd) - initialized in tools.sh
 
-# opencode
-export PATH=/home/yandy/.opencode/bin:$PATH
-
 # Machine-local overrides, secrets and ~/.bashrc.local. Must stay the last
 # source; only the ble.sh attach below may follow it.
 source "$DOTFILES_ROOT/common/local.sh"
