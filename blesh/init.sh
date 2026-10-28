@@ -41,12 +41,49 @@ function ble/prompt/backslash:dotf/vi-mode {
 # Vi options only exist once ble.sh loads its vi keymap, so they are applied
 # from this hook. Cursor shape per mode (DECSCUSR: 2 block, 4 underline, 6 bar).
 function dotf/blesh/vi-load-hook {
-	bleopt prompt_vi_mode_indicator='\q{dotf/vi-mode}'
+	# The pill lives in the prompt (see dotf/blesh/vi-mode-in-prompt), so the
+	# bottom-line indicator is cleared and the prompt redraws on mode changes.
+	bleopt prompt_vi_mode_indicator=
+	bleopt keymap_vi_mode_update_prompt=1
 	ble-bind -m vi_imap --cursor 6
 	ble-bind -m vi_nmap --cursor 2
 	ble-bind -m vi_omap --cursor 4
 	ble-bind -m vi_xmap --cursor 2
 	ble-bind -m vi_smap --cursor 2
 	ble-bind -m vi_cmap --cursor 0
+
+	# Enter runs the command even in multiline mode, unless it is incomplete
+	# (open quote, trailing \, && or |), where it inserts a newline instead.
+	# C-j inserts a newline explicitly (upstream default: C-j accepts, RET
+	# inserts a newline once the buffer spans multiple lines).
+	local keymap
+	for keymap in vi_imap vi_nmap; do
+		ble-bind -m "$keymap" -f 'C-m' 'accept-line syntax'
+		ble-bind -m "$keymap" -f 'RET' 'accept-line syntax'
+	done
+	ble-bind -m vi_imap -f 'C-j' 'newline'
 }
 blehook/eval-after-load keymap_vi dotf/blesh/vi-load-hook
+
+# ----------------------------------------------------------------
+# Vi mode pill inside the prompt's segment line
+# ----------------------------------------------------------------
+# Starship rebuilds PS1 in its own PRECMD hook, so after it runs, insert
+# \q{dotf/vi-mode} (expanded by ble.sh at every redraw) before the last newline
+# (the end of the segment line, just above the ❯ character line). A one-line
+# PS1 gets the pill prepended instead.
+function dotf/blesh/vi-mode-in-prompt {
+	local tag='\q{dotf/vi-mode}' nl=$'\n'
+	[[ $PS1 == *"$tag"* ]] && return 0
+	if [[ $PS1 == *"$nl"* ]]; then
+		PS1="${PS1%"$nl"*} $tag$nl${PS1##*"$nl"}"
+	else
+		PS1="$tag $PS1"
+	fi
+}
+# Registered at attach time, i.e. after bashrc's starship init, so it runs
+# after starship_precmd in the PRECMD chain.
+function dotf/blesh/register-prompt-hook {
+	blehook PRECMD+=dotf/blesh/vi-mode-in-prompt
+}
+blehook ATTACH+=dotf/blesh/register-prompt-hook
