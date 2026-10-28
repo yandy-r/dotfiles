@@ -125,6 +125,7 @@ func DefaultTable() []LinkSpec {
 		{Src: "ghostty", Dest: ".config/ghostty", IsDir: true, Facet: FacetAll},
 		{Src: "mise", Dest: ".config/mise", IsDir: true, Facet: FacetAll},
 		{Src: "alacritty", Dest: ".config/alacritty", IsDir: true, Facet: FacetAll},
+		{Src: "blesh", Dest: ".config/blesh", IsDir: true, Facet: FacetAll},
 
 		// macos_configs (Darwin only)
 		{Src: "aerospace", Dest: ".config/aerospace", IsDir: true, Facet: FacetMacOS},

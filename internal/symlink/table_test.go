@@ -7,7 +7,7 @@ import (
 )
 
 func TestTable_Count(t *testing.T) {
-	if got, want := len(DefaultTable()), 44; got != want {
+	if got, want := len(DefaultTable()), 45; got != want {
 		t.Errorf("len(DefaultTable()) = %d, want %d", got, want)
 	}
 }
@@ -19,7 +19,7 @@ func TestTable_FacetCounts(t *testing.T) {
 	}
 
 	want := map[Facet]int{
-		FacetAll:         29,
+		FacetAll:         30,
 		FacetMacOS:       1,
 		FacetArch:        0,
 		FacetWindows:     0,
@@ -60,6 +60,7 @@ func TestTable_MatchesPlaybook(t *testing.T) {
 		{Src: "ghostty", Dest: ".config/ghostty", IsDir: true, Facet: FacetAll},
 		{Src: "mise", Dest: ".config/mise", IsDir: true, Facet: FacetAll},
 		{Src: "alacritty", Dest: ".config/alacritty", IsDir: true, Facet: FacetAll},
+		{Src: "blesh", Dest: ".config/blesh", IsDir: true, Facet: FacetAll},
 		{Src: "aerospace", Dest: ".config/aerospace", IsDir: true, Facet: FacetMacOS},
 		{Src: "herdr/config.toml", Dest: ".config/herdr/config.toml", Facet: FacetUnix},
 		{Src: "espanso", Dest: ".config/espanso", IsDir: true, Facet: FacetUnix},

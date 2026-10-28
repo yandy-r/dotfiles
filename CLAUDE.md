@@ -123,6 +123,7 @@ The repository now uses a unified configuration system that provides feature par
   - Enhanced prompt with git integration (`bash/prompt.sh`)
   - Feature parity with zsh (history, completion, keybindings)
   - Starship prompt support with fallback to custom prompt
+  - ble.sh (Bash Line Editor) when installed: loaded `--attach=none` at the top of `bash/bashrc` and attached on its last line; installed by the default `dev` intent (`blesh`, `bin/install-blesh.sh`, prebuilt nightly into `~/.local/share/blesh`); opt out with `DOTFILES_NO_BLESH=1`. Config: `blesh/init.sh` → `~/.config/blesh/init.sh` (Catppuccin vi-mode pills + per-mode cursor shapes)
 
 - **Zsh (`zsh/zshrc`)**: Refactored to use common system
   - Starship with Starship theme
