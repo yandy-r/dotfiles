@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -15,6 +16,10 @@ import (
 
 // yumReposDir is where a .repo file must land for dnf to read it.
 const yumReposDir = "/etc/yum.repos.d/"
+
+// dnfOverrideDir is dnf5's drop-in directory for per-repo option overrides,
+// applied on top of the repo's own /etc/yum.repos.d file.
+const dnfOverrideDir = "/etc/dnf/repos.override.d/"
 
 // dnfRepoMarker is the first line of every repo file dotf writes. Its presence
 // marks the file as dotf-owned, so a later run may refresh it; any other
@@ -56,7 +61,10 @@ func (b *repoBackend) installDNF(pkg manifest.Package, info platform.Info) error
 		return fmt.Errorf("backend: package %q dnf_repo declares no copr, repofile or baseurl", pkg.Name)
 	}
 
-	enable, err := b.dnfEnableRepoArgs(repo)
+	if err := b.pinDNFRepo(repo, dnfName, info); err != nil {
+		return err
+	}
+	enable, err := b.dnfRepoArgs(repo, dnfName)
 	if err != nil {
 		return err
 	}
@@ -66,6 +74,108 @@ func (b *repoBackend) installDNF(pkg manifest.Package, info platform.Info) error
 	}
 
 	return nil
+}
+
+// dnfRepoArgs returns the extra flags dotf's own dnf install and upgrade of
+// name carry: --enablerepo for a kept disabled section (dnfEnableRepoArgs),
+// --setopt=<id>.priority when dnf_repo pins one, and
+// --setopt=<repo>.excludepkgs for each exclude_from repo the host has
+// configured (dnf5 rejects --setopt for an unknown repo id). These hold for
+// the command on dnf4 too, where pinDNFRepo persists nothing.
+func (b *repoBackend) dnfRepoArgs(repo *manifest.DNFRepo, name string) ([]string, error) {
+	args, err := b.dnfEnableRepoArgs(repo)
+	if err != nil {
+		return nil, err
+	}
+	if repo.Priority > 0 {
+		args = append(args, fmt.Sprintf("--setopt=%s.priority=%d", repo.ID, repo.Priority))
+	}
+	if len(repo.ExcludeFrom) == 0 {
+		return args, nil
+	}
+	present, err := b.repoIDs()
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range repo.ExcludeFrom {
+		if present[id] {
+			args = append(args, fmt.Sprintf("--setopt=%s.excludepkgs=%s", id, dnfExcludePatterns(name)))
+		}
+	}
+	return args, nil
+}
+
+// dnfExcludePatterns is the excludepkgs value that hides name and its
+// subpackages without matching unrelated packages that merely share a prefix.
+func dnfExcludePatterns(name string) string { return name + "," + name + "-*" }
+
+// pinDNFRepo persists dnf_repo.priority and exclude_from on dnf5 hosts as
+// dotf-owned drop-ins under dnfOverrideDir, so they also hold for a plain
+// `dnf upgrade`, whoever owns /etc/yum.repos.d/<id>.repo. Exclude sections are
+// written for every listed repo, configured or not: dnf5 ignores a section for
+// a missing repo and appends excludepkgs across drop-ins, so a repo added later
+// is covered and a user's own excludes are kept. dnf4 has no override
+// directory and gets only dnfRepoArgs' per-command --setopt.
+func (b *repoBackend) pinDNFRepo(repo *manifest.DNFRepo, name string, info platform.Info) error {
+	if (repo.Priority == 0 && len(repo.ExcludeFrom) == 0) || b.dnfMajor(info) < 5 {
+		return nil
+	}
+	if repo.Priority > 0 {
+		body := fmt.Sprintf("%s\n[%s]\npriority=%d\n", dnfRepoMarker, repo.ID, repo.Priority)
+		if err := b.writeDNFOverride(dnfOverrideDir+"90-dotf-"+repo.ID+".repo", body); err != nil {
+			return err
+		}
+	}
+	if len(repo.ExcludeFrom) > 0 {
+		var body strings.Builder
+		body.WriteString(dnfRepoMarker + "\n")
+		for _, id := range repo.ExcludeFrom {
+			fmt.Fprintf(&body, "[%s]\nexcludepkgs=%s\n", id, dnfExcludePatterns(name))
+		}
+		if err := b.writeDNFOverride(dnfOverrideDir+"90-dotf-exclude-"+name+".repo", body.String()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeDNFOverride installs body as the drop-in dest. A drop-in that is already
+// current is not rewritten; one without dnfRepoMarker is preserved.
+func (b *repoBackend) writeDNFOverride(dest, body string) error {
+	if existing, err := b.readFile(dest); err == nil && string(existing) == body {
+		return nil
+	}
+	owned, err := b.dnfRepoOwned(dest, nil)
+	if err != nil || !owned {
+		return err
+	}
+	if err := b.r.Run("sudo", "mkdir", "-p", dnfOverrideDir); err != nil {
+		return fmt.Errorf("create %q: %w", dnfOverrideDir, err)
+	}
+	return b.installRepoTempFile(dest, []byte(body))
+}
+
+// hostDNFRepoIDs returns the repo ids declared by section headers in the .repo
+// files of dnf's repo directories. Unreadable or missing directories are
+// skipped: the result only gates per-command --setopt flags.
+func hostDNFRepoIDs() (map[string]bool, error) {
+	ids := map[string]bool{}
+	for _, dir := range []string{yumReposDir, "/etc/distro.repos.d/"} {
+		files, _ := filepath.Glob(dir + "*.repo")
+		for _, f := range files {
+			body, err := os.ReadFile(f)
+			if err != nil {
+				continue
+			}
+			for _, line := range strings.Split(string(body), "\n") {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+					ids[line[1:len(line)-1]] = true
+				}
+			}
+		}
+	}
+	return ids, nil
 }
 
 // dnfEnableRepoArgs returns the --enablerepo flag install and upgrade need when

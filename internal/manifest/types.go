@@ -453,6 +453,26 @@ type DNFRepo struct {
 	// on the repository metadata (repodata/repomd.xml.asc), for the explicit
 	// mode. Requires GPGKey; set it only for vendors that sign their metadata.
 	RepoGPGCheck bool `toml:"repo_gpgcheck"`
+
+	// Priority pins the package to this repository, for the file modes. dnf
+	// only considers a package name from the enabled repo with the lowest
+	// priority value (default 99), so another repo shipping its own rebuild
+	// (e.g. Terra) can neither win on version nor stall upgrades with
+	// exact-version subpackages. 1..98; 0 leaves the repo's priority alone.
+	// dotf passes --setopt=<id>.priority on its own dnf commands and, on dnf5,
+	// persists it under /etc/dnf/repos.override.d/ so a plain `dnf upgrade`
+	// honours it too, even when the .repo file is a kept vendor file.
+	Priority int `toml:"priority"`
+
+	// ExcludeFrom lists other repo ids (e.g. "terra") that must never supply
+	// this package or its subpackages: dotf excludes "<name>" and "<name>-*"
+	// (name = names.dnf) from each, in any mode. Unlike Priority it also stops
+	// differently-named subpackages, such as a repo's own <name>-terminfo or
+	// <name>-zsh-completion, from colliding with files the package ships.
+	// dotf's own dnf commands carry --setopt=<id>.excludepkgs for the ids the
+	// host has configured, and on dnf5 the exclude is persisted under
+	// /etc/dnf/repos.override.d/ for every listed id.
+	ExcludeFrom []string `toml:"exclude_from"`
 }
 
 // Font describes one font family for the "font" backend. The repo's terminal

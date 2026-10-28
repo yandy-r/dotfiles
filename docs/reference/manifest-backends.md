@@ -49,6 +49,31 @@ Try these in order; the first that fits is the right one:
      still works. Other sections are never enabled. Delete the marker line to keep a
      hand-edited file. A failure to read the existing file aborts the install or update.
 
+     Optional `priority = <1..98>` (either file mode) pins the package to this repo when
+     another enabled repo also ships it: dnf only considers a package name from the repo
+     with the lowest priority value (default 99). Without it, a rebuild in e.g. Terra can
+     win on version, or its exact-version subpackages (Terra's `cursor-*-completion`) make
+     `dnf upgrade` skip the package ("cannot install the best update candidate"). dotf's
+     own `dnf install` / `dnf upgrade` add `--setopt=<id>.priority=<n>`; on dnf5, install
+     and update also write the dotf-owned drop-in
+     `/etc/dnf/repos.override.d/90-dotf-<id>.repo`, so a plain `dnf upgrade` honours the
+     pin even when `/etc/yum.repos.d/<id>.repo` is a kept vendor file. A drop-in without
+     the marker line is left untouched. Moving an already-installed package between repos
+     is still manual: remove the other repo's version-pinned subpackages first.
+
+     Optional `exclude_from = ["<repo id>", …]` (any mode, including `copr`) hides
+     `<name>` and `<name>-*` (`name` = `names.dnf`) in those repos. Reach for it when
+     another repo splits the package into differently-named subpackages that collide
+     with files the package ships — e.g. Terra's `ghostty-terminfo`,
+     `ghostty-shell-integration` and `ghostty-*-completion` against the copr `ghostty`
+     1.4.0+, which fails with rpm file conflicts (`priority` cannot stop those, since
+     the names differ). dotf's own commands add `--setopt=<repo>.excludepkgs=…` for the
+     listed repos the host has configured (dnf5 rejects `--setopt` for an unknown repo
+     id). On dnf5, install and update also write the dotf-owned drop-in
+     `/etc/dnf/repos.override.d/90-dotf-exclude-<name>.repo` for every listed repo, so a
+     repo added later is covered; dnf5 ignores sections for missing repos and appends
+     `excludepkgs` across drop-ins, so your own excludes are kept.
+
    A host whose package manager matches no sub-table reports `applicable=false` — it is
    silent, not an error. `apt-repo` is the deprecated alias of this backend; do not use it
    for new entries.

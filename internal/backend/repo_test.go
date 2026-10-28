@@ -562,3 +562,156 @@ func TestRepoBackend_Install_DNFExistingRepoFile(t *testing.T) {
 		})
 	}
 }
+
+// TestRepoBackend_DNFRepoPriority pins dnf_repo.priority: dotf's own install
+// and upgrade carry --setopt=<id>.priority on any dnf, and on dnf5 the pin is
+// persisted as a dotf-owned drop-in under /etc/dnf/repos.override.d/ even when
+// the .repo file itself is a kept vendor file. A current drop-in is not
+// rewritten and a foreign one is preserved.
+func TestRepoBackend_DNFRepoPriority(t *testing.T) {
+	t.Parallel()
+
+	const (
+		repoDest     = "/etc/yum.repos.d/vendor.repo"
+		overrideDest = "/etc/dnf/repos.override.d/90-dotf-vendor.repo"
+		vendorBody   = "[vendor]\nname=Vendor\nbaseurl=https://vendor.example/rpm\nenabled=1\n"
+		setopt       = "--setopt=vendor.priority=90"
+	)
+	override := dnfRepoMarker + "\n[vendor]\npriority=90\n"
+	pkg := manifest.Package{
+		Name: "vendor-app", Backend: manifest.BackendRepo,
+		Names:   map[string]string{"dnf": "vendor-app"},
+		DNFRepo: &manifest.DNFRepo{ID: "vendor", BaseURL: "https://vendor.example/rpm", Priority: 90},
+	}
+	dnf5 := platform.Info{OS: platform.OSRedHat, PkgMgr: platform.PkgMgrDNF, VersionID: "44"}
+	dnf4 := platform.Info{OS: platform.OSRedHat, PkgMgr: platform.PkgMgrDNF, VersionID: "40"}
+	install := func(b *repoBackend, i platform.Info) error { return b.Install(pkg, i) }
+	update := func(b *repoBackend, i platform.Info) error { return b.Update(pkg, i) }
+
+	tests := []struct {
+		name      string
+		info      platform.Info
+		files     map[string]string // existing files; others do not exist
+		op        func(b *repoBackend, info platform.Info) error
+		wantPin   bool     // override drop-in written with the pin
+		wantFinal []string // final sudo dnf argv
+	}{
+		{"dnf5 install with kept vendor repo file", dnf5, map[string]string{repoDest: vendorBody}, install, true,
+			[]string{"dnf", "install", "--enablerepo=vendor", setopt, "-y", "vendor-app"}},
+		{"dnf5 update writes missing pin", dnf5, map[string]string{repoDest: vendorBody}, update, true,
+			[]string{"dnf", "upgrade", "--enablerepo=vendor", setopt, "-y", "vendor-app"}},
+		{"dnf5 update refreshes stale owned pin", dnf5, map[string]string{overrideDest: dnfRepoMarker + "\n[vendor]\npriority=50\n"}, update, true,
+			[]string{"dnf", "upgrade", setopt, "-y", "vendor-app"}},
+		{"dnf5 update leaves current pin", dnf5, map[string]string{overrideDest: override}, update, false,
+			[]string{"dnf", "upgrade", setopt, "-y", "vendor-app"}},
+		{"dnf5 update preserves foreign drop-in", dnf5, map[string]string{overrideDest: "[vendor]\npriority=10\n"}, update, false,
+			[]string{"dnf", "upgrade", setopt, "-y", "vendor-app"}},
+		{"dnf4 update uses setopt only", dnf4, nil, update, false,
+			[]string{"dnf", "upgrade", setopt, "-y", "vendor-app"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := exec.NewFake()
+			c := installCapture{Fake: f, written: map[string]string{}}
+			b := newRepoBackend(c)
+			b.readFile = func(path string) ([]byte, error) {
+				if body, ok := c.written[path]; ok {
+					return []byte(body), nil
+				}
+				if body, ok := tt.files[path]; ok {
+					return []byte(body), nil
+				}
+				return nil, os.ErrNotExist
+			}
+
+			if err := tt.op(b, tt.info); err != nil {
+				t.Fatalf("error = %v", err)
+			}
+			got, wrote := c.written[overrideDest]
+			switch {
+			case tt.wantPin && got != override:
+				t.Errorf("%s = %q (written %v), want %q", overrideDest, got, wrote, override)
+			case !tt.wantPin && wrote:
+				t.Errorf("%s rewritten with %q, want it left alone", overrideDest, got)
+			}
+			if _, ok := c.written[repoDest]; ok && tt.files[repoDest] != "" {
+				t.Errorf("kept vendor %s overwritten", repoDest)
+			}
+			calls := f.CallsSnapshot()
+			assertSudoCall(t, calls[len(calls)-1], tt.wantFinal[0], tt.wantFinal[1:]...)
+		})
+	}
+}
+
+// TestRepoBackend_DNFRepoExcludeFrom pins dnf_repo.exclude_from: dotf's own
+// commands exclude "<name>,<name>-*" only from listed repos the host has
+// configured (dnf5 rejects --setopt for an unknown repo), while the dnf5
+// drop-in names every listed repo so one added later is covered too. It works
+// in copr mode, which has no repo id of its own.
+func TestRepoBackend_DNFRepoExcludeFrom(t *testing.T) {
+	t.Parallel()
+
+	const overrideDest = "/etc/dnf/repos.override.d/90-dotf-exclude-ghostty.repo"
+	pkg := manifest.Package{
+		Name: "ghostty-fedora", Backend: manifest.BackendRepo,
+		Names:   map[string]string{"dnf": "ghostty"},
+		DNFRepo: &manifest.DNFRepo{COPR: "scottames/ghostty", ExcludeFrom: []string{"terra", "other"}},
+	}
+	wantBody := dnfRepoMarker + "\n[terra]\nexcludepkgs=ghostty,ghostty-*\n[other]\nexcludepkgs=ghostty,ghostty-*\n"
+	terraOnly := func() (map[string]bool, error) { return map[string]bool{"terra": true, "fedora": true}, nil }
+	none := func() (map[string]bool, error) { return map[string]bool{"fedora": true}, nil }
+	dnf5 := platform.Info{OS: platform.OSRedHat, PkgMgr: platform.PkgMgrDNF, VersionID: "44"}
+	dnf4 := platform.Info{OS: platform.OSRedHat, PkgMgr: platform.PkgMgrDNF, VersionID: "40"}
+	setopt := "--setopt=terra.excludepkgs=ghostty,ghostty-*"
+
+	tests := []struct {
+		name      string
+		info      platform.Info
+		repoIDs   func() (map[string]bool, error)
+		existing  string // current drop-in body; "" = missing
+		wantWrite bool
+		wantFinal []string
+	}{
+		{"dnf5 terra configured", dnf5, terraOnly, "", true, []string{"dnf", "upgrade", setopt, "-y", "ghostty"}},
+		{"dnf5 no listed repo configured still persists", dnf5, none, "", true, []string{"dnf", "upgrade", "-y", "ghostty"}},
+		{"dnf5 current drop-in not rewritten", dnf5, terraOnly, wantBody, false, []string{"dnf", "upgrade", setopt, "-y", "ghostty"}},
+		{"dnf5 foreign drop-in preserved", dnf5, terraOnly, "[terra]\nexcludepkgs=x\n", false, []string{"dnf", "upgrade", setopt, "-y", "ghostty"}},
+		{"dnf4 setopt only", dnf4, terraOnly, "", false, []string{"dnf", "upgrade", setopt, "-y", "ghostty"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := exec.NewFake()
+			c := installCapture{Fake: f, written: map[string]string{}}
+			b := newRepoBackend(c)
+			b.repoIDs = tt.repoIDs
+			b.readFile = func(path string) ([]byte, error) {
+				if body, ok := c.written[path]; ok {
+					return []byte(body), nil
+				}
+				if path == overrideDest && tt.existing != "" {
+					return []byte(tt.existing), nil
+				}
+				return nil, os.ErrNotExist
+			}
+
+			if err := b.Update(pkg, tt.info); err != nil {
+				t.Fatalf("Update() error = %v", err)
+			}
+			got, wrote := c.written[overrideDest]
+			switch {
+			case tt.wantWrite && got != wantBody:
+				t.Errorf("%s = %q (written %v), want %q", overrideDest, got, wrote, wantBody)
+			case !tt.wantWrite && wrote:
+				t.Errorf("%s rewritten with %q, want it left alone", overrideDest, got)
+			}
+			calls := f.CallsSnapshot()
+			assertSudoCall(t, calls[len(calls)-1], tt.wantFinal[0], tt.wantFinal[1:]...)
+		})
+	}
+}

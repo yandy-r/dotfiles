@@ -46,9 +46,15 @@ type repoBackend struct {
 	// modes write it. It is os.ReadFile in production; tests inject a fake so
 	// they never read the real /etc.
 	readFile func(string) ([]byte, error)
+
+	// repoIDs reports the dnf repo ids configured on the host (see
+	// hostDNFRepoIDs). Tests inject a fake so they never read the real /etc.
+	repoIDs func() (map[string]bool, error)
 }
 
-func newRepoBackend(r exec.Runner) *repoBackend { return &repoBackend{r: r, readFile: os.ReadFile} }
+func newRepoBackend(r exec.Runner) *repoBackend {
+	return &repoBackend{r: r, readFile: os.ReadFile, repoIDs: hostDNFRepoIDs}
+}
 
 // newAptRepoBackend constructs the repo backend under its deprecated apt-repo
 // alias, retained one release so existing manifests keep working.
@@ -107,13 +113,20 @@ func (b *repoBackend) Install(pkg manifest.Package, info platform.Info) error {
 
 // Update upgrades an already-configured repo package via the host package
 // manager. The repo itself is not (re)configured, but on dnf a kept
-// non-dotf repo file's [<id>] section is enabled for the upgrade, as on
-// install (see dnfEnableRepoArgs).
+// non-dotf repo file's [<id>] section is enabled for the upgrade and a
+// dnf_repo priority is (re)pinned, as on install (see dnfRepoArgs).
 func (b *repoBackend) Update(pkg manifest.Package, info platform.Info) error {
 	if info.PkgMgr != platform.PkgMgrDNF || pkg.DNFRepo == nil {
 		return b.lifecycle(pkg, info, upgradeArgv)
 	}
-	enable, err := b.dnfEnableRepoArgs(pkg.DNFRepo)
+	name := pkg.Names[string(platform.PkgMgrDNF)]
+	if name == "" {
+		return b.lifecycle(pkg, info, upgradeArgv) // reports MissingPackageNameError
+	}
+	if err := b.pinDNFRepo(pkg.DNFRepo, name, info); err != nil {
+		return err
+	}
+	enable, err := b.dnfRepoArgs(pkg.DNFRepo, name)
 	if err != nil {
 		return err
 	}

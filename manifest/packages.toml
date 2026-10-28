@@ -826,6 +826,9 @@ names = { dnf = "ghostty" }
 
 [package.dnf_repo]
 copr = "scottames/ghostty"
+# Terra's ghostty-terminfo/-shell-integration/-*-completion own files the copr
+# ghostty ships itself (1.4.0+), so the upgrade fails with rpm file conflicts.
+exclude_from = ["terra"]
 
 [[package]]
 name = "ghostty-macos"
@@ -924,6 +927,10 @@ id = "cursor"
 baseurl = "https://downloads.cursor.com/yumrepo/"
 gpgkey = "https://downloads.cursor.com/keys/anysphere.asc"
 repo_gpgcheck = true
+# Terra also ships cursor, with completion subpackages pinned to its exact
+# build; without the pin dnf flips between the two and skips the upgrade.
+priority = 90
+exclude_from = ["terra"]
 
 [[package]]
 name = "cursor-macos"

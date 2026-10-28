@@ -112,6 +112,21 @@ func validateDNFRepo(p Package) []error {
 		}
 	}
 
+	if d.Priority != 0 {
+		switch {
+		case d.COPR != "" || (d.RepoFile == "" && d.BaseURL == ""):
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: "repo backend dnf_repo priority applies only to repofile or baseurl mode"})
+		case d.Priority < 1 || d.Priority > 98:
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("repo backend dnf_repo priority %d must be between 1 and 98", d.Priority)})
+		}
+	}
+
+	for _, id := range d.ExcludeFrom {
+		if id == "" || strings.ContainsAny(id, "/=,[] \t") {
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("repo backend dnf_repo exclude_from id %q must be a bare repo id", id)})
+		}
+	}
+
 	for _, u := range []struct{ value, field string }{
 		{d.RepoFile, "repofile"},
 		{d.BaseURL, "baseurl"},

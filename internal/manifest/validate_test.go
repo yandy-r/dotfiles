@@ -938,6 +938,76 @@ func TestValidate_DNFRepoGPGCheck(t *testing.T) {
 	}
 }
 
+// TestValidate_DNFRepoPriority covers dnf_repo.priority: accepted in either
+// file mode within 1..98 (99 is dnf's default, so it would pin nothing), and
+// rejected in copr mode, whose repo id dotf does not name.
+func TestValidate_DNFRepoPriority(t *testing.T) {
+	tests := []struct {
+		name    string
+		repo    string
+		wantErr string
+	}{
+		{name: "baseurl mode", repo: "id = \"t\"\nbaseurl = \"https://example.com/rpm\"\npriority = 90\n"},
+		{name: "repofile mode", repo: "id = \"t\"\nrepofile = \"https://example.com/t.repo\"\npriority = 1\n"},
+		{name: "copr mode", repo: "copr = \"owner/project\"\npriority = 90\n", wantErr: "priority applies only to repofile or baseurl mode"},
+		{name: "default value", repo: "id = \"t\"\nbaseurl = \"https://example.com/rpm\"\npriority = 99\n", wantErr: "must be between 1 and 98"},
+		{name: "negative", repo: "id = \"t\"\nbaseurl = \"https://example.com/rpm\"\npriority = -1\n", wantErr: "must be between 1 and 98"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := "[[package]]\nname = \"tool\"\nbackend = \"repo\"\n[package.dnf_repo]\n" + tt.repo
+			_, err := manifest.Parse(strings.NewReader(data))
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Parse() error = %v, want nil", err)
+				}
+				return
+			}
+			var valErr *manifest.ValidationError
+			if !errors.As(err, &valErr) {
+				t.Fatalf("Parse() error = %v, want *manifest.ValidationError", err)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("Parse() error = %q, want substring %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestValidate_DNFRepoExcludeFrom covers dnf_repo.exclude_from: any mode may
+// list bare repo ids; an id that would break the rendered drop-in or the
+// --setopt flag is rejected.
+func TestValidate_DNFRepoExcludeFrom(t *testing.T) {
+	tests := []struct {
+		name    string
+		repo    string
+		wantErr string
+	}{
+		{name: "copr mode", repo: "copr = \"owner/project\"\nexclude_from = [\"terra\"]\n"},
+		{name: "baseurl mode", repo: "id = \"t\"\nbaseurl = \"https://example.com/rpm\"\nexclude_from = [\"terra\", \"rpmfusion-free\"]\n"},
+		{name: "empty id", repo: "copr = \"owner/project\"\nexclude_from = [\"\"]\n", wantErr: "must be a bare repo id"},
+		{name: "section injection", repo: "copr = \"owner/project\"\nexclude_from = [\"terra]\"]\n", wantErr: "must be a bare repo id"},
+		{name: "setopt injection", repo: "copr = \"owner/project\"\nexclude_from = [\"terra.priority=1\"]\n", wantErr: "must be a bare repo id"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := "[[package]]\nname = \"tool\"\nbackend = \"repo\"\nnames = { dnf = \"tool\" }\n[package.dnf_repo]\n" + tt.repo
+			_, err := manifest.Parse(strings.NewReader(data))
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Parse() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("Parse() error = %v, want substring %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 // TestValidate_SSHServer covers the optional [sysconfig] ssh_server enum:
 // on/off/empty are accepted, unknown values fail with *ValidationError, and
 // ssh_server decodes under DisallowUnknownFields (schema field, not strict
