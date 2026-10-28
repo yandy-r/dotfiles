@@ -866,6 +866,124 @@ tk() {
 }
 
 # ================================================================
+# HERDR
+# ================================================================
+
+# Broadcast a command to many Herdr panes — the analogue of tmux
+# `synchronize-panes`, which Herdr has no built-in equivalent for.
+# Portable bash/zsh (no zsh-only expansions), so both shells get it.
+#
+#   herdr-run-all [-a|-t] [-s] [-A] [-n] <command> [args...]
+#
+#   -a, --all-workspaces  every pane in every workspace (default: current workspace)
+#   -t, --tab             only panes in the current tab
+#   -s, --include-self    also send to the calling pane (default: skipped)
+#   -A, --include-agents  also send to panes hosting a coding agent (default: skipped)
+#   -n, --dry-run         print target pane IDs instead of sending
+#
+# Agent panes are skipped by default because `herdr pane run` writes into the
+# agent TUI, not a shell prompt. Use `herdr agent prompt` for those.
+herdr-run-all() {
+    local scope=workspace include_self=0 include_agents=0 dry_run=0
+
+    while (($#)); do
+        case "$1" in
+        -a | --all-workspaces) scope=all ;;
+        -t | --tab) scope=tab ;;
+        -s | --include-self) include_self=1 ;;
+        -A | --include-agents) include_agents=1 ;;
+        -n | --dry-run) dry_run=1 ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            printf 'herdr-run-all: unknown option: %s\n' "$1" >&2
+            return 2
+            ;;
+        *) break ;;
+        esac
+        shift
+    done
+
+    if (($# == 0)); then
+        echo "usage: herdr-run-all [-a|-t] [-s] [-A] [-n] <command> [args...]" >&2
+        return 2
+    fi
+
+    if [[ "${HERDR_ENV:-}" != 1 ]]; then
+        echo "herdr-run-all: not inside a Herdr-managed pane (HERDR_ENV != 1)" >&2
+        return 1
+    fi
+
+    local dep
+    for dep in herdr jq; do
+        if ! command -v "$dep" >/dev/null 2>&1; then
+            printf 'herdr-run-all: required command not found: %s\n' "$dep" >&2
+            return 1
+        fi
+    done
+
+    local tab_only=0
+    [[ $scope == tab ]] && tab_only=1
+
+    local -a list_args=()
+    if [[ $scope != all ]]; then
+        if [[ -z "${HERDR_WORKSPACE_ID:-}" ]]; then
+            echo "herdr-run-all: HERDR_WORKSPACE_ID is unset" >&2
+            return 1
+        fi
+        list_args=(--workspace "$HERDR_WORKSPACE_ID")
+    fi
+
+    # Captured in two steps (not one pipeline) so a `herdr pane list` failure
+    # is reported without needing a function-local pipefail in both shells.
+    local json ids
+    json="$(herdr pane list "${list_args[@]}")" || {
+        echo "herdr-run-all: herdr pane list failed" >&2
+        return 1
+    }
+    ids="$(jq -r \
+        --arg tab "${HERDR_TAB_ID:-}" \
+        --arg self "${HERDR_PANE_ID:-}" \
+        --argjson tab_only "$tab_only" \
+        --argjson keep_self "$include_self" \
+        --argjson keep_agents "$include_agents" \
+        '
+            .result.panes[]
+            | select($tab_only == 0 or .tab_id == $tab)
+            | select($keep_self == 1 or .pane_id != $self)
+            | select($keep_agents == 1 or (.agent // null) == null)
+            | .pane_id
+        ' <<<"$json")" || return 1
+
+    local -a panes=()
+    local pane
+    while IFS= read -r pane; do
+        [[ -n "$pane" ]] && panes+=("$pane")
+    done <<<"$ids"
+
+    if ((${#panes[@]} == 0)); then
+        echo "herdr-run-all: no matching panes" >&2
+        return 1
+    fi
+
+    local result_status=0
+    for pane in "${panes[@]}"; do
+        if ((dry_run)); then
+            printf '%s\n' "$pane"
+            continue
+        fi
+        if ! herdr pane run "$pane" "$@" >/dev/null; then
+            printf 'herdr-run-all: failed to send to %s\n' "$pane" >&2
+            result_status=1
+        fi
+    done
+
+    return $result_status
+}
+
+# ================================================================
 # LOAD PLATFORM-SPECIFIC FUNCTIONS
 # ================================================================
 
