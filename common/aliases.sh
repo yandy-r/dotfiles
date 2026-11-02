@@ -731,6 +731,7 @@ alias cbp='$DOTFILES_PASTE_CMD'
 # ================================================================
 
 # alias claude='claude --dangerously-skip-permissions'
+alias claude='claude --allow-dangerously-skip-permissions --dangerously-skip-permissions'
 alias ccdp='claude --allow-dangerously-skip-permissions --dangerously-skip-permissions --permission-mode bypassPermissions'
 alias cc-rc='DO_NOT_TRACK=0 claude --dangerously-skip-permissions --allow-dangerously-skip-permissions rc --permission-mode bypassPermissions'
 # alias claude='claude --permission-mode auto'
