@@ -51,6 +51,28 @@ This project adheres to [Conventional Commits](https://www.conventionalcommits.o
   issue in a Linear project.
 - Launch-test the arm64 desktop apps on Fedora Asahi Remix. Obsidian's arm64
   AppImage requires `appimage-libz` so `libz.so` is present (#57).
+- Install ble.sh with the `dev` intent through `bin/install-blesh.sh`. The
+  script copies a prebuilt nightly into
+  `${XDG_DATA_HOME:-~/.local/share}/blesh` (sha256 checked when `jq` or
+  `python3` can read the GitHub release digest) and does not run the upstream
+  installer. Interactive bash sources it with `--attach=none` before the rest
+  of `bash/bashrc` and runs `ble-attach` on the last line. `DOTFILES_NO_BLESH=1`,
+  `TERM=dumb`, or a missing tty skips it. `dotf link` links `blesh/` to
+  `~/.config/blesh`, and ble.sh loads `init.sh` from there: a Catppuccin
+  vi-mode pill on the Starship segment line, a cursor shape per mode, Enter
+  accepting a complete multiline command, and `C-j` inserting a newline.
+- Define `herdr-run-all` in `common/functions.sh` so bash and zsh both load it.
+  It sends one command to other Herdr panes in the current workspace.
+- Add `~/.grok/bin` and `~/.antigravity/antigravity/bin` from
+  `common/paths.sh` when those directories exist, in both shells.
+- `bin/sync-configs.sh -a` limits the agents group to named harnesses
+  (`claude`, `codex`, `opencode`, `antigravity`, `omp`, `cursor`, `zed`;
+  comma-separated and repeatable). `-a` without `-g` sends only that group.
+- `dnf_repo` accepts optional `priority` (1..98, file modes) and
+  `exclude_from` (repo ids, any mode including `copr`). `cursor` sets both so
+  Terra does not block the vendor package. `ghostty-fedora` sets
+  `exclude_from = ["terra"]`. On dnf5, install and update also write
+  dotf-owned drop-ins under `/etc/dnf/repos.override.d/`.
 
 ### Fixes
 
@@ -58,6 +80,11 @@ This project adheres to [Conventional Commits](https://www.conventionalcommits.o
   `github-mcp-server`) or `coderabbit`: the `github-release` backend now updates by
   re-installing the pinned or locked asset, and `bin/install-coderabbit.sh` accepts
   `--update`.
+- `bin/install-blesh.sh` copies the verified nightly tree into place (`mkdir`,
+  `cp -Rf`, empty `cache.d`). It does not run `bash ble.sh --install`. That
+  command reads `/dev/tty` during its environment check and can stop with
+  SIGTTIN, sitting silently after `sha256 verified`, when dotf runs the
+  installer in its own process group (#96).
 - Leave dnf repo files that dotf does not own in place. `repo_gpgcheck = true`
   on a `baseurl` repo also checks the signed repository metadata (#51).
 - Expand `requires` only from packages that apply to this host (#54). Reject

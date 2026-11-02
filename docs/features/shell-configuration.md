@@ -13,6 +13,7 @@ When you start a new shell session, the following files are loaded in order:
 ```
 bash/bashrc (bash) OR zsh/zshrc (zsh)
     |
+    +-- ble.sh --attach=none  (bash only, when installed; see below)
     +-- common/platform.sh    (OS/architecture detection)
     +-- common/cached-eval.sh (_cached_eval: cached tool init output)
     +-- common/exports.sh     (environment variables)
@@ -20,6 +21,8 @@ bash/bashrc (bash) OR zsh/zshrc (zsh)
     +-- common/aliases.sh     (command shortcuts)
     +-- common/functions.sh   (utility functions)
     +-- common/tools.sh       (tool setup and detection)
+    +-- common/local.sh
+    +-- ble-attach            (bash only, last line, when ble.sh was loaded)
 ```
 
 ### Cached Tool Initialization
@@ -78,8 +81,8 @@ Both shells are fully supported with equivalent features. Choose based on your p
 | Modern Keybindings  | Yes           | Yes                    |
 | Starship Prompt     | Yes           | Yes                    |
 | Tab Completion      | Yes           | Yes (enhanced styling) |
-| Autosuggestions     | Via bash-it   | Native plugin          |
-| Syntax Highlighting | Via bash-it   | Native plugin          |
+| Autosuggestions     | ble.sh; bash-it if present | zsh-autosuggestions     |
+| Syntax Highlighting | ble.sh when loaded         | zsh-syntax-highlighting |
 | Globstar (`**`)     | Yes (bash 4+) | Yes                    |
 | Auto-cd             | Yes (bash 4+) | Yes                    |
 
@@ -114,8 +117,30 @@ Both shells are configured with vi mode for efficient command-line editing:
 
 **Configuration location:**
 
-- Bash: `bash/bashrc` (lines 76-80)
-- Zsh: `zsh/zshrc` (lines 35-39)
+- Bash: `bash/bashrc` (`set -o vi` and the `jj` binding). When ble.sh is loaded, `blesh/init.sh` replaces the bottom-line mode indicator with a pill in the prompt.
+- Zsh: `zsh/zshrc` (`bindkey -v` before shared tools bind keys)
+
+### ble.sh (bash)
+
+The `dev` intent installs ble.sh with `bin/install-blesh.sh`. A headless
+`dotf apply` includes that intent. The installer copies the nightly tree to
+`${XDG_DATA_HOME:-~/.local/share}/blesh` (sha256 checked when the release
+digest can be read) and does not run `ble.sh --install`.
+
+Interactive bash sources `ble.sh --attach=none` before the common modules when
+that file exists, `DOTFILES_NO_BLESH` is unset, `TERM` is not `dumb`, and both
+stdin and stdout are ttys. `ble-attach` is the last line of `bash/bashrc`,
+after `common/local.sh`.
+
+`dotf link` links `blesh/` to `~/.config/blesh`. ble.sh loads `init.sh` there.
+The vi-mode pill is inserted into `PS1` before the last newline (or prepended
+when `PS1` is one line). Enter is bound to `accept-line syntax` in ble's
+`vi_imap` and `vi_nmap` keymaps, so a complete command runs and an incomplete
+one (open quote, trailing `\`, `&&`, or `|`) inserts a newline. `C-j` in
+`vi_imap` inserts a newline. If `~/.bash_it/bash_it.sh` exists,
+`common/tools.sh` still sources it. This repo loads no separate bash
+syntax-highlighting plugin; ble.sh supplies that when it is loaded. The zsh
+autosuggestion and syntax-highlighting plugins are unchanged.
 
 ### Enhanced Keybindings
 
@@ -248,9 +273,10 @@ outside the repo are the place for per-host tweaks, secrets, and the snippets
 installers like to append (`export PATH=...`, completion hooks) — put those
 there instead of letting them land in the tracked rc files.
 
-`common/local.sh` loads them. It is the **last** line of both `bash/bashrc` and
-`zsh/zshrc`, so local files win: a `paths.sh` entry ends up first on `PATH`,
-aliases and exports override the shared defaults. In a bash login shell,
+`common/local.sh` loads them. It is the last line of `zsh/zshrc`. `bash/bashrc`
+sources it and then runs `ble-attach` when ble.sh was loaded, so local files
+still win: a `paths.sh` entry ends up first on `PATH`, aliases and exports
+override the shared defaults. In a bash login shell,
 `bash/bash_profile` sources `~/.bashrc` first and then the legacy `~/.path` and
 `~/.extra`, so those two still run after the hook and override it.
 

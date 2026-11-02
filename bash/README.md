@@ -22,12 +22,16 @@ This directory contains the bash shell configuration for the dotfiles repository
    - Initializes direnv when missing
 
 2. **Interactive shell** (`~/.bashrc`):
+   - Loads ble.sh with `--attach=none` when
+     `${XDG_DATA_HOME:-~/.local/share}/blesh/ble.sh` exists, unless
+     `DOTFILES_NO_BLESH=1` is set, `TERM` is `dumb`, or stdin or stdout is not a tty
    - Sources the common configuration system
    - Applies bash-specific settings
    - Initializes Starship prompt
    - Sources bash-completion at top level before tools, then fzf after tool completions
    - Runs `finalize_path` (from `common/paths.sh`) before local overrides
-   - Sources `common/local.sh` last
+   - Sources `common/local.sh`
+   - Runs `ble-attach` on the last line when ble.sh was loaded
 
 ### Common System Integration
 
@@ -84,6 +88,28 @@ bind -m vi-insert '"jj": vi-movement-mode'   # jj to exit insert mode
 - `w`, `b` - Word navigation
 - `0`, `$` - Line start/end
 
+### ble.sh
+
+The `dev` intent installs [ble.sh](https://github.com/akinomyoga/ble.sh) with
+`bin/install-blesh.sh` (also `dotf install --only blesh`). A headless
+`dotf apply` includes `dev`. The script downloads the upstream
+`ble-nightly.tar.xz`, checks the sha256 GitHub reports for that asset when
+`jq` or `python3` can read the release JSON, and copies the tree into
+`${XDG_DATA_HOME:-~/.local/share}/blesh`. It does not execute `ble.sh`.
+`--update` replaces an existing tree. `--uninstall` removes that directory
+plus `${XDG_CACHE_HOME:-~/.cache}/blesh` and
+`${XDG_STATE_HOME:-~/.local/state}/blesh`. The linked config is left in place.
+
+`dotf link` links the `blesh/` directory to `~/.config/blesh`. ble.sh loads
+`init.sh` from there. That file draws a Catppuccin vi-mode pill on the
+Starship segment line (prepended when `PS1` has no newline), sets a cursor
+shape per vi mode, binds Enter to `accept-line syntax` in `vi_imap` and
+`vi_nmap`, and binds `C-j` to `newline` in `vi_imap`. Enter therefore runs a
+complete command. An incomplete one (open quote, trailing `\`, `&&`, or `|`)
+inserts a newline.
+
+Without ble.sh, the readline vi mode above is what bash uses.
+
 ### History Search
 
 History search with arrow keys:
@@ -137,10 +163,11 @@ export MY_CUSTOM_VAR="value"
 alias myalias="my-command"
 ```
 
-All of these are untracked and loaded by `common/local.sh`, the last line of
-bashrc (`~/.bashrc.local` comes last). In a login shell, `~/.path` and
-`~/.extra` are sourced by `bash_profile` after bashrc, so they run after the
-hook. See
+All of these are untracked and loaded by `common/local.sh`. In bashrc that
+source is followed only by `ble-attach` when ble.sh was loaded
+(`~/.bashrc.local` is the last file the hook sources). In a login shell,
+`~/.path` and `~/.extra` are sourced by `bash_profile` after bashrc, so they
+run after the hook. See
 [Adding Personal Customizations](../docs/features/shell-configuration.md#adding-personal-customizations).
 
 ### Adding Aliases
@@ -330,8 +357,8 @@ bats tests/shell                           # platform detection, PATH cleanup, r
 | History search      | Yes         | Yes            |
 | Starship prompt     | Yes         | Yes            |
 | Tab completion      | Yes (basic) | Yes (advanced) |
-| Autosuggestions     | No          | Yes (plugin)   |
-| Syntax highlighting | No          | Yes (plugin)   |
+| Autosuggestions     | ble.sh when installed | Yes (plugin)   |
+| Syntax highlighting | ble.sh when installed | Yes (plugin)   |
 | Glob patterns       | Extended    | More powerful  |
 
 Both shells source the same `common/` modules, providing identical:

@@ -344,7 +344,10 @@ Bash sources its bash-completion framework at top level before shared tools
 (candidate paths are owned by `common/paths.sh`); both shells load fzf after tool
 completions so their fallback loaders survive. Shared `.venv` auto-activation
 waits until the first prompt after local overrides, and leaves manual environments
-alone. Set `DOTFILES_NO_VENV_AUTO=1` to disable it.
+alone. Set `DOTFILES_NO_VENV_AUTO=1` to disable it. When
+`${XDG_DATA_HOME:-~/.local/share}/blesh/ble.sh` is installed, interactive bash
+loads it before the common modules and attaches it after `common/local.sh`.
+Set `DOTFILES_NO_BLESH=1` to skip it.
 
 ### 🛠️ Developer-Focused
 
@@ -384,6 +387,7 @@ dotfiles/
 │   ├── profile            # Profile configuration
 │   ├── prompt.sh          # Modern bash prompt with git integration
 │   └── .fzf.bash         # fzf keybindings (sourced by common/tools.sh:setup_fzf)
+├── blesh/                 # ble.sh user config (linked to ~/.config/blesh)
 ├── bin/                   # Custom scripts and executables
 ├── common/                # Cross-platform configuration system ⭐
 │   ├── platform.sh        # OS/architecture detection

@@ -11,7 +11,7 @@ repository. All scripts are designed to be cross-platform and follow consistent 
 | Package Managers | `install-brew.sh`, `up-brew.sh`, `un-brew.sh`                                        | Homebrew management         |
 | Cloud Tools      | `install-aws-tools.sh`, `install-azure-cli.sh`, `install-1password-cli.sh`           | Cloud CLI tools             |
 | DevOps           | `install-hashicorp-tools.sh`, `k8s-tools.sh`, `install-docker.sh`                    | Infrastructure tools        |
-| Modern CLI       | `install-modern-cli.sh`, `install-yazi.sh`, `install-espanso.sh`                     | Modern command-line tools   |
+| Modern CLI       | `install-modern-cli.sh`, `install-yazi.sh`, `install-espanso.sh`, `install-blesh.sh` | Modern command-line tools   |
 | AI/Development   | `install-claude.sh`, `install-codex.sh`, `install-opencode.sh`, `install-omp.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-graphify.sh`, `install-neovim.sh` | Development tools           |
 | Utilities        | `sync-configs.sh`, `cursor-export-secrets.sh`, `dc-manage.sh`, `cleanup-*.sh`, `markdown-tools.sh` | System utilities |
 | Style / Lint     | `style.sh`, `lint.sh`, `format.sh`                                                   | Multi-language lint/format  |
@@ -323,6 +323,27 @@ pipx install, and leaves `graphify-out/` directories and agent skills in place. 
 When `TOKENHOP_OPENAI_API_KEY` is set, the shell function `graphify` (in `common/functions.sh`)
 sends invocations to that OpenAI-compatible endpoint. `graphify-raw` calls the binary directly.
 
+#### install-blesh.sh
+
+Install [ble.sh](https://github.com/akinomyoga/ble.sh) from the upstream prebuilt
+nightly tarball into `${XDG_DATA_HOME:-~/.local/share}/blesh`, which is the file
+`bash/bashrc` sources. The download uses HTTPS. When `jq` or `python3` can read
+the GitHub release JSON, the tarball is checked against the sha256 digest GitHub
+reports for `ble-nightly.tar.xz`. The tree is copied into place (`mkdir`,
+`cp -Rf`, empty `cache.d`). The script does not run `ble.sh`. The `blesh`
+package is in the `dev` intent, which a headless `dotf apply` includes.
+
+```bash
+./bin/install-blesh.sh             # no-op when ble.sh is already installed
+./bin/install-blesh.sh --update    # re-download and replace the tree
+./bin/install-blesh.sh --uninstall # install dir, cache, and state
+./bin/install-blesh.sh --dry-run
+```
+
+`--uninstall` removes the install directory,
+`${XDG_CACHE_HOME:-~/.cache}/blesh`, and
+`${XDG_STATE_HOME:-~/.local/state}/blesh`. It does not remove `~/.config/blesh`.
+
 #### install-omp.sh
 
 Install [oh-my-pi](https://omp.sh/) (`omp`) using the official checksum-verifying
@@ -437,10 +458,11 @@ helper aliases/functions to use that command when `fabric` is not present.
 
 #### install-coderabbit.sh
 
-Install CodeRabbit CLI.
+Install CodeRabbit CLI. `--update` is accepted and requires an existing install.
 
 ```bash
 ./bin/install-coderabbit.sh
+./bin/install-coderabbit.sh --update
 ```
 
 #### install-1password-cli.sh
@@ -625,13 +647,17 @@ paths are refused.
 
 # Copy only the agents group to one host
 ./bin/sync-configs.sh -g agents <host>
+
+# Copy one agent's files (implies -g agents, so env is not sent)
+./bin/sync-configs.sh -a omp
 ```
 
 **Options:**
 
 - `-n` adds `rsync --dry-run`.
 - `-d` adds `rsync --delete`. This only affects synced directories, which is the `env` group.
-- `-g` is repeatable. The group is `env` or `agents`. With no `-g`, both groups are sent. An unknown group exits 2.
+- `-g` is repeatable. The group is `env` or `agents`. With no `-g` and no `-a`, both groups are sent. An unknown group exits 2.
+- `-a` is repeatable. The value is a comma-separated list of `claude`, `codex`, `opencode`, `antigravity`, `omp`, `cursor`, or `zed`. With no `-a`, every agent is sent. An unknown name exits 2. `-a` without `-g` implies `-g agents`.
 - `-l` prints the paths that would be sent, then exits. It does not open SSH.
 - `-h` prints the usage text and exits 0.
 - Host names on the command line replace the built-in host list. The script skips the current machine (`hostname -s`).

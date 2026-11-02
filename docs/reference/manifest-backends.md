@@ -81,6 +81,9 @@ Try these in order; the first that fits is the right one:
 4. **`toolchain`** — installable via a language toolchain (`cargo`, `npm`). Set `tool`.
 5. **`github-release`** — a GitHub release ships a checksummed binary/asset. Supports
    asset auto-detection and a shared `checksums.txt` sidecar (`checksums_asset`).
+   `dotf install --update` re-installs that pinned or locked asset into
+   `~/.local/bin`. Changing the version means changing the manifest tag or the
+   lock, then updating.
 6. **`font`** — the package IS a font family the configs pin by name. Set `font.family`
    (the fontconfig name, and the installed-state probe) plus either per-manager `names`
    (Arch `ttf-*-nerd`, a Homebrew cask) or `font.archive` + `repo`/`tag` to extract the

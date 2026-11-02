@@ -24,7 +24,7 @@ common/
 ├── tools.sh            # Tool detection, setup, and lazy loading
 ├── completions.sh      # Universal completion system (50+ tools)
 ├── lazy-completions.sh # Lazy-loaded completions for performance
-├── local.sh            # Machine-local overrides hook (sourced last by both rc files)
+├── local.sh            # Machine-local overrides (last in zshrc; bashrc then attaches ble.sh)
 ├── macos/              # macOS-specific configurations
 │   ├── aliases.sh      # Dock, Finder, System Preferences
 │   └── functions.sh    # Spotlight, Keychain, WiFi, Audio
@@ -108,6 +108,7 @@ Manages PATH with intelligent platform detection.
 - Automatic Homebrew path detection (macOS ARM vs Intel, Linux)
 - Language runtime paths (Cargo, Go, Node, Python)
 - User local binaries (~/.local/bin)
+- Existence-guarded CLI directories, including `~/.grok/bin` and `~/.antigravity/antigravity/bin`, in both shells
 - Duplicate path removal
 - `_dotf_bash_completion_file` resolves the single bash-completion candidate
   list; bashrc sources the result at top level before `tools.sh`, preserving
@@ -166,6 +167,7 @@ Cross-platform utility functions for common tasks.
 - `json` - Pretty print JSON
 - `graphify` - Run graphify, via the tokenhop OpenAI endpoint when `TOKENHOP_OPENAI_API_KEY` is set
 - `graphify-raw` - Run the graphify binary with no tokenhop environment
+- `herdr-run-all` - Send one command to other Herdr panes (bash and zsh)
 
 **Git:**
 
@@ -200,8 +202,9 @@ per tool, shared by both shells:
 
 ### local.sh - Machine-Local Overrides
 
-Sourced as the **last** line of `bash/bashrc` and `zsh/zshrc`, so whatever it
-loads wins over the shared configuration. Each file is loaded only when present,
+Sourced as the last line of `zsh/zshrc`. `bash/bashrc` sources it and then
+runs `ble-attach` when ble.sh was loaded at the top of the file, so whatever
+it loads still wins over the shared configuration. Each file is loaded only when present,
 in this order:
 
 1. `${XDG_CONFIG_HOME:-~/.config}/dotfiles.local/env.sh`, `paths.sh`,
@@ -304,10 +307,12 @@ Both `bash/bashrc` and `zsh/zshrc` source the common modules in this order:
 5. `functions.sh` - Load utility functions
 6. `tools.sh` - Initialize tools and completions
 
-Shell-specific setup and installer-added blocks follow, and each rc file ends by
-sourcing `local.sh` (machine-local overrides, secrets, `~/.<shell>rc.local`).
+Shell-specific setup and installer-added blocks follow. `zsh/zshrc` ends by
+sourcing `local.sh` (machine-local overrides, secrets, `~/.zshrc.local`).
+`bash/bashrc` sources `local.sh` and then attaches ble.sh when it was loaded.
 In a bash login shell, `bash/bash_profile` sources `~/.bashrc` first, then the
-legacy `~/.path` and `~/.extra`, which therefore run after `local.sh`.
+legacy `~/.path` and `~/.extra`, which therefore run after `local.sh` and
+`ble-attach`.
 
 ### Platform-Specific Loading
 

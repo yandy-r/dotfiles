@@ -16,6 +16,7 @@ This document provides a complete reference for all shell functions defined in t
 - [Docker Functions](#docker-functions)
 - [Clipboard Functions](#clipboard-functions)
 - [Tmux Functions](#tmux-functions)
+- [Herdr Functions](#herdr-functions)
 - [macOS-Specific Functions](#macos-specific-functions)
 
 ---
@@ -1346,6 +1347,52 @@ tk <session_name>
 
 ```bash
 tk old-session
+```
+
+---
+
+## Herdr Functions
+
+Functions for [Herdr](https://github.com/herdrdev/herdr) panes. Defined in
+`common/functions.sh`, so bash and zsh both load them.
+
+### herdr-run-all
+
+Send one command to other Herdr panes. Herdr has no equivalent of tmux
+`synchronize-panes`. The default scope is the current workspace. The calling
+pane is skipped, and so is any pane whose `.agent` field is set, because
+`herdr pane run` writes into an agent TUI rather than a shell prompt.
+
+```bash
+herdr-run-all [-a|-t] [-s] [-A] [-n] <command> [args...]
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `-a`, `--all-workspaces` | flag | No | Every pane in every workspace |
+| `-t`, `--tab` | flag | No | Only panes in the current tab (`HERDR_TAB_ID`) |
+| `-s`, `--include-self` | flag | No | Also send to the calling pane |
+| `-A`, `--include-agents` | flag | No | Also send to panes hosting a coding agent |
+| `-n`, `--dry-run` | flag | No | Print target pane IDs instead of sending |
+| `command` | string | Yes | Command passed to `herdr pane run` |
+
+Passing both `-a` and `-t` keeps the one that appears last. The function
+returns 2 for a missing command or an unknown option. It returns 1 when
+`HERDR_ENV` is not `1`, `herdr` or `jq` is missing, `HERDR_WORKSPACE_ID` is
+unset for a workspace or tab scope, `herdr pane list` fails, or no pane
+matches. A failed `herdr pane run` is reported and the function returns 1
+after the remaining panes.
+
+**Example:**
+
+```bash
+# From a Herdr pane: run in every other shell pane of this workspace
+herdr-run-all git status
+
+# Show the pane IDs that -t would target, including this pane
+herdr-run-all -t -s -n true
 ```
 
 ---
