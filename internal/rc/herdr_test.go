@@ -9,8 +9,9 @@ import (
 
 func fastPolls(t *testing.T) {
 	t.Helper()
-	p, rp, rt, vt := pollInterval, ReadyPoll, ReadyTimeout, VerifyTimeout
-	t.Cleanup(func() { pollInterval, ReadyPoll, ReadyTimeout, VerifyTimeout = p, rp, rt, vt })
+	p, rp, rt, vt, vs := pollInterval, ReadyPoll, ReadyTimeout, VerifyTimeout, VerifySettle
+	t.Cleanup(func() { pollInterval, ReadyPoll, ReadyTimeout, VerifyTimeout, VerifySettle = p, rp, rt, vt, vs })
+	VerifySettle = time.Millisecond
 	pollInterval, ReadyPoll, ReadyTimeout, VerifyTimeout = time.Millisecond, time.Millisecond, 50*time.Millisecond, 5*time.Millisecond
 }
 
@@ -131,6 +132,20 @@ func TestCreateTab_PicksTheNewTabNotAnOldSameLabel(t *testing.T) {
 	}
 }
 
+func TestRepoTab_RequiresThePaneInTheRepo(t *testing.T) {
+	f := NewFakeHerdr()
+	f.Workspaces = []Workspace{{ID: "w1", Label: "app"}}
+	f.addTab("w1", DefaultTabLabel, "/elsewhere")
+	h := Herdr{R: f}
+	if _, ok, _ := h.RepoTab("w1", "/p/app"); ok {
+		t.Fatal("RepoTab matched an rc tab whose pane is not in the repo")
+	}
+	f.Panes[0].ForegroundCwd = "/p/app"
+	if _, ok, _ := h.RepoTab("w1", "/p/app"); !ok {
+		t.Fatal("RepoTab ignored a pane whose foreground cwd is the repo")
+	}
+}
+
 func TestPlan_Busy(t *testing.T) {
 	if (Plan{TabExists: true}).Busy(true) {
 		t.Error("an idle rc tab on a procfs host must not need a restart decision")
@@ -153,5 +168,36 @@ func TestPlanRepos_MissingDir(t *testing.T) {
 	plans := PlanRepos([]Resolved{{Name: "ok", Path: dir}, {Name: "gone", Path: dir + "/nope"}}, nil)
 	if plans[0].Reason != "" || plans[1].Reason == "" {
 		t.Errorf("reasons = %q, %q", plans[0].Reason, plans[1].Reason)
+	}
+}
+
+func TestWaitForServer_RequiresItToStayUp(t *testing.T) {
+	fastPolls(t)
+	ProcRoot = fakeProc(t, map[int][2]any{3: {[]string{"claude", "rc"}, "/p/app"}})
+	t.Cleanup(func() { ProcRoot = "/proc" })
+	origIs := isServer
+	t.Cleanup(func() { isServer = origIs })
+
+	if !waitForServer("/p/app", 20*time.Millisecond) {
+		t.Error("a server that stays up was not verified")
+	}
+	isServer = func(Server) bool { return false } // exits right after it is seen
+	if waitForServer("/p/app", 20*time.Millisecond) {
+		t.Error("a server that exited right after starting was verified")
+	}
+	// The first process exits but a replacement keeps running: still verified.
+	first := true
+	isServer = func(Server) bool {
+		if first {
+			first = false
+			return false
+		}
+		return true
+	}
+	if !waitForServer("/p/app", 50*time.Millisecond) {
+		t.Error("a server replaced after its first process exited was not verified")
+	}
+	if waitForServer("/p/none", 5*time.Millisecond) {
+		t.Error("verified a directory with no server")
 	}
 }

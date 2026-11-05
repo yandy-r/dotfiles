@@ -307,8 +307,9 @@ that repo's settings, MCP servers, hooks and git worktrees. The repo list is use
 | `remove <name>…`     | Remove repos by name or path                                                                     |
 | `list`               | Show the repos with their effective settings                                                     |
 | `up`                 | Start every repo's server in Herdr; asks before restarting one already running (`--yes`)         |
+| `down`               | Stop every repo's server and close its `rc` tab; asks first (`--yes`)                            |
 | `status`             | Which repos have a running server, plus the service state                                        |
-| `enable` / `disable` | Install / remove the `dotf-rc.service` systemd user unit that runs `dotf rc up` at login (Linux) |
+| `enable` / `disable` | Install / remove the `dotf-rc.service` user unit: `up` at login, `down` on stop (Linux)          |
 
 ```bash
 dotf rc add ~/.config/dotfiles ~/Projects/github.com/me/app
@@ -316,6 +317,7 @@ dotf rc up --dry-run      # print each command; touches nothing
 dotf rc up                # start now (or run this by hand after boot)
 dotf rc enable --now      # ...or start at every login
 dotf rc status
+dotf rc down              # stop them all (asks first)
 ```
 
 ### `dotf completion` — shell completion scripts

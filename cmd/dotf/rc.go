@@ -14,12 +14,12 @@ import (
 
 // This file is the COMMAND half of `dotf rc`: the flag surface, the verb
 // parse, and the config verbs (list/add/remove). The up/status flow lives in
-// rcup.go and the systemd unit verbs in rcservice.go; the logic they drive is
+// rcup.go, down in rcdown.go, and the systemd unit verbs in rcservice.go; the logic they drive is
 // internal/rc.
 
 // rcVerbs is the ordered, closed set of `dotf rc` verbs: the single source for
 // dispatch, usage errors, and (via completionRcVerbs) shell completions.
-var rcVerbs = []string{"list", "add", "remove", "up", "status", "enable", "disable"}
+var rcVerbs = []string{"list", "add", "remove", "up", "down", "status", "enable", "disable"}
 
 // rcOpts holds the parsed flag values for `dotf rc`.
 type rcOpts struct {
@@ -46,8 +46,9 @@ func setRcFlags(fs *flag.FlagSet) *rcOpts {
 	fs.StringVar(&o.permissionMode, "permission-mode", "",
 		"per-repo permission mode override: "+strings.Join(rc.PermissionModes, ", ")+" (add)")
 	fs.StringVar(&o.spawn, "spawn", "", "per-repo spawn mode override: "+strings.Join(rc.SpawnModes, ", ")+" (add)")
-	fs.StringVar(&o.only, "only", "", "comma-separated repo names to act on (up, status; default: all)")
-	fs.BoolVar(&o.yes, "yes", false, "restart already-running servers without a confirmation prompt (up)")
+	fs.StringVar(&o.only, "only", "", "comma-separated repo names to act on (up, down, status; default: all)")
+	fs.BoolVar(&o.yes, "yes", false,
+		"restart already-running servers (up) or stop servers (down) without a confirmation prompt")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "print the plan without executing")
 	fs.BoolVar(&o.now, "now", false, "also start (enable) or stop (disable) the service immediately")
 	fs.BoolVar(&o.force, "force", false, "overwrite or remove a dotf-rc.service unit dotf did not write (enable, disable)")
@@ -61,11 +62,11 @@ var rcFlagVerbs = map[string][]string{
 	"name":            {"add"},
 	"permission-mode": {"add"},
 	"spawn":           {"add"},
-	"only":            {"up", "status"},
-	"yes":             {"up"},
+	"only":            {"up", "down", "status"},
+	"yes":             {"up", "down"},
 	"now":             {"enable", "disable"},
 	"force":           {"enable", "disable"},
-	"json":            {"list", "up", "status"},
+	"json":            {"list", "up", "down", "status"},
 }
 
 // rcEnv bundles what every verb needs.
@@ -81,7 +82,7 @@ type rcEnv struct {
 // runRc manages per-repo Claude Code Remote Control servers hosted in Herdr.
 //
 // Exit codes: 0 success, 1 runtime failure or refusal, 2 usage, 130 on a
-// Ctrl+C at a restart confirmation.
+// Ctrl+C at a restart (up) or stop (down) confirmation.
 func runRc(args []string, stdout, stderr io.Writer, stdin io.Reader, r exec.Runner) int {
 	fs := flag.NewFlagSet("rc", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -144,6 +145,8 @@ func runRc(args []string, stdout, stderr io.Writer, stdin io.Reader, r exec.Runn
 		return rcRemove(env, operands)
 	case "up":
 		return rcUp(env)
+	case "down":
+		return rcDown(env)
 	case "status":
 		return rcStatus(env)
 	case "enable":

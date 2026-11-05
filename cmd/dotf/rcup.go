@@ -45,6 +45,9 @@ func rcSelect(env rcEnv) ([]rc.Resolved, int) {
 	var out []rc.Resolved
 	for _, want := range strings.Split(env.o.only, ",") {
 		want = strings.TrimSpace(want)
+		if slices.ContainsFunc(out, func(r rc.Resolved) bool { return r.Name == want }) {
+			continue // a repeated name acts once
+		}
 		i := slices.IndexFunc(repos, func(r rc.Resolved) bool { return r.Name == want })
 		if i < 0 {
 			_, _ = fmt.Fprintf(env.stderr, "%s: --only: no configured repo named %q\n", progName, want)
@@ -174,7 +177,7 @@ func rcUp(env rcEnv) int {
 			if !v {
 				// claude exited at once (logged out, trust declined, bad flag)
 				// or never started: that is a failed start.
-				res.Error = fmt.Sprintf("no server process appeared within %s; check its rc tab", rc.VerifyTimeout)
+				res.Error = fmt.Sprintf("no server process started and stayed up within %s; check its rc tab", rc.VerifyTimeout)
 				failed++
 			}
 		}

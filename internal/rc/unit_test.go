@@ -17,6 +17,9 @@ func TestRenderUnit(t *testing.T) {
 		"Environment=PATH=/a:/b\n",
 		`ExecStart="/opt/my tools/dotf" rc up --config "/c/$$HOME/rc 100%%.toml"` + "\n",
 		"TimeoutStartSec=infinity\n",
+		"TimeoutStopSec=120\n",
+		"SuccessExitStatus=1\n",
+		`ExecStop="/opt/my tools/dotf" rc down --yes --config "/c/$$HOME/rc 100%%.toml"` + "\n",
 	} {
 		if !strings.Contains(u, want) {
 			t.Errorf("unit lacks %q:\n%s", want, u)

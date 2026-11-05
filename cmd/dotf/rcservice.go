@@ -104,8 +104,8 @@ func rcEnable(env rcEnv) int {
 	return 0
 }
 
-// rcDisable disables the unit (with --now, also stops it; servers already
-// running in Herdr are left alone) and removes the unit file dotf wrote.
+// rcDisable disables the unit (with --now, also stops it, whose ExecStop runs
+// `dotf rc down --yes`) and removes the unit file dotf wrote.
 func rcDisable(env rcEnv) int {
 	if !rcServiceSupported(env) {
 		return reportErr(env.stderr, fmt.Errorf("rc disable needs Linux with systemd (systemctl --user)"))

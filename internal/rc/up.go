@@ -85,7 +85,7 @@ func (s Starter) Prepare(p *Plan) (Workspace, bool, error) {
 	if err != nil {
 		return Workspace{}, false, err
 	}
-	_, ok, err := s.H.FindTab(ws.ID, DefaultTabLabel)
+	_, ok, err := s.H.RepoTab(ws.ID, p.Repo.Path)
 	if err != nil {
 		return ws, created, err
 	}
@@ -106,7 +106,7 @@ func (s Starter) Apply(p Plan, ws Workspace, restart bool) (Result, error) {
 			res.Stopped = append(res.Stopped, srv.PID)
 		}
 	}
-	tab, ok, err := s.H.FindTab(ws.ID, DefaultTabLabel)
+	tab, ok, err := s.H.RepoTab(ws.ID, p.Repo.Path)
 	if err != nil {
 		return res, err
 	}
@@ -139,12 +139,25 @@ func (s Starter) Apply(p Plan, ws Workspace, restart bool) (Result, error) {
 	return res, nil
 }
 
-// waitForServer polls until a server is running in dir or timeout elapses.
+// VerifySettle is how long a newly seen server must stay up to count as
+// started. claude validates its flags and environment after the process
+// appears (e.g. --spawn worktree outside a git repo), so a process that is
+// seen once may already be exiting with an error. Exported so tests run fast.
+var VerifySettle = 3 * time.Second
+
+// waitForServer polls until a server is running in dir and that same process
+// is still running VerifySettle later, or timeout elapses.
 func waitForServer(dir string, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for {
 		if servers, err := FindServers(); err == nil && len(servers[dir]) > 0 {
-			return true
+			seen := servers[dir][0]
+			time.Sleep(VerifySettle)
+			if isServer(seen) {
+				return true
+			}
+			// It exited; a replacement (re-exec, auto-update) may still come
+			// up, so keep polling until the deadline instead of failing now.
 		}
 		if time.Now().After(deadline) {
 			return false

@@ -33,7 +33,8 @@ func UnitPath(home string) string {
 // otherwise minimal user environment. The unit is a oneshot: `dotf rc up`
 // starts the servers in Herdr and exits. KillMode=process keeps a stop or
 // restart of the unit from killing the Herdr server (and every pane in it)
-// that `up` may have launched into the unit's cgroup.
+// that `up` may have launched into the unit's cgroup; ExecStop runs
+// `dotf rc down --yes`, which stops only the configured repos' servers.
 func RenderUnit(dotfBin, configPath, pathEnv string) string {
 	var b strings.Builder
 	b.WriteString(unitMarker + "\n")
@@ -48,15 +49,27 @@ func RenderUnit(dotfBin, configPath, pathEnv string) string {
 	b.WriteString("Type=oneshot\n")
 	b.WriteString("RemainAfterExit=yes\n")
 	fmt.Fprintf(&b, "Environment=%s\n", systemdQuote("PATH="+pathEnv))
-	exec := execQuote(dotfBin) + " rc up"
+	cfgArg := ""
 	if configPath != "" {
-		exec += " --config " + execQuote(configPath)
+		cfgArg = " --config " + execQuote(configPath)
 	}
-	fmt.Fprintf(&b, "ExecStart=%s\n", exec)
+	fmt.Fprintf(&b, "ExecStart=%s rc up%s\n", execQuote(dotfBin), cfgArg)
+	// Stopping the unit (systemctl stop, disable --now, logout) brings the
+	// servers down again; --yes because there is no terminal to confirm on.
+	fmt.Fprintf(&b, "ExecStop=%s rc down --yes%s\n", execQuote(dotfBin), cfgArg)
+	// up exits 1 when some repos failed (a missing dir, a start that did not
+	// stay up) while others started. Count that as success: a failed oneshot
+	// never runs ExecStop, so the servers that did start would leak past
+	// systemctl stop and logout. Per-repo failures stay in the journal and in
+	// `dotf rc status`; usage errors (2) and aborts still fail the unit.
+	b.WriteString("SuccessExitStatus=1\n")
 	b.WriteString("KillMode=process\n")
 	// No start timeout: up's per-repo waits (stop, shell ready, verify) add up
 	// with several repos on a slow login, and a timeout would kill it midway.
-	b.WriteString("TimeoutStartSec=infinity\n\n")
+	b.WriteString("TimeoutStartSec=infinity\n")
+	// down waits up to StopGrace per server before SIGKILL; bound the stop so
+	// a stuck Herdr call cannot hold up logout or shutdown indefinitely.
+	b.WriteString("TimeoutStopSec=120\n\n")
 	b.WriteString("[Install]\n")
 	b.WriteString("WantedBy=default.target\n")
 	return b.String()

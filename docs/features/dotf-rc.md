@@ -82,9 +82,10 @@ file, so hand edits to values are kept but comments are not. Unknown keys are re
    `rc` tab with a fresh one. `--yes` restarts without asking. Without a terminal and without
    `--yes` (for example under the service), the running server is kept.
 5. Otherwise it reuses the idle `rc` tab or creates one, waits for its shell to finish starting,
-   types the command, and checks that a server process appeared within 10 seconds. If none did
-   (for example, Claude is logged out or the folder isn't trusted), that repo counts as failed and
-   `up` exits 1.
+   types the command, and checks that a server process appears within 10 seconds and is still
+   running 3 seconds later. If not, that repo counts as failed and `up` exits 1. Typical causes are
+   being logged out, an untrusted folder, or `spawn = 'worktree'` in a folder that isn't a git
+   repo.
 
 Ctrl+C is intercepted only while a restart prompt is open (exit 130). During every other phase it
 interrupts `up` as usual.
@@ -100,15 +101,33 @@ DO_NOT_TRACK=0 command claude --allow-dangerously-skip-permissions remote-contro
 
 `--dry-run` prints the plan and every command without touching Herdr or any process.
 
+## What `down` does
+
+`down` is the inverse of `up`. For each configured repo (or `--only`), it stops every Remote Control
+server running there, using the same `/proc` match and per-signal PID re-check as a restart
+(SIGTERM, then SIGKILL after 5 seconds). It then closes the repo's `rc` tab, which also ends a
+server `/proc` could not see. Only an `rc` tab whose pane is in the repo folder counts, so a tab
+you named `rc` elsewhere is never closed (`up`'s restart uses the same rule). It lists what it
+will stop and asks once; `--yes` skips the question, and without a terminal and without `--yes` it
+refuses (exit 1). `--dry-run` prints the same list without stopping anything.
+
+`down` never starts Herdr. If no Herdr server is running it only stops processes. It never touches
+a server or tab outside the configured repos.
+
 ## Starting at login vs. by hand
 
 - **By hand:** run `dotf rc up` after you boot. Run it again whenever you add a path; repos that
   are already running are left alone unless you confirm a restart.
 - **As a service:** `dotf rc enable` writes `~/.config/systemd/user/dotf-rc.service`, a oneshot
-  that runs `dotf rc up` at login. The unit records the `dotf` path, the config path, and a `PATH` that includes the
-  directories holding `dotf`, `herdr` and `claude`, so rerun `dotf rc enable` if you move them.
-  `KillMode=process` means stopping or restarting the unit never kills Herdr or the servers. To
-  start servers at boot without logging in, also run `loginctl enable-linger "$USER"`.
+  that runs `dotf rc up` at login. Stopping the unit runs `dotf rc down --yes`, so
+  `systemctl --user stop dotf-rc.service` and `dotf rc disable --now` bring the servers down.
+  `KillMode=process` means stopping the unit never kills Herdr itself; only `down` stops the
+  servers. `up` exiting 1 because some repos failed still leaves the unit active
+  (`SuccessExitStatus=1`), so its stop step runs for the repos that did start; per-repo failures
+  are in `journalctl --user -u dotf-rc` and `dotf rc status`. A unit written before `down` existed
+  has no stop step, so rerun `dotf rc enable` to update it. The unit records the `dotf` path, the config path, and a `PATH` that includes the
+  directories holding `dotf`, `herdr` and `claude`, so also rerun `dotf rc enable` if you move
+  them. To start servers at boot without logging in, also run `loginctl enable-linger "$USER"`.
 
 `enable` and `disable` refuse to touch a `dotf-rc.service` that `dotf` did not write unless you pass
 `--force`.
@@ -122,4 +141,5 @@ On macOS, run `dotf rc up` by hand.
 
 ## Exit codes
 
-`0` success; `1` a repo failed or a refusal; `2` usage error; `130` Ctrl+C at a restart prompt.
+`0` success; `1` a repo failed or a refusal; `2` usage error; `130` Ctrl+C at a restart (`up`) or
+stop (`down`) prompt.

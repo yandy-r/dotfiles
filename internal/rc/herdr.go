@@ -40,6 +40,9 @@ type Pane struct {
 	TabID       string `json:"tab_id"`
 	WorkspaceID string `json:"workspace_id"`
 	Cwd         string `json:"cwd"`
+	// ForegroundCwd is the cwd of the pane's foreground process (the server,
+	// while one runs).
+	ForegroundCwd string `json:"foreground_cwd"`
 }
 
 func (h Herdr) bin() string {
@@ -227,6 +230,32 @@ func (h Herdr) FindTab(workspaceID, label string) (Tab, bool, error) {
 	for _, t := range tabs {
 		if t.Label == label {
 			return t, true, nil
+		}
+	}
+	return Tab{}, false, nil
+}
+
+// RepoTab returns the rc tab dotf manages for the repo at dir: a tab labelled
+// DefaultTabLabel in workspaceID with a pane whose cwd (or foreground cwd) is
+// dir. Requiring the cwd keeps up's restart and down from closing a tab the
+// user happened to name "rc" in a loosely matched workspace.
+func (h Herdr) RepoTab(workspaceID, dir string) (Tab, bool, error) {
+	tabs, err := h.Tabs(workspaceID)
+	if err != nil {
+		return Tab{}, false, err
+	}
+	panes, err := h.Panes(workspaceID)
+	if err != nil {
+		return Tab{}, false, err
+	}
+	for _, t := range tabs {
+		if t.Label != DefaultTabLabel {
+			continue
+		}
+		for _, p := range panes {
+			if p.TabID == t.ID && (p.Cwd == dir || p.ForegroundCwd == dir) {
+				return t, true, nil
+			}
 		}
 	}
 	return Tab{}, false, nil

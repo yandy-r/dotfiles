@@ -28,9 +28,10 @@ func rcRun(t *testing.T, r exec.Runner, cfg string, stdin io.Reader, args ...str
 
 func rcTestEnv(t *testing.T) (cfg, repoA, repoB string) {
 	t.Helper()
-	vt, rp, rt := rc.VerifyTimeout, rc.ReadyPoll, rc.ReadyTimeout
-	t.Cleanup(func() { rc.VerifyTimeout, rc.ReadyPoll, rc.ReadyTimeout = vt, rp, rt })
-	rc.VerifyTimeout, rc.ReadyPoll, rc.ReadyTimeout = 0, time.Millisecond, 20*time.Millisecond
+	vt, vs, rp, rt := rc.VerifyTimeout, rc.VerifySettle, rc.ReadyPoll, rc.ReadyTimeout
+	t.Cleanup(func() { rc.VerifyTimeout, rc.VerifySettle, rc.ReadyPoll, rc.ReadyTimeout = vt, vs, rp, rt })
+	rc.VerifyTimeout, rc.VerifySettle, rc.ReadyPoll, rc.ReadyTimeout = 0, time.Millisecond, time.Millisecond, 20*time.Millisecond
+
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
@@ -137,6 +138,10 @@ func TestRc_UpStartsEachRepo(t *testing.T) {
 	if code, _, _ := rcRun(t, h2, cfg, nil, "up", "--only", "beta"); code > 1 || len(h2.Workspaces) != 1 || h2.Workspaces[0].Label != "beta" {
 		t.Errorf("--only beta: code=%d workspaces=%v", code, h2.Workspaces)
 	}
+	h3 := rc.NewFakeHerdr()
+	if _, out, _ := rcRun(t, h3, cfg, nil, "up", "--only", "beta,beta"); strings.Count(out, "rc.up=beta") != 1 || len(h3.Typed) != 1 {
+		t.Errorf("--only beta,beta acted more than once: %s typed=%v", out, h3.Typed)
+	}
 	if code, _, _ := rcRun(t, h2, cfg, nil, "up", "--only", "nope"); code != 2 {
 		t.Errorf("--only unknown exit = %d, want 2", code)
 	}
@@ -234,5 +239,81 @@ func TestRc_EnableDisable(t *testing.T) {
 	}
 	if code, _, _ := rcRun(t, h, cfg, nil, "enable", "--force"); code != 0 {
 		t.Error("enable --force failed")
+	}
+}
+
+func TestRc_Down(t *testing.T) {
+	cfg, a, b := rcTestEnv(t)
+	if code, _, _ := rcRun(t, exec.NewFake(), cfg, nil, "add", a, b); code != 0 {
+		t.Fatal("add failed")
+	}
+	h := rc.NewFakeHerdr()
+	_, _, _ = rcRun(t, h, cfg, nil, "up") // creates an rc tab per repo
+	// An unrelated workspace with its own rc tab must survive down.
+	h.Workspaces = append(h.Workspaces, rc.Workspace{ID: "wX", Label: "other"})
+	h.Tabs = append(h.Tabs, rc.Tab{ID: "wX:t1", Label: rc.DefaultTabLabel, WorkspaceID: "wX"})
+	h.Panes = append(h.Panes, rc.Pane{ID: "wX:p1", TabID: "wX:t1", WorkspaceID: "wX", Cwd: a}) // even in a repo dir
+	rcTabs := func() int {
+		n := 0
+		for _, tab := range h.Tabs {
+			if tab.Label == rc.DefaultTabLabel {
+				n++
+			}
+		}
+		return n
+	}
+	if rcTabs() != 3 {
+		t.Fatalf("setup: %d rc tabs, want 3", rcTabs())
+	}
+
+	if code, out, _ := rcRun(t, h, cfg, nil, "down", "--dry-run"); code != 0 || !strings.Contains(out, "action=would-stop") || rcTabs() != 3 {
+		t.Fatalf("down --dry-run = %d, rc tabs %d\n%s", code, rcTabs(), out)
+	}
+	if code, _, errs := rcRun(t, h, cfg, nil, "down"); code != 1 || !strings.Contains(errs, "without --yes") || rcTabs() != 3 {
+		t.Fatalf("non-interactive down without --yes = %d, rc tabs %d: %s", code, rcTabs(), errs)
+	}
+	if code, out, _ := rcRun(t, h, cfg, nil, "down", "--only", "beta", "--yes"); code != 0 || rcTabs() != 2 ||
+		!strings.Contains(out, "rc.down=beta action=stop") || strings.Contains(out, "alpha") {
+		t.Fatalf("down --only beta = %d, rc tabs %d\n%s", code, rcTabs(), out)
+	}
+	if code, _, _ := rcRun(t, h, cfg, nil, "down", "--yes"); code != 0 || rcTabs() != 1 {
+		t.Fatalf("down --yes left %d rc tabs, want only the unrelated one", rcTabs())
+	}
+	if code, _, errs := rcRun(t, h, cfg, nil, "down", "--yes"); code != 0 || !strings.Contains(errs, "no Remote Control servers or rc tabs") {
+		t.Fatalf("second down = %d %s", code, errs)
+	}
+}
+
+func TestRc_DownConfirm(t *testing.T) {
+	cfg, a, _ := rcTestEnv(t)
+	if code, _, _ := rcRun(t, exec.NewFake(), cfg, nil, "add", a); code != 0 {
+		t.Fatal("add failed")
+	}
+	orig := rcInteractive
+	t.Cleanup(func() { rcInteractive = orig })
+	rcInteractive = func(io.Reader, io.Writer) bool { return true }
+
+	h := rc.NewFakeHerdr()
+	_, _, _ = rcRun(t, h, cfg, nil, "up")
+	if code, out, errs := rcRun(t, h, cfg, strings.NewReader("n\n"), "down"); code != 1 || !strings.Contains(out, "bring down 1 repo(s)?") || !strings.Contains(errs, "not confirmed") {
+		t.Fatalf("declined down = %d\n%s\n%s", code, out, errs)
+	}
+	if h.Called("herdr tab close") {
+		t.Fatal("declined down closed a tab")
+	}
+	if code, _, _ := rcRun(t, h, cfg, strings.NewReader("y\n"), "down"); code != 0 || !h.Called("herdr tab close") {
+		t.Fatalf("confirmed down = %d", code)
+	}
+}
+
+func TestRc_DownWithoutHerdrServer(t *testing.T) {
+	cfg, a, _ := rcTestEnv(t)
+	if code, _, _ := rcRun(t, exec.NewFake(), cfg, nil, "add", a); code != 0 {
+		t.Fatal("add failed")
+	}
+	h := rc.NewFakeHerdr()
+	h.Running = false
+	if code, _, _ := rcRun(t, h, cfg, nil, "down", "--yes"); code != 0 || h.Called("herdr workspace") || h.Called("herdr tab") {
+		t.Fatalf("down with no herdr server = %d, calls %v", code, h.Calls)
 	}
 }

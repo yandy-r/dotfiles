@@ -490,7 +490,7 @@ var helpRegistry = []commandHelp{
 	{
 		name:    "rc",
 		summary: "Run Claude Code Remote Control servers for a list of repos in Herdr",
-		usage:   "dotf rc <list|add|remove|up|status|enable|disable> [flags]",
+		usage:   "dotf rc <list|add|remove|up|down|status|enable|disable> [flags]",
 		long: "Keep one Claude Code Remote Control server (claude remote-control) running per\n" +
 			"repo, each in an \"rc\" tab of that repo's Herdr workspace. A server is tied to\n" +
 			"the directory it starts in, so one per repo keeps that repo's settings, MCP\n" +
@@ -506,13 +506,16 @@ var helpRegistry = []commandHelp{
 			"the repo, up asks before stopping it (SIGTERM, then SIGKILL after 5s) and\n" +
 			"starting a new one; --yes restarts without asking, and without a terminal and\n" +
 			"without --yes the running server is kept. --dry-run prints the plan and each\n" +
-			"command without touching Herdr or any process. status reports which repos have\n" +
-			"a running server and the service state.\n" +
+			"command without touching Herdr or any process. down is the inverse: it stops\n" +
+			"every server running in a configured repo and closes the repo's rc tab, after\n" +
+			"one confirmation (--yes skips it; without a terminal it refuses). It never\n" +
+			"starts Herdr and never touches a directory that is not a configured repo.\n" +
+			"status reports which repos have a running server and the service state.\n" +
 			"\n" +
 			"enable installs a systemd user unit (dotf-rc.service, Linux) that runs\n" +
-			"`dotf rc up` at login; --now also starts it. disable removes it; servers\n" +
-			"already running are left alone. Without the service, run `dotf rc up` by hand\n" +
-			"after boot. Neither verb touches a unit file dotf did not write unless --force.",
+			"`dotf rc up` at login and `dotf rc down --yes` when stopped; --now also starts\n" +
+			"it. disable removes it (with --now it stops it first, bringing the servers\n" +
+			"down). Without the service, run `dotf rc up` by hand after boot. Neither verb touches a unit file dotf did not write unless --force.",
 		examples: []string{
 			"dotf rc add ~/.config/dotfiles ~/Projects/github.com/me/app",
 			"dotf rc add ~/work/api --name api --permission-mode acceptEdits",
@@ -520,6 +523,8 @@ var helpRegistry = []commandHelp{
 			"dotf rc up --dry-run",
 			"dotf rc up",
 			"dotf rc up --only api --yes",
+			"dotf rc down --dry-run",
+			"dotf rc down --yes",
 			"dotf rc status --json",
 			"dotf rc enable --now",
 			"dotf rc remove app",
