@@ -20,7 +20,7 @@ var dispatchableCommands = []string{
 // allRegistryNames is the full ordered set the registry must expose.
 var allRegistryNames = []string{
 	"version", "platform", "plan", "install", "status",
-	"diff", "doctor", "link", "unlink", "backup", "sysconfig", "apply", "lock", "self-update", "setup", "plasma", "deb", "completion", "help",
+	"diff", "doctor", "link", "unlink", "backup", "sysconfig", "apply", "lock", "self-update", "setup", "plasma", "deb", "rc", "completion", "help",
 }
 
 func TestIsHelpToken(t *testing.T) {

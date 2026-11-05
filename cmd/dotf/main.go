@@ -91,6 +91,8 @@ func run(args []string) int {
 		return runPlasma(rest, os.Stdout, os.Stderr, exec.New())
 	case "deb":
 		return runDeb(rest, os.Stdout, os.Stderr, exec.New())
+	case "rc":
+		return runRc(rest, os.Stdout, os.Stderr, os.Stdin, exec.New())
 	case "completion":
 		return runCompletion(rest, os.Stdout, os.Stderr)
 	default:

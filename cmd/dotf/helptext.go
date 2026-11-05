@@ -488,6 +488,45 @@ var helpRegistry = []commandHelp{
 		setFlags: func(fs *flag.FlagSet) { setDebFlags(fs) },
 	},
 	{
+		name:    "rc",
+		summary: "Run Claude Code Remote Control servers for a list of repos in Herdr",
+		usage:   "dotf rc <list|add|remove|up|status|enable|disable> [flags]",
+		long: "Keep one Claude Code Remote Control server (claude remote-control) running per\n" +
+			"repo, each in an \"rc\" tab of that repo's Herdr workspace. A server is tied to\n" +
+			"the directory it starts in, so one per repo keeps that repo's settings, MCP\n" +
+			"servers, hooks and git worktrees. The repo list is user-local, in\n" +
+			"${XDG_CONFIG_HOME:-~/.config}/dotf/rc.toml (--config overrides), and add/remove\n" +
+			"edit it; the first add writes explicit defaults: permission_mode=auto,\n" +
+			"allow_bypass=true (bypass stays reachable from a session), spawn=worktree, and\n" +
+			"env DO_NOT_TRACK=0. add accepts per-repo --name, --permission-mode and --spawn.\n" +
+			"\n" +
+			"up starts the Herdr server if needed, then per repo ensures a workspace and an\n" +
+			"rc tab and types the claude command into it (through `command`, so a shell\n" +
+			"alias for claude cannot change its flags). If a server is already running in\n" +
+			"the repo, up asks before stopping it (SIGTERM, then SIGKILL after 5s) and\n" +
+			"starting a new one; --yes restarts without asking, and without a terminal and\n" +
+			"without --yes the running server is kept. --dry-run prints the plan and each\n" +
+			"command without touching Herdr or any process. status reports which repos have\n" +
+			"a running server and the service state.\n" +
+			"\n" +
+			"enable installs a systemd user unit (dotf-rc.service, Linux) that runs\n" +
+			"`dotf rc up` at login; --now also starts it. disable removes it; servers\n" +
+			"already running are left alone. Without the service, run `dotf rc up` by hand\n" +
+			"after boot. Neither verb touches a unit file dotf did not write unless --force.",
+		examples: []string{
+			"dotf rc add ~/.config/dotfiles ~/Projects/github.com/me/app",
+			"dotf rc add ~/work/api --name api --permission-mode acceptEdits",
+			"dotf rc list",
+			"dotf rc up --dry-run",
+			"dotf rc up",
+			"dotf rc up --only api --yes",
+			"dotf rc status --json",
+			"dotf rc enable --now",
+			"dotf rc remove app",
+		},
+		setFlags: func(fs *flag.FlagSet) { setRcFlags(fs) },
+	},
+	{
 		name:    "completion",
 		summary: "Generate a shell completion script (bash, zsh, or fish)",
 		usage:   "dotf completion [shell] [flags]",

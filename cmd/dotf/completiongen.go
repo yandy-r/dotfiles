@@ -41,6 +41,10 @@ var completionPlasmaVerbs = plasmaVerbs
 // candidate set, aliasing backupVerbs for the same single-source reason.
 var completionBackupVerbs = backupVerbs
 
+// completionRcVerbs is the `dotf rc <verb>` positional's completion candidate
+// set, aliasing rcVerbs for the same single-source reason.
+var completionRcVerbs = rcVerbs
+
 // enumUsageRe extracts a "value set" from a flag's usage string: a run of
 // pipe-separated bareword tokens like "ufw|firewalld|auto|off" or "true|false".
 // This lets a flag whose usage already documents its choices offer them as
@@ -229,6 +233,7 @@ func positionalCommands(m completionModel) []positionalCommand {
 		{Command: "deb", Label: "path", IsPath: true},
 		{Command: "help", Label: "command", Candidates: m.commandNames()},
 		{Command: "plasma", Label: "verb", Candidates: completionPlasmaVerbs},
+		{Command: "rc", Label: "verb", Candidates: completionRcVerbs},
 		{Command: "setup", Label: "domain", Candidates: completionModules},
 	}
 }

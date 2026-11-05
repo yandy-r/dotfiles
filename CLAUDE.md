@@ -818,7 +818,8 @@ platform env cache `${XDG_CACHE_HOME:-~/.cache}/dotfiles/platform.env` that `com
 loads instead of re-detecting; `apply`/`link` refresh it after a successful run), `plan`, `install`,
 `status`, `diff`, `doctor`, `link`, `backup` (list/restore/prune symlink backup dirs),
 `sysconfig`, `apply`, `lock`, `self-update`, `setup`,
-`plasma` (KDE Plasma 6 config set), `deb` (.deb → pacman conversion), `completion` (generate
+`plasma` (KDE Plasma 6 config set), `deb` (.deb → pacman conversion), `rc` (per-repo Claude
+Code Remote Control servers in Herdr, with an optional systemd user unit), `completion` (generate
 bash/zsh/fish completion scripts, with `--install`/`--force`/`--dry-run`), and `help` (rich
 global/per-command help, also via `--help`/`-h` on any command).
 
@@ -837,7 +838,7 @@ always-in-sync completion or if the subcommand set grows substantially.
 | Layer               | Technology              | Notes                                                           |
 | ------------------- | ----------------------- | --------------------------------------------------------------- |
 | Primary language    | **mixed** (shell-first) | Bash + Zsh configurations, helper scripts                       |
-| Go (provisioning)   | Go 1.26                 | `dotf` CLI: `cmd/dotf` entrypoint + `internal/*`; subcommands `version`/`platform`/`plan`/`install`/`status`/`diff`/`doctor`/`link` (native symlink engine)/`backup` (list/restore/prune symlink backup dirs)/`sysconfig` (per-OS system config)/`apply` (headless orchestration + flag/env parity, snapper, plasma phase, failure summary)/`lock`/`self-update`/`setup`/`plasma` (curated KDE Plasma 6 config set, native KConfig codec)/`deb` (verified .deb → pacman conversion via debtap)/`completion` (bash/zsh/fish completion scripts, `--install`/`--force`/`--dry-run`)/`help` (rich global + per-command help, also `--help`/`-h`); canonical platform detection |
+| Go (provisioning)   | Go 1.26                 | `dotf` CLI: `cmd/dotf` entrypoint + `internal/*`; subcommands `version`/`platform`/`plan`/`install`/`status`/`diff`/`doctor`/`link` (native symlink engine)/`backup` (list/restore/prune symlink backup dirs)/`sysconfig` (per-OS system config)/`apply` (headless orchestration + flag/env parity, snapper, plasma phase, failure summary)/`lock`/`self-update`/`setup`/`plasma` (curated KDE Plasma 6 config set, native KConfig codec)/`deb` (verified .deb → pacman conversion via debtap)/`rc` (per-repo Claude Code Remote Control servers in Herdr + `dotf-rc.service` user unit)/`completion` (bash/zsh/fish completion scripts, `--install`/`--force`/`--dry-run`)/`help` (rich global + per-command help, also `--help`/`-h`); canonical platform detection |
 | Secondary languages | JavaScript, Python      | dev tooling (commitlint), utility scripts                       |
 | Package manager     | npm                     | dev-only: linters, commit hooks                                 |
 | Infrastructure      | Ansible (retired for symlinks) | Symlinks use native `dotf link` (`internal/symlink`); as of Phase 7 `bootstrap.sh` is a shim that downloads `dotf` and execs `dotf apply`. `playbooks/symlinks.yml` is historical-rollback-only |

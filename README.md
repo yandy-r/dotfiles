@@ -292,6 +292,32 @@ via `--linux-desktop` / `LINUX_DESKTOP=true`.
 
 For non-interactive mode details, see [bin/NON_INTERACTIVE.md](bin/NON_INTERACTIVE.md).
 
+### `dotf rc` — Claude Code Remote Control servers per repo
+
+`dotf rc` (`internal/rc`) keeps one [Claude Code Remote Control](https://code.claude.com/docs)
+server (`claude remote-control`) running per repo, each in an `rc` tab of that repo's
+[Herdr](herdr/) workspace. A server is tied to the directory it starts in, so one per repo keeps
+that repo's settings, MCP servers, hooks and git worktrees. The repo list is user-local, in
+`${XDG_CONFIG_HOME:-~/.config}/dotf/rc.toml`, so you can add paths at will. See
+[`docs/features/dotf-rc.md`](docs/features/dotf-rc.md) for the config format and behavior.
+
+| Verb                 | Effect                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| `add <path>…`        | Add repos (first add writes explicit defaults); `--name`, `--permission-mode`, `--spawn`         |
+| `remove <name>…`     | Remove repos by name or path                                                                     |
+| `list`               | Show the repos with their effective settings                                                     |
+| `up`                 | Start every repo's server in Herdr; asks before restarting one already running (`--yes`)         |
+| `status`             | Which repos have a running server, plus the service state                                        |
+| `enable` / `disable` | Install / remove the `dotf-rc.service` systemd user unit that runs `dotf rc up` at login (Linux) |
+
+```bash
+dotf rc add ~/.config/dotfiles ~/Projects/github.com/me/app
+dotf rc up --dry-run      # print each command; touches nothing
+dotf rc up                # start now (or run this by hand after boot)
+dotf rc enable --now      # ...or start at every login
+dotf rc status
+```
+
 ### `dotf completion` — shell completion scripts
 
 `dotf completion <bash|zsh|fish>` prints a completion script to stdout, or with `--install` writes
