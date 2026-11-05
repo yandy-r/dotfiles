@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -29,6 +30,11 @@ const (
 	DefaultSpawn          = "worktree"
 	DefaultClaude         = "claude"
 	DefaultTabLabel       = "rc"
+	// DefaultProfile is the implicit profile: the top-level keys, run with
+	// Claude's own default config dir. It cannot be configured.
+	DefaultProfile = "claude"
+	// ConfigDirEnv is the variable a profile's config_dir is exported as.
+	ConfigDirEnv = "CLAUDE_CONFIG_DIR"
 )
 
 // PermissionModes is the closed set `claude remote-control --permission-mode`
@@ -60,14 +66,44 @@ type Config struct {
 	Claude string `toml:"claude,omitempty"`
 	// Env is prepended to the command as KEY=VALUE assignments.
 	Env map[string]string `toml:"env,omitempty"`
+	// Profiles are the named Claude subscriptions, keyed by name. The default
+	// profile (DefaultProfile) is implicit and absent from this map.
+	Profiles map[string]Profile `toml:"profile,omitempty"`
 	// Repos is the ordered list of repos to host a server for.
 	Repos []Repo `toml:"repo"`
+}
+
+// Profile is one [profile.<name>] table: a Claude subscription identified by
+// its config dir, with its own defaults. Only ConfigDir is required.
+type Profile struct {
+	// ConfigDir is exported as CLAUDE_CONFIG_DIR (absolute or ~/...).
+	ConfigDir      string            `toml:"config_dir"`
+	PermissionMode string            `toml:"permission_mode,omitempty"`
+	AllowBypass    *bool             `toml:"allow_bypass,omitempty"`
+	Spawn          string            `toml:"spawn,omitempty"`
+	Env            map[string]string `toml:"env,omitempty"`
+	// Permissions, when set, are synced into <ConfigDir>/settings.json by up.
+	Permissions *Permissions `toml:"permissions,omitempty"`
+}
+
+// Permissions are Claude Code permission rules. A nil list is left alone in
+// settings.json; a non-nil (even empty) list replaces it.
+type Permissions struct {
+	Allow *[]string `toml:"allow,omitempty"`
+	Deny  *[]string `toml:"deny,omitempty"`
+	Ask   *[]string `toml:"ask,omitempty"`
+}
+
+// lists returns the rule lists keyed by their settings.json name.
+func (p Permissions) lists() map[string]*[]string {
+	return map[string]*[]string{"allow": p.Allow, "deny": p.Deny, "ask": p.Ask}
 }
 
 // Repo is one [[repo]] entry. Only Path is required.
 type Repo struct {
 	Path           string `toml:"path"`
 	Name           string `toml:"name,omitempty"`
+	Profile        string `toml:"profile,omitempty"`
 	PermissionMode string `toml:"permission_mode,omitempty"`
 	Spawn          string `toml:"spawn,omitempty"`
 }
@@ -77,6 +113,9 @@ type Repo struct {
 type Resolved struct {
 	Name           string
 	Path           string
+	Profile        string // DefaultProfile when the repo names none
+	ConfigDir      string // expanded config_dir; empty for the default profile
+	Permissions    *Permissions
 	PermissionMode string
 	Spawn          string
 	AllowBypass    bool
@@ -129,8 +168,10 @@ func Load(path string) (cfg *Config, exists bool, err error) {
 
 const fileHeader = "# dotf rc: Claude Code Remote Control servers, one per repo.\n" +
 	"# Managed by `dotf rc add/remove`; hand edits are kept but comments are not.\n" +
-	"# Keys: permission_mode, allow_bypass, spawn, claude, [env], and [[repo]]\n" +
-	"# entries with path (required), name, permission_mode, spawn.\n\n"
+	"# Keys: permission_mode, allow_bypass, spawn, claude, [env], [profile.<name>]\n" +
+	"# tables (config_dir required; permission_mode, allow_bypass, spawn, env,\n" +
+	"# [profile.<name>.permissions] allow/deny/ask), and [[repo]] entries with\n" +
+	"# path (required), name, profile, permission_mode, spawn.\n\n"
 
 // Save writes cfg to path atomically (temp file + rename), creating the parent
 // directory.
@@ -173,10 +214,11 @@ func (c *Config) Validate() error {
 	if err := checkEnum("spawn", c.Spawn, SpawnModes); err != nil {
 		return err
 	}
-	for k := range c.Env {
-		if !envKeyRe.MatchString(k) {
-			return fmt.Errorf("env: invalid variable name %q", k)
-		}
+	if err := checkEnv("env", c.Env); err != nil {
+		return err
+	}
+	if err := c.validateProfiles(); err != nil {
+		return err
 	}
 	seen := map[string]string{}
 	for i, r := range c.Repos {
@@ -189,6 +231,9 @@ func (c *Config) Validate() error {
 		if err := checkEnum(fmt.Sprintf("repo[%d].spawn", i), r.Spawn, SpawnModes); err != nil {
 			return err
 		}
+		if _, ok := c.Profiles[r.Profile]; r.Profile != "" && r.Profile != DefaultProfile && !ok {
+			return fmt.Errorf("repo[%d]: profile %q is not defined (add a [profile.%s] table)", i, r.Profile, r.Profile)
+		}
 		name := r.EffectiveName()
 		if !nameRe.MatchString(name) {
 			return fmt.Errorf("repo[%d]: name %q must match %s (set name explicitly)", i, name, nameRe)
@@ -197,6 +242,65 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("repo name %q is used by both %s and %s; set a distinct name", name, prev, r.Path)
 		}
 		seen[name] = r.Path
+	}
+	return nil
+}
+
+// validateProfiles checks every [profile.<name>] table.
+func (c *Config) validateProfiles() error {
+	names := make([]string, 0, len(c.Profiles))
+	for n := range c.Profiles {
+		names = append(names, n)
+	}
+	slices.Sort(names) // deterministic first error
+	dirs := map[string]string{}
+	for _, n := range names {
+		p, field := c.Profiles[n], "profile."+n
+		switch {
+		case n == DefaultProfile:
+			return fmt.Errorf("%s: %q is the reserved default profile; configure it with the top-level keys", field, n)
+		case !nameRe.MatchString(n):
+			return fmt.Errorf("%s: name must match %s", field, nameRe)
+		case strings.TrimSpace(p.ConfigDir) == "":
+			return fmt.Errorf("%s: config_dir is required", field)
+		case !filepath.IsAbs(p.ConfigDir) && p.ConfigDir != "~" && !strings.HasPrefix(p.ConfigDir, "~/"):
+			return fmt.Errorf("%s: config_dir %q must be absolute or start with ~/", field, p.ConfigDir)
+		}
+		key := filepath.Clean(p.ConfigDir)
+		if prev, dup := dirs[key]; dup {
+			return fmt.Errorf("profiles %q and %q share config_dir %s", prev, n, p.ConfigDir)
+		}
+		dirs[key] = n
+		if err := checkEnum(field+".permission_mode", p.PermissionMode, PermissionModes); err != nil {
+			return err
+		}
+		if err := checkEnum(field+".spawn", p.Spawn, SpawnModes); err != nil {
+			return err
+		}
+		if err := checkEnv(field+".env", p.Env); err != nil {
+			return err
+		}
+		if p.Permissions != nil {
+			for k, list := range p.Permissions.lists() {
+				if list != nil && slices.ContainsFunc(*list, func(s string) bool { return strings.TrimSpace(s) == "" }) {
+					return fmt.Errorf("%s.permissions.%s: empty rule", field, k)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// checkEnv validates variable names and keeps CLAUDE_CONFIG_DIR owned by
+// profiles.
+func checkEnv(field string, env map[string]string) error {
+	for k := range env {
+		if !envKeyRe.MatchString(k) {
+			return fmt.Errorf("%s: invalid variable name %q", field, k)
+		}
+		if k == ConfigDirEnv {
+			return fmt.Errorf("%s: %s is set by a profile's config_dir, not env", field, ConfigDirEnv)
+		}
 	}
 	return nil
 }
@@ -244,6 +348,21 @@ func (c *Config) Resolve(home string) ([]Resolved, error) {
 		if err != nil {
 			return nil, err
 		}
+		profName := firstNonEmpty(r.Profile, DefaultProfile)
+		prof := c.Profiles[profName] // zero Profile for the default
+		repoAllow, env, configDir := allow, c.Env, ""
+		if profName != DefaultProfile {
+			if configDir, err = ExpandPath(prof.ConfigDir, home); err != nil {
+				return nil, err
+			}
+			if prof.AllowBypass != nil {
+				repoAllow = *prof.AllowBypass
+			}
+			env = make(map[string]string, len(c.Env)+len(prof.Env)+1)
+			maps.Copy(env, c.Env)
+			maps.Copy(env, prof.Env)
+			env[ConfigDirEnv] = configDir
+		}
 		// Resolve symlinks: /proc reports a server's cwd fully resolved, so an
 		// unresolved path (~/code -> /data/code) would never match it. A path
 		// that does not exist yet stays as written.
@@ -253,11 +372,14 @@ func (c *Config) Resolve(home string) ([]Resolved, error) {
 		out = append(out, Resolved{
 			Name:           r.EffectiveName(),
 			Path:           p,
-			PermissionMode: firstNonEmpty(r.PermissionMode, c.PermissionMode, DefaultPermissionMode),
-			Spawn:          firstNonEmpty(r.Spawn, c.Spawn, DefaultSpawn),
-			AllowBypass:    allow,
+			Profile:        profName,
+			ConfigDir:      configDir,
+			Permissions:    prof.Permissions,
+			PermissionMode: firstNonEmpty(r.PermissionMode, prof.PermissionMode, c.PermissionMode, DefaultPermissionMode),
+			Spawn:          firstNonEmpty(r.Spawn, prof.Spawn, c.Spawn, DefaultSpawn),
+			AllowBypass:    repoAllow,
 			Claude:         claude,
-			Env:            c.Env,
+			Env:            env,
 		})
 	}
 	return out, nil

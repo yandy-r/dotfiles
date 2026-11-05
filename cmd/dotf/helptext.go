@@ -497,8 +497,16 @@ var helpRegistry = []commandHelp{
 			"servers, hooks and git worktrees. The repo list is user-local, in\n" +
 			"${XDG_CONFIG_HOME:-~/.config}/dotf/rc.toml (--config overrides), and add/remove\n" +
 			"edit it; the first add writes explicit defaults: permission_mode=auto,\n" +
-			"allow_bypass=true (bypass stays reachable from a session), spawn=worktree, and\n" +
-			"env DO_NOT_TRACK=0. add accepts per-repo --name, --permission-mode and --spawn.\n" +
+			"allow_bypass=true, spawn=worktree, and env DO_NOT_TRACK=0. add accepts per-repo\n" +
+			"--name, --profile, --permission-mode and --spawn.\n" +
+			"\n" +
+			"A [profile.<name>] table in rc.toml names a Claude subscription by its config\n" +
+			"dir (config_dir, exported as CLAUDE_CONFIG_DIR) with its own permission_mode,\n" +
+			"allow_bypass, spawn and env; a repo picks one with profile = '<name>'. Repos\n" +
+			"without one use the implicit default profile \"claude\" (the top-level keys).\n" +
+			"A profile's [profile.<name>.permissions] allow/deny/ask lists are synced by up\n" +
+			"into <config_dir>/settings.json (other keys kept), because spawned sessions\n" +
+			"read that file and do not receive --settings.\n" +
 			"\n" +
 			"up starts the Herdr server if needed, then per repo ensures a workspace and an\n" +
 			"rc tab and types the claude command into it (through `command`, so a shell\n" +
@@ -519,6 +527,7 @@ var helpRegistry = []commandHelp{
 		examples: []string{
 			"dotf rc add ~/.config/dotfiles ~/Projects/github.com/me/app",
 			"dotf rc add ~/work/api --name api --permission-mode acceptEdits",
+			"dotf rc add ~/work/crm --profile work",
 			"dotf rc list",
 			"dotf rc up --dry-run",
 			"dotf rc up",

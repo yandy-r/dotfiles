@@ -18,6 +18,7 @@ import (
 type rcDownJSON struct {
 	Name    string `json:"name"`
 	Path    string `json:"path"`
+	Profile string `json:"profile"`
 	Action  string `json:"action"` // stop, none, or (dry run) would-stop
 	Running []int  `json:"running,omitempty"`
 	Stopped []int  `json:"stopped,omitempty"`
@@ -51,7 +52,7 @@ func rcDown(env rcEnv) int {
 	var results []rcDownJSON
 	var targets []rcDownTarget
 	for _, p := range rc.PlanRepos(repos, servers) {
-		res := rcDownJSON{Name: p.Repo.Name, Path: p.Repo.Path, Action: "none"}
+		res := rcDownJSON{Name: p.Repo.Name, Path: p.Repo.Path, Profile: p.Repo.Profile, Action: "none"}
 		for _, s := range p.Running {
 			res.Running = append(res.Running, s.PID)
 		}
@@ -179,7 +180,7 @@ func rcPrintDown(env rcEnv, results []rcDownJSON, dryRun bool) int {
 			b.WriteString("dry-run=true\n")
 		}
 		for _, r := range results {
-			fmt.Fprintf(&b, "rc.down=%s action=%s path=%s", r.Name, r.Action, r.Path)
+			fmt.Fprintf(&b, "rc.down=%s action=%s path=%s profile=%s", r.Name, r.Action, r.Path, r.Profile)
 			if len(r.Running) > 0 {
 				fmt.Fprintf(&b, " running=%s", joinInts(r.Running))
 			}

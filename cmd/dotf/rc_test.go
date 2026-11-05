@@ -317,3 +317,77 @@ func TestRc_DownWithoutHerdrServer(t *testing.T) {
 		t.Fatalf("down with no herdr server = %d, calls %v", code, h.Calls)
 	}
 }
+
+func TestRc_Profiles(t *testing.T) {
+	cfg, a, b := rcTestEnv(t)
+	home := os.Getenv("HOME")
+	if code, _, _ := rcRun(t, exec.NewFake(), cfg, nil, "add", a); code != 0 {
+		t.Fatal("add failed")
+	}
+	if code, _, errs := rcRun(t, exec.NewFake(), cfg, nil, "add", b, "--profile", "work"); code != 1 ||
+		!strings.Contains(errs, `profile "work" is not defined`) {
+		t.Fatalf("add with undefined profile = %d %s", code, errs)
+	}
+	f, err := os.OpenFile(cfg, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = f.WriteString("\n[profile.work]\nconfig_dir = '~/.claude-work'\npermission_mode = 'acceptEdits'\n" +
+		"[profile.work.permissions]\nallow = ['Bash(git *)']\n")
+	_ = f.Close()
+	if code, out, errs := rcRun(t, exec.NewFake(), cfg, nil, "add", b, "--profile", "work"); code != 0 {
+		t.Fatalf("add --profile work = %d %s %s", code, out, errs)
+	}
+
+	code, out, _ := rcRun(t, exec.NewFake(), cfg, nil, "list")
+	if code != 0 || !strings.Contains(out, "rc.repo=alpha path="+a+" profile=claude") ||
+		!strings.Contains(out, "rc.repo=beta path="+b+" profile=work") || !strings.Contains(out, "permission_mode=acceptEdits") {
+		t.Fatalf("list = %d\n%s", code, out)
+	}
+
+	settings := filepath.Join(home, ".claude-work", "settings.json")
+	code, out, _ = rcRun(t, rc.NewFakeHerdr(), cfg, nil, "up", "--dry-run")
+	if code != 0 || !strings.Contains(out, "rc.profile=work settings="+settings+" permissions=would-update") ||
+		!strings.Contains(out, "rc.command=beta CLAUDE_CONFIG_DIR="+filepath.Join(home, ".claude-work")+" DO_NOT_TRACK=0 command claude") ||
+		!strings.Contains(out, "rc.command=alpha DO_NOT_TRACK=0 command claude") {
+		t.Fatalf("up --dry-run = %d\n%s", code, out)
+	}
+	if _, err := os.Stat(settings); !os.IsNotExist(err) {
+		t.Fatal("dry run wrote settings.json")
+	}
+
+	// --only alpha does not touch the work profile.
+	if _, out, _ := rcRun(t, rc.NewFakeHerdr(), cfg, nil, "up", "--only", "alpha"); strings.Contains(out, "rc.profile=") {
+		t.Errorf("--only alpha synced a profile:\n%s", out)
+	}
+
+	h := rc.NewFakeHerdr()
+	if code, out, errs := rcRun(t, h, cfg, nil, "up", "--only", "beta"); code > 1 ||
+		!strings.Contains(out, "rc.profile=work settings="+settings+" permissions=updated") {
+		t.Fatalf("up = %d\n%s\n%s", code, out, errs)
+	}
+	data, err := os.ReadFile(settings)
+	if err != nil || !strings.Contains(string(data), `"Bash(git *)"`) {
+		t.Fatalf("settings.json = %s, %v", data, err)
+	}
+	var typed []string
+	for _, lines := range h.Typed {
+		typed = append(typed, lines...)
+	}
+	if len(typed) != 1 || !strings.Contains(typed[0], "CLAUDE_CONFIG_DIR=") {
+		t.Errorf("typed = %v", h.Typed)
+	}
+	if _, out, _ := rcRun(t, rc.NewFakeHerdr(), cfg, nil, "up", "--only", "beta"); !strings.Contains(out, "permissions=unchanged") {
+		t.Errorf("second up:\n%s", out)
+	}
+
+	// Broken settings.json: the profile's repos are skipped, nothing is typed.
+	if err := os.WriteFile(settings, []byte("{nope"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h = rc.NewFakeHerdr()
+	code, out, _ = rcRun(t, h, cfg, nil, "up", "--only", "beta")
+	if code != 1 || !strings.Contains(out, "permissions=error") || !strings.Contains(out, "rc.up=beta action=skip") || len(h.Typed) != 0 {
+		t.Errorf("up with broken settings = %d typed=%v\n%s", code, h.Typed, out)
+	}
+}

@@ -31,7 +31,7 @@ the repo because the paths are machine-specific. `dotf rc add` creates it with e
 
 ```toml
 permission_mode = 'auto'   # --permission-mode for spawned sessions
-allow_bypass = true        # adds --allow-dangerously-skip-permissions: bypass stays reachable
+allow_bypass = true        # adds --allow-dangerously-skip-permissions to the server process
 spawn = 'worktree'         # --spawn: same-dir, worktree, or session
 # claude = 'claude'        # the claude executable (a bare name, an absolute path, or ~/...)
 
@@ -52,12 +52,73 @@ Names must be unique, because they label the session and the Herdr workspace and
 `--only`. `add` stores paths under your home directory as `~/...`. `add` and `remove` rewrite the
 file, so hand edits to values are kept but comments are not. Unknown keys are rejected.
 
+## Profiles: several Claude subscriptions
+
+Each Claude subscription you use lives in its own config dir (`CLAUDE_CONFIG_DIR`), usually behind
+a shell alias such as `alias claude-work='CLAUDE_CONFIG_DIR=~/.claude-work claude'`. `dotf rc`
+cannot use such an alias, because it runs `command claude` (see below). Instead you name each
+subscription as a **profile** in `rc.toml` and point repos at it:
+
+```toml
+[profile.work]
+config_dir = '~/.claude-work'    # required; exported as CLAUDE_CONFIG_DIR
+permission_mode = 'acceptEdits'  # optional; otherwise the top-level value
+allow_bypass = false             # optional
+spawn = 'same-dir'               # optional
+env = { FOO = 'bar' }            # optional; merged over the top-level [env]
+
+[profile.work.permissions]       # optional; synced into ~/.claude-work/settings.json
+allow = ['Bash(git *)', 'Edit']
+deny = ['Bash(rm -rf *)']
+# ask omitted: whatever settings.json already has is left alone
+
+[[repo]]
+path = '~/Projects/work/api'
+profile = 'work'                 # omit for the default profile
+```
+
+- The default profile is called `claude`. It is implicit and can't be configured: it is the
+  top-level keys with Claude's own default config dir, exactly as before profiles existed.
+  `[profile.claude]` is rejected, and so is `CLAUDE_CONFIG_DIR` in any `env`.
+- Settings resolve most specific first: repo, then profile, then top level, then the built-in
+  default.
+- `dotf rc add <path> --profile work` sets a repo's profile. Define the profile in `rc.toml` first.
+- `list`, `up`, `down` and `status` show `profile=` on every repo line, and `--json` includes it.
+- Log in once per subscription (`CLAUDE_CONFIG_DIR=~/.claude-work claude`, then `/login`) and
+  accept the folder trust prompt for each repo under that profile.
+
+### Permission rules
+
+Sessions spawned by a Remote Control server inherit its environment, but not its command-line
+flags. The server passes `--permission-mode` on again; nothing else is forwarded, including
+`--allow-dangerously-skip-permissions` and `--settings`. So a profile's rules are written to
+the file those sessions read, `<config_dir>/settings.json`. Before starting any server, `up` makes
+`permissions.allow`, `permissions.deny` and `permissions.ask` there match `rc.toml`, for every
+profile that one of the selected repos uses:
+
+- Every other key is kept, including other `permissions` keys such as `defaultMode`. A list you
+  leave out of `rc.toml` is not touched; an explicit empty list clears it.
+- Rules you add from an interactive `/permissions` in that subscription are replaced on the next
+  `up`, but only in the lists `rc.toml` sets.
+- The file is rewritten only when a list changes. The rewrite keeps the file mode, but JSON keys
+  may be reordered. A missing file or dir is created (0600 / 0700).
+- If `settings.json` isn't valid JSON, that profile's repos are skipped and `up` exits 1.
+- `--dry-run` prints `permissions=would-update` without writing.
+- The default profile's settings are never touched.
+
+```text
+rc.profile=work settings=/home/me/.claude-work/settings.json permissions=updated
+```
+
+Sessions started from claude.ai currently top out at `auto`, even when the server passes
+`bypassPermissions`. `allow_bypass` doesn't change that.
+
 ## Verbs
 
 | Verb                   | Effect                                                                                              |
 | ---------------------- | --------------------------------------------------------------------------------------------------- |
 | `list`                 | The configured repos and their effective settings (`--json` includes each command)                  |
-| `add <path>…`          | Add repos; `--name`, `--permission-mode`, `--spawn` set per-repo overrides (one path with `--name`) |
+| `add <path>…`          | Add repos; `--name`, `--profile`, `--permission-mode`, `--spawn` set per-repo values (one path with `--name`) |
 | `remove <name\|path>…` | Remove repos                                                                                        |
 | `up`                   | Start each repo's server (`--only`, `--yes`, `--dry-run`, `--json`)                                 |
 | `status`               | Per repo: does the directory exist, is a server running (with PIDs); plus the service state         |

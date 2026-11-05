@@ -80,6 +80,7 @@ func pidList(ss []rc.Server) string {
 type rcUpJSON struct {
 	Name      string `json:"name"`
 	Path      string `json:"path"`
+	Profile   string `json:"profile"`
 	Action    string `json:"action"`
 	Running   []int  `json:"running,omitempty"`
 	Stopped   []int  `json:"stopped,omitempty"`
@@ -107,6 +108,18 @@ func rcUp(env rcEnv) int {
 	plans := rc.PlanRepos(repos, servers)
 	h := rc.Herdr{R: env.r}
 
+	// Permission rules first, so every server started below spawns sessions
+	// that already read them. A profile whose settings cannot be synced has
+	// its repos skipped rather than started with stale rules.
+	profiles := rcSyncPermissions(repos, env.o.dryRun)
+	for i := range plans {
+		for _, pr := range profiles {
+			if pr.Profile == plans[i].Repo.Profile && pr.Error != "" && plans[i].Reason == "" {
+				plans[i].Reason = "profile " + pr.Profile + ": " + pr.Error
+			}
+		}
+	}
+
 	promptOut := env.stdout
 	if env.o.jsonOut {
 		promptOut = env.stderr
@@ -114,7 +127,7 @@ func rcUp(env rcEnv) int {
 	interactive := rcInteractive(env.stdin, promptOut)
 
 	if env.o.dryRun {
-		return rcUpDryRun(env, plans, h, interactive)
+		return rcUpDryRun(env, plans, profiles, h, interactive)
 	}
 	if !h.Available() {
 		return reportErr(env.stderr, fmt.Errorf("herdr is not installed (dotf install --intent dev provides it)"))
@@ -132,7 +145,7 @@ func rcUp(env rcEnv) int {
 	failed := 0
 	for i := range plans {
 		p := &plans[i]
-		res := rcUpJSON{Name: p.Repo.Name, Path: p.Repo.Path, Command: p.Repo.ShellLine()}
+		res := rcUpJSON{Name: p.Repo.Name, Path: p.Repo.Path, Profile: p.Repo.Profile, Command: p.Repo.ShellLine()}
 		for _, s := range p.Running {
 			res.Running = append(res.Running, s.PID)
 		}
@@ -183,7 +196,35 @@ func rcUp(env rcEnv) int {
 		}
 		results = append(results, res)
 	}
-	return rcPrintUp(env, results, failed, false)
+	return rcPrintUp(env, results, profiles, failed, false)
+}
+
+// rcProfileJSON is one profile's permissions sync in `dotf rc up`.
+type rcProfileJSON struct {
+	Profile     string `json:"profile"`
+	Settings    string `json:"settings"`
+	Permissions string `json:"permissions"` // updated, unchanged, would-update, or error
+	Error       string `json:"error,omitempty"`
+}
+
+// rcSyncPermissions syncs the permission rules of every profile the selected
+// repos use into that profile's settings.json.
+func rcSyncPermissions(repos []rc.Resolved, dryRun bool) []rcProfileJSON {
+	var out []rcProfileJSON
+	for _, t := range rc.PermissionTargets(repos) {
+		changed, path, err := rc.SyncPermissions(t.ConfigDir, t.Permissions, dryRun)
+		row := rcProfileJSON{Profile: t.Profile, Settings: path, Permissions: "unchanged"}
+		switch {
+		case err != nil:
+			row.Permissions, row.Error = "error", err.Error()
+		case changed && dryRun:
+			row.Permissions = "would-update"
+		case changed:
+			row.Permissions = "updated"
+		}
+		out = append(out, row)
+	}
+	return out
 }
 
 // rcDecideRestart asks (or, with --yes / without a terminal, decides) whether
@@ -209,10 +250,11 @@ func rcDecideRestart(env rcEnv, p rc.Plan, procOK, interactive bool, promptOut i
 }
 
 // rcUpDryRun prints what up would do without touching Herdr or any process.
-func rcUpDryRun(env rcEnv, plans []rc.Plan, h rc.Herdr, interactive bool) int {
+func rcUpDryRun(env rcEnv, plans []rc.Plan, profiles []rcProfileJSON, h rc.Herdr, interactive bool) int {
 	var results []rcUpJSON
 	for _, p := range plans {
-		res := rcUpJSON{Name: p.Repo.Name, Path: p.Repo.Path, Command: p.Repo.ShellLine(), Action: string(rc.ActionStart)}
+		res := rcUpJSON{Name: p.Repo.Name, Path: p.Repo.Path, Profile: p.Repo.Profile, Command: p.Repo.ShellLine(),
+			Action: string(rc.ActionStart)}
 		for _, s := range p.Running {
 			res.Running = append(res.Running, s.PID)
 		}
@@ -231,29 +273,40 @@ func rcUpDryRun(env rcEnv, plans []rc.Plan, h rc.Herdr, interactive bool) int {
 	if !env.o.jsonOut {
 		_, _ = fmt.Fprintf(env.stdout, "dry-run=true herdr.available=%t herdr.running=%t\n", h.Available(), h.Available() && h.ServerRunning())
 	}
-	return rcPrintUp(env, results, 0, true)
+	return rcPrintUp(env, results, profiles, 0, true)
 }
 
 // rcPrintUp renders up's results and maps failures to exit 1.
-func rcPrintUp(env rcEnv, results []rcUpJSON, failed int, dryRun bool) int {
+func rcPrintUp(env rcEnv, results []rcUpJSON, profiles []rcProfileJSON, failed int, dryRun bool) int {
 	if env.o.jsonOut {
 		doc := struct {
-			Command string     `json:"command"`
-			Verb    string     `json:"verb"`
-			DryRun  bool       `json:"dry_run"`
-			Repos   []rcUpJSON `json:"repos"`
-			Failed  int        `json:"failed"`
-		}{"rc", "up", dryRun, results, failed}
+			Command  string          `json:"command"`
+			Verb     string          `json:"verb"`
+			DryRun   bool            `json:"dry_run"`
+			Profiles []rcProfileJSON `json:"profiles"`
+			Repos    []rcUpJSON      `json:"repos"`
+			Failed   int             `json:"failed"`
+		}{"rc", "up", dryRun, profiles, results, failed}
 		if doc.Repos == nil {
 			doc.Repos = []rcUpJSON{}
+		}
+		if doc.Profiles == nil {
+			doc.Profiles = []rcProfileJSON{}
 		}
 		if err := writeJSON(env.stdout, doc); err != nil {
 			return reportErr(env.stderr, err)
 		}
 	} else {
 		var b strings.Builder
+		for _, pr := range profiles {
+			fmt.Fprintf(&b, "rc.profile=%s settings=%s permissions=%s", pr.Profile, pr.Settings, pr.Permissions)
+			if pr.Error != "" {
+				fmt.Fprintf(&b, " error=%q", pr.Error)
+			}
+			b.WriteByte('\n')
+		}
 		for _, r := range results {
-			fmt.Fprintf(&b, "rc.up=%s action=%s path=%s", r.Name, r.Action, r.Path)
+			fmt.Fprintf(&b, "rc.up=%s action=%s path=%s profile=%s", r.Name, r.Action, r.Path, r.Profile)
 			if len(r.Running) > 0 {
 				fmt.Fprintf(&b, " running=%s", joinInts(r.Running))
 			}
@@ -298,6 +351,7 @@ func joinInts(ns []int) string {
 type rcStatusJSON struct {
 	Name    string `json:"name"`
 	Path    string `json:"path"`
+	Profile string `json:"profile"`
 	Exists  bool   `json:"exists"`
 	Running []int  `json:"running"`
 }
@@ -318,7 +372,7 @@ func rcStatus(env rcEnv) int {
 	}
 	rows := make([]rcStatusJSON, 0, len(repos))
 	for _, r := range repos {
-		row := rcStatusJSON{Name: r.Name, Path: r.Path, Exists: dirExists(r.Path), Running: []int{}}
+		row := rcStatusJSON{Name: r.Name, Path: r.Path, Profile: r.Profile, Exists: dirExists(r.Path), Running: []int{}}
 		for _, s := range servers[r.Path] {
 			row.Running = append(row.Running, s.PID)
 		}
@@ -345,7 +399,7 @@ func rcStatus(env rcEnv) int {
 		if procOK {
 			running = strconv.FormatBool(len(row.Running) > 0)
 		}
-		fmt.Fprintf(&b, "rc.repo=%s path=%s exists=%t running=%s", row.Name, row.Path, row.Exists, running)
+		fmt.Fprintf(&b, "rc.repo=%s path=%s profile=%s exists=%t running=%s", row.Name, row.Path, row.Profile, row.Exists, running)
 		if len(row.Running) > 0 {
 			fmt.Fprintf(&b, " pids=%s", joinInts(row.Running))
 		}

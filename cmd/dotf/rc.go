@@ -25,6 +25,7 @@ var rcVerbs = []string{"list", "add", "remove", "up", "down", "status", "enable"
 type rcOpts struct {
 	config         string
 	name           string
+	profile        string
 	permissionMode string
 	spawn          string
 	only           string
@@ -43,6 +44,7 @@ func setRcFlags(fs *flag.FlagSet) *rcOpts {
 	o := &rcOpts{}
 	fs.StringVar(&o.config, "config", "", "path to the rc config file (default: ${XDG_CONFIG_HOME:-~/.config}/dotf/rc.toml)")
 	fs.StringVar(&o.name, "name", "", "session/workspace name for the added repo (add; default: directory name)")
+	fs.StringVar(&o.profile, "profile", "", "profile (a [profile.<name>] table in the config) for the added repo (add; default: "+rc.DefaultProfile+")")
 	fs.StringVar(&o.permissionMode, "permission-mode", "",
 		"per-repo permission mode override: "+strings.Join(rc.PermissionModes, ", ")+" (add)")
 	fs.StringVar(&o.spawn, "spawn", "", "per-repo spawn mode override: "+strings.Join(rc.SpawnModes, ", ")+" (add)")
@@ -60,6 +62,7 @@ func setRcFlags(fs *flag.FlagSet) *rcOpts {
 // --config and --dry-run apply everywhere and are absent here.
 var rcFlagVerbs = map[string][]string{
 	"name":            {"add"},
+	"profile":         {"add"},
 	"permission-mode": {"add"},
 	"spawn":           {"add"},
 	"only":            {"up", "down", "status"},
@@ -183,6 +186,8 @@ func rcLoad(env rcEnv) (*rc.Config, bool, int) {
 type rcRepoJSON struct {
 	Name           string `json:"name"`
 	Path           string `json:"path"`
+	Profile        string `json:"profile"`
+	ConfigDir      string `json:"config_dir"`
 	Exists         bool   `json:"exists"`
 	PermissionMode string `json:"permission_mode"`
 	Spawn          string `json:"spawn"`
@@ -210,7 +215,8 @@ func rcList(env rcEnv) int {
 		}{"rc", "list", env.cfgPath, exists, []rcRepoJSON{}}
 		for _, r := range repos {
 			doc.Repos = append(doc.Repos, rcRepoJSON{
-				Name: r.Name, Path: r.Path, Exists: dirExists(r.Path), PermissionMode: r.PermissionMode,
+				Name: r.Name, Path: r.Path, Profile: r.Profile, ConfigDir: r.ConfigDir,
+				Exists: dirExists(r.Path), PermissionMode: r.PermissionMode,
 				Spawn: r.Spawn, AllowBypass: r.AllowBypass, Command: r.ShellLine(),
 			})
 		}
@@ -222,8 +228,8 @@ func rcList(env rcEnv) int {
 	var b strings.Builder
 	fmt.Fprintf(&b, "rc.config=%s exists=%t\n", env.cfgPath, exists)
 	for _, r := range repos {
-		fmt.Fprintf(&b, "rc.repo=%s path=%s exists=%t permission_mode=%s spawn=%s allow_bypass=%t\n",
-			r.Name, r.Path, dirExists(r.Path), r.PermissionMode, r.Spawn, r.AllowBypass)
+		fmt.Fprintf(&b, "rc.repo=%s path=%s profile=%s exists=%t permission_mode=%s spawn=%s allow_bypass=%t\n",
+			r.Name, r.Path, r.Profile, dirExists(r.Path), r.PermissionMode, r.Spawn, r.AllowBypass)
 	}
 	fmt.Fprintf(&b, "rc.repos=%d\n", len(repos))
 	if _, err := io.WriteString(env.stdout, b.String()); err != nil {
@@ -257,7 +263,11 @@ func rcAdd(env rcEnv, paths []string) int {
 		if !dirExists(abs) {
 			return reportErr(env.stderr, fmt.Errorf("%s is not a directory", abs))
 		}
-		repo := rc.Repo{Path: rcStoredPath(abs, env.home), Name: env.o.name,
+		profile := env.o.profile
+		if profile == rc.DefaultProfile {
+			profile = "" // the default needs no key
+		}
+		repo := rc.Repo{Path: rcStoredPath(abs, env.home), Name: env.o.name, Profile: profile,
 			PermissionMode: env.o.permissionMode, Spawn: env.o.spawn}
 		ok, err := cfg.Add(repo, env.home)
 		if err != nil {
