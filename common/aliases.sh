@@ -731,6 +731,7 @@ alias cbp='$DOTFILES_PASTE_CMD'
 # ================================================================
 
 alias cc-itcn='CLAUDE_CONFIG_DIR="$HOME/.config/claude-itcn" claude'
+alias cc-th='CLAUDE_CONFIG_DIR="$HOME/.config/claude-th" claude'
 alias oc='opencode --auto'
 
 # ================================================================
