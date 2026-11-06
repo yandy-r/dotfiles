@@ -730,8 +730,9 @@ alias cbp='$DOTFILES_PASTE_CMD'
 # CLAUDE / CODEX / OpenCode ALIASES
 # ================================================================
 
-alias cc-itcn='CLAUDE_CONFIG_DIR="$HOME/.config/claude-itcn" claude'
-alias cc-th='CLAUDE_CONFIG_DIR="$HOME/.config/claude-th" claude'
+alias claude='claude --allow-dangerously-skip-permissions'
+alias cc-itcn='CLAUDE_CONFIG_DIR="$HOME/.config/claude-itcn" claude --allow-dangerously-skip-permissions'
+alias cc-th='CLAUDE_CONFIG_DIR="$HOME/.config/claude-th" claude --allow-dangerously-skip-permissions'
 alias oc='opencode --auto'
 
 # ================================================================
