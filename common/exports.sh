@@ -163,6 +163,12 @@ else
     unset CLAUDE_CODE_OAUTH_TOKEN
 fi
 
+if claude_code_tokenhop_api_key="$(read_env_file "$XDG_CONFIG_HOME/env/claude_code_tokenhop_api_key")"; then
+    export CLAUDE_CODE_TOKENHOP_API_KEY="$claude_code_tokenhop_api_key"
+else
+    unset CLAUDE_CODE_TOKENHOP_API_KEY
+fi
+
 if gemini_api_key="$(read_env_file "$XDG_CONFIG_HOME/env/gemini_api_key")"; then
     export GEMINI_API_KEY="$gemini_api_key"
 else
