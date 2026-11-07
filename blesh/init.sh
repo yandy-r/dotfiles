@@ -62,6 +62,21 @@ function dotf/blesh/vi-load-hook {
 		ble-bind -m "$keymap" -f 'RET' 'accept-line syntax'
 	done
 	ble-bind -m vi_imap -f 'C-j' 'newline'
+
+	# C-c discards the command line like plain bash/readline (upstream vim
+	# emulation: insert C-c -> normal mode, normal C-c -> "type :q" hint).
+	# Esc still leaves insert mode.
+	ble-bind -m vi_imap -f 'C-c' 'discard-line'
+	ble-bind -m vi_nmap -f 'C-c' 'dotf/vi_nmap/discard-line'
+}
+
+# Normal-mode discard: return to insert mode first (as vi_nmap/accept-line
+# does) so the fresh prompt starts in INSERT.
+function ble/widget/dotf/vi_nmap/discard-line {
+	ble/keymap:vi/clear-arg
+	ble/widget/vi_nmap/.insert-mode
+	ble/keymap:vi/repeat/clear-insert
+	ble/widget/discard-line
 }
 blehook/eval-after-load keymap_vi dotf/blesh/vi-load-hook
 
