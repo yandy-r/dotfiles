@@ -33,6 +33,22 @@ format = "rpm"
 		{"glob asset accepted", appArtifact + `class = "rolling"` + "\n" + `asset = "tool-*.AppImage"`, ""},
 		{"preview accepted on the rolling repo route", appArtifact + `class = "rolling"` + "\n" + `asset = "tool-*.AppImage"` + "\npreview = true", ""},
 		{"pkg-url glob asset accepted", pkgURL + `class = "rolling"` + "\n" + `asset = "tool-*.x86_64.rpm"`, ""},
+		{"pkg-url rolling deb accepted without checksum fields (GitHub digest)", `
+name = "tool"
+backend = "pkg-url"
+repo = "o/tool"
+pkg_name = "tool"
+format = "deb"
+class = "rolling"
+asset = "Tool-*.deb"`, ""},
+		{"pkg-url pinned deb without checksum rejected", `
+name = "tool"
+backend = "pkg-url"
+repo = "o/tool"
+tag = "v1"
+pkg_name = "tool"
+format = "deb"
+asset = "Tool-1.deb"`, "deb requires sha256"},
 		{"empty asset rejected", appArtifact + `class = "rolling"`, "rolling repo route requires asset"},
 		{"pkg-url empty asset rejected", pkgURL + `class = "rolling"`, "rolling repo route requires asset"},
 		{"malformed glob rejected", appArtifact + `class = "rolling"` + "\n" + `asset = "tool-[.AppImage"`, "is not a valid glob"},

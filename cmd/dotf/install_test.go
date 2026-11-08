@@ -954,6 +954,7 @@ func TestFilterPackages_DesktopApps(t *testing.T) {
 		"teams-for-linux":  "teams-for-linux,teams-for-linux-arch,teams-for-linux-arm64,teams-for-linux-macos",
 		"beekeeper-studio": "beekeeper-studio,beekeeper-studio-arch,beekeeper-studio-arm64,beekeeper-studio-macos",
 		"localsend":        "localsend,localsend-macos,appimage-runtime",
+		"t3-code-client":   "t3-code-client,t3-code-client-arm64,t3-code-client-debian,t3-code-client-macos,appimage-runtime",
 		"winboat":          "winboat,winboat-arch",
 	}
 	for app, want := range apps {
@@ -1181,6 +1182,64 @@ func TestFilterPackagesForHost_RequiresOnlyFromApplicable(t *testing.T) {
 	}
 	if s, want := strings.Join(names, ","), "runtime,gui-runtime,app,app-arm64,app-macos,app-linux"; s != want {
 		t.Errorf("filterPackages(--only app) = %q, want %q", s, want)
+	}
+}
+
+// TestFilterPackagesForHost_T3CodeClientPrerequisites: on Debian-family hosts
+// (apt, or Linuxbrew primary) both AppImage entries are exclude_os-gated away,
+// so --only t3-code-client pulls no appimage-runtime and skipping it does not
+// fail closed. Everywhere else (Fedora dnf, Fedora Linuxbrew) the AppImage
+// route applies and the prerequisite is ordered first and fails closed on skip.
+func TestFilterPackagesForHost_T3CodeClientPrerequisites(t *testing.T) {
+	m, err := manifest.Resolve("", "", dotfiles.ManifestFS, manifest.ResolveOptions{})
+	if err != nil {
+		t.Fatalf("resolve embedded manifest: %v", err)
+	}
+	debianAPT := platform.Info{OS: platform.OSDebian, Arch: platform.ArchX86_64, PkgMgr: platform.PkgMgrAPT, Desktop: true}
+	debianBrew := platform.Info{OS: platform.OSDebian, Arch: platform.ArchX86_64, PkgMgr: platform.PkgMgrHomebrew, Desktop: true}
+	fedoraDNF := platform.Info{OS: platform.OSRedHat, Arch: platform.ArchX86_64, PkgMgr: platform.PkgMgrDNF, Desktop: true}
+	fedoraBrew := platform.Info{OS: platform.OSRedHat, Arch: platform.ArchX86_64, PkgMgr: platform.PkgMgrHomebrew, Desktop: true}
+
+	tests := []struct {
+		name    string
+		info    platform.Info
+		skip    []string
+		wantRT  bool
+		wantErr string
+	}{
+		{"debian apt pulls no runtime", debianAPT, nil, false, ""},
+		{"debian apt skip runtime succeeds", debianAPT, []string{"appimage-runtime"}, false, ""},
+		{"debian linuxbrew pulls no runtime", debianBrew, nil, false, ""},
+		{"debian linuxbrew skip runtime succeeds", debianBrew, []string{"appimage-runtime"}, false, ""},
+		{"fedora dnf pulls runtime", fedoraDNF, nil, true, ""},
+		{"fedora dnf skip runtime fails closed", fedoraDNF, []string{"appimage-runtime"}, false, `required package "appimage-runtime" excluded or missing`},
+		{"fedora linuxbrew pulls runtime", fedoraBrew, nil, true, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := filterPackagesForHost(m, nil, []string{"t3-code-client"}, tt.skip, tt.info)
+			if tt.wantErr != "" {
+				if err == nil || err.Error() != tt.wantErr {
+					t.Fatalf("filterPackagesForHost() err = %v, want %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("filterPackagesForHost() err = %v, want nil", err)
+			}
+			names := make([]string, len(got))
+			hasRT := false
+			for i, pkg := range got {
+				names[i] = pkg.Name
+				hasRT = hasRT || pkg.Name == "appimage-runtime"
+			}
+			if hasRT != tt.wantRT {
+				t.Errorf("appimage-runtime selected = %t, want %t (got %v)", hasRT, tt.wantRT, names)
+			}
+			if tt.wantRT && names[0] != "appimage-runtime" {
+				t.Errorf("appimage-runtime not ordered first: %v", names)
+			}
+		})
 	}
 }
 

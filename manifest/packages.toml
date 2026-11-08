@@ -108,7 +108,7 @@ packages = ["mise", "rust", "lua"]
 [intents.ai]
 description = "AI coding assistants and CLIs"
 default = false
-packages = ["claude", "codex", "opencode", "omp", "fabric", "coderabbit", "playwright-cli", "github-mcp-server", "claude-desktop", "claude-desktop-macos", "claude-desktop-fedora"]
+packages = ["claude", "codex", "opencode", "omp", "fabric", "coderabbit", "playwright-cli", "github-mcp-server", "t3-code-server", "claude-desktop", "claude-desktop-macos", "claude-desktop-fedora"]
 
 [intents.desktop]
 description = "Desktop GUI apps (terminals, editors, media, virt); skipped without a graphical session"
@@ -173,6 +173,10 @@ packages = [
     "appimage-runtime",
     "appimage-libz",
     "localsend-macos",
+    "t3-code-client",
+    "t3-code-client-arm64",
+    "t3-code-client-debian",
+    "t3-code-client-macos",
     "discord",
     "discord-macos",
     "zed-preview",
@@ -1615,6 +1619,79 @@ backend = "pkg"
 os = "macos"
 requires_desktop = true
 names = { homebrew = "localsend" }
+
+# T3 Code client (separate from the t3-code-server runtime). One route per host,
+# partitioned by distro family (exclude_os) regardless of the primary package manager:
+#   - Debian family (including Debian/Ubuntu with Linuxbrew primary and apt-based
+#     WSL): the official rolling .deb (t3-code-client-debian), which ships its own
+#     .desktop launcher; the rolling resolver picks the host-arch .deb and verifies
+#     GitHub's published SHA256 digest, and pkg-url installs it with native apt.
+#   - other Linux: the official rolling AppImage (t3-code-client[-arm64]) under dotf
+#     with a generated launcher/icon mirroring the official .deb desktop file
+#     (URL handler, window class); exclude_os keeps it off Debian hosts.
+#   - macOS: the official Homebrew cask.
+[[package]]
+name = "t3-code-client"
+requires = ["appimage-runtime"]
+arch = ["x86_64"]
+backend = "app-artifact"
+os = "linux"
+exclude_os = ["debian"]
+requires_desktop = true
+app = { icon = "https://raw.githubusercontent.com/pingdotgg/t3code/v0.1.7/apps/marketing/public/apple-touch-icon.png", desktop_name = "T3 Code", categories = "Development;", exec_args = "%U", startup_wm_class = "t3code", mime_type = "x-scheme-handler/t3code;x-scheme-handler/t3code-dev;" }
+repo = "pingdotgg/t3code"
+asset = "T3-Code-*-x86_64.AppImage"
+class = "rolling"
+
+[[package]]
+# arm64 sibling of t3-code-client (selected by `--only t3-code-client`).
+name = "t3-code-client-arm64"
+requires = ["appimage-runtime"]
+arch = ["arm64"]
+backend = "app-artifact"
+os = "linux"
+exclude_os = ["debian"]
+requires_desktop = true
+app = { icon = "https://raw.githubusercontent.com/pingdotgg/t3code/v0.1.7/apps/marketing/public/apple-touch-icon.png", desktop_name = "T3 Code", categories = "Development;", exec_args = "%U", startup_wm_class = "t3code", mime_type = "x-scheme-handler/t3code;x-scheme-handler/t3code-dev;" }
+repo = "pingdotgg/t3code"
+asset = "T3-Code-*-arm64.AppImage"
+class = "rolling"
+
+[[package]]
+# Debian-family route for both arches: the glob matches amd64 and arm64 .debs and
+# the resolver's arch filter leaves exactly one. The rolling route requires and
+# verifies GitHub's asset SHA256 digest, so no manifest checksum is needed.
+name = "t3-code-client-debian"
+backend = "pkg-url"
+os = "debian"
+requires_desktop = true
+repo = "pingdotgg/t3code"
+asset = "T3-Code-*.deb"
+format = "deb"
+pkg_name = "t3code"
+class = "rolling"
+
+[[package]]
+name = "t3-code-client-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "t3-code" }
+
+# T3 Code server: the official noninteractive installer (stable by default) verifies
+# the release tarball against SHA256SUMS and installs the full runtime plus the
+# `t3` launcher in ~/.local/bin. github-release is unsuitable: copying only the
+# binary would leave out the bundled client/, node_modules/ and lib/. No service
+# is enabled; run `t3 service install` manually if wanted.
+[[package]]
+name = "t3-code-server"
+arch = ["x86_64", "arm64"]
+backend = "script-url"
+os = "linux"
+url = "https://t3.codes/install.sh"
+provides = ["t3"]
+class = "rolling"
+justification = "official stable installer verifies release checksums and installs the full T3 runtime and t3 launcher"
 
 [[package]]
 name = "discord"

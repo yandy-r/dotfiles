@@ -344,6 +344,7 @@ func validatePackage(p Package) []error {
 
 	errs = append(errs, validatePackageOS(p)...)
 	errs = append(errs, validatePackageArch(p)...)
+	errs = append(errs, validateExcludeOS(p)...)
 
 	errs = append(errs, validatePostInstall(p)...)
 
@@ -685,7 +686,10 @@ func pkgURLFormat(p Package) string {
 // suffix) and agree with any suffix. gpg_key_url requires a 40-hex
 // gpg_fingerprint and an https URL; allow_unsigned requires a justification; a
 // deb requires a checksum (sha256, or a repo-route checksum source) because apt
-// installs a local .deb with no signature check of its own.
+// installs a local .deb with no signature check of its own. A deb on the
+// rolling repo route (see onRollingRepoRoute) satisfies that requirement
+// implicitly: the resolver always requires and verifies GitHub's sha256 asset
+// digest. Pinned, tagged, and non-GitHub debs stay fail-closed.
 func validatePkgURL(p Package) []error {
 	errs, repoRoute := validateArtifactSource(p, BackendPkgURL)
 
@@ -727,9 +731,12 @@ func validatePkgURL(p Package) []error {
 		errs = append(errs, &ValidationError{Package: p.Name, Msg: "rpm_repack_strip_buildid requires unsigned RPM with justification and checksum source"})
 	}
 	if format == "deb" {
-		hasSum := p.SHA256 != "" || (repoRoute && (len(p.Checksums) > 0 || p.ChecksumsAsset != ""))
+		// The rolling repo route always verifies GitHub's own sha256 asset
+		// digest (latestReleaseArtifact fails closed without one), so it
+		// needs no separate manifest checksum source.
+		hasSum := p.SHA256 != "" || onRollingRepoRoute(p) || (repoRoute && (len(p.Checksums) > 0 || p.ChecksumsAsset != ""))
 		if !hasSum {
-			errs = append(errs, &ValidationError{Package: p.Name, Msg: "pkg-url deb requires sha256 (or a checksums/checksums_asset source on the repo route)"})
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: "pkg-url deb requires sha256 (or a checksums/checksums_asset source on the repo route, or the rolling GitHub repo route's asset digest)"})
 		}
 	}
 
@@ -866,6 +873,22 @@ func validatePackageArch(p Package) []error {
 	for _, a := range p.Arch {
 		if a != "x86_64" && a != "arm64" {
 			errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("arch %q must be x86_64 or arm64", a)})
+		}
+	}
+	return errs
+}
+
+// validateExcludeOS checks the optional exclude_os static gate: every entry
+// must be non-empty and one of the same tokens accepted by os (knownPackageOS;
+// "wsl" is not one), so a typo never silently excludes nothing.
+func validateExcludeOS(p Package) []error {
+	var errs []error
+	for _, o := range p.ExcludeOS {
+		switch {
+		case strings.TrimSpace(o) == "":
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: "exclude_os entries must be non-empty"})
+		case !knownPackageOS[o]:
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("exclude_os %q must be one of: arch, debian, linux, macos, redhat, suse, windows", o)})
 		}
 	}
 	return errs

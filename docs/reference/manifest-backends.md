@@ -268,7 +268,9 @@ ratchet pins. With `--json`, the same aggregate is attached as a `Summary` objec
 
 `app-artifact` installs a Linux AppImage or tarball per user, with a dotf-owned
 menu entry. Declare `url` (HTTPS) or `repo`/`tag`/`asset`, plus `app` metadata
-(`icon`, `desktop_name`, optional `desktop` and `categories`). Archives need
+(`icon`, `desktop_name`, optional `desktop`, `categories`, `exec_args`,
+`startup_wm_class` and `mime_type`; the last three override the same keys from a
+vendor `.desktop` file, and `Exec`/`Icon` always stay dotf-owned). Archives need
 `binary` relative to their root. SHA256 pins immutable artifacts; rolling
 vendor URLs rely on HTTPS. ELF architecture, archive paths and desktop values
 are checked before activation. Install/update stages the full artifact before
@@ -295,14 +297,26 @@ verified against; anything else fails closed. No manifest checksum or
 above), `format` and `pkg_name`. RPM signatures use
 `gpg_key_url` plus a full `gpg_fingerprint`; only that key is imported. Unsigned
 upstream packages require `allow_unsigned = true`, a `justification` and
-SHA256. Debian packages require SHA256. Package name, magic and architecture
-are checked before privileged installation.
+SHA256. Debian packages require a checksum: a manifest `sha256`, or a
+`checksums`/`checksums_asset` source on a repo route. A DEB on the rolling GitHub
+route needs no separate manifest checksum source, because that route always
+requires and verifies GitHub's `sha256:` asset digest. Pinned, tagged and
+non-GitHub DEB routes remain checksummed and fail closed. Package name, magic and
+architecture are checked before privileged installation.
 
 Choose these native backends before `custom-script` when the vendor supplies
 an artifact but no usable package repository. See [desktop apps](desktop-apps.md)
 for source routes and platform limits.
 
-`arch = ["x86_64"]` restricts package applicability. `requires = ["package"]`
+`arch = ["x86_64"]` restricts package applicability. `exclude_os = ["debian"]` is a
+static host gate alongside `os`, `arch` and `requires_desktop`: the package is
+not applicable (install, update, remove, status) on a host matching ANY listed
+token. Tokens and semantics are those of `os` (`linux` matches every Linux-family
+host; `wsl` is not accepted); unknown or empty values are rejected on load. The
+match is on the OS family only, never the primary package manager, so it lets a
+distro-native sibling (such as an official `.deb` on Debian, even with Linuxbrew
+primary) take over a host that would otherwise also match a generic artifact
+route. `requires = ["package"]`
 selects prerequisites alongside install (including `--only`); update/remove do
 not implicitly operate on shared prerequisites. `--skip` cannot omit a prerequisite while retaining its dependent.
 Prerequisites install first. Requires cycles are rejected when the manifest is

@@ -93,6 +93,80 @@ func TestEngine_Applicable(t *testing.T) {
 	}
 }
 
+// TestHostAllows_ExcludeOS verifies the static exclude_os gate rejects hosts
+// whose OS family matches ANY listed token (same semantics as os, so "linux"
+// matches every Linux-family host), independent of the primary package manager,
+// while the os/arch/desktop gates still apply.
+func TestHostAllows_ExcludeOS(t *testing.T) {
+	t.Parallel()
+
+	linuxExceptDebian := manifest.Package{Name: "x", Backend: manifest.BackendCustomScript, OS: "linux", ExcludeOS: []string{"debian"}}
+	excludeLinux := manifest.Package{Name: "y", Backend: manifest.BackendCustomScript, ExcludeOS: []string{"macos", "linux"}}
+	desktopOnly := manifest.Package{Name: "z", Backend: manifest.BackendCustomScript, OS: "linux", ExcludeOS: []string{"debian"}, RequiresDesktop: true, Arch: []string{"x86_64"}}
+	tests := []struct {
+		name string
+		pkg  manifest.Package
+		info platform.Info
+		want bool
+	}{
+		{"debian apt excluded", linuxExceptDebian, platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrAPT}, false},
+		{"debian with homebrew primary still excluded", linuxExceptDebian, platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrHomebrew}, false},
+		{"fedora dnf allowed", linuxExceptDebian, platform.Info{OS: platform.OSRedHat, PkgMgr: platform.PkgMgrDNF}, true},
+		{"fedora with homebrew primary allowed", linuxExceptDebian, platform.Info{OS: platform.OSRedHat, PkgMgr: platform.PkgMgrHomebrew}, true},
+		{"arch pacman allowed", linuxExceptDebian, platform.Info{OS: platform.OSArch, PkgMgr: platform.PkgMgrPacman}, true},
+		{"macos stays os-gated", linuxExceptDebian, platform.Info{OS: platform.OSMacOS, PkgMgr: platform.PkgMgrHomebrew}, false},
+		{"linux token excludes every linux family", excludeLinux, platform.Info{OS: platform.OSArch, PkgMgr: platform.PkgMgrPacman}, false},
+		{"linux token excludes debian", excludeLinux, platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrAPT}, false},
+		{"macos token excludes macos", excludeLinux, platform.Info{OS: platform.OSMacOS, PkgMgr: platform.PkgMgrHomebrew}, false},
+		{"windows host not excluded", excludeLinux, platform.Info{OS: platform.OSWindows}, true},
+		{"exclude_os keeps arch gate", desktopOnly, platform.Info{OS: platform.OSRedHat, Arch: platform.ArchARM64, Desktop: true}, false},
+		{"exclude_os keeps desktop gate", desktopOnly, platform.Info{OS: platform.OSRedHat, Arch: platform.ArchX86_64}, false},
+		{"all gates satisfied", desktopOnly, platform.Info{OS: platform.OSRedHat, Arch: platform.ArchX86_64, Desktop: true}, true},
+	}
+	engine := backend.Default(exec.NewFake(), privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := backend.HostAllows(tt.pkg, tt.info); got != tt.want {
+				t.Errorf("HostAllows() = %t, want %t", got, tt.want)
+			}
+			if got, err := engine.Applicable(tt.pkg, tt.info); err != nil || got != tt.want {
+				t.Errorf("Applicable() = (%t, %v), want (%t, nil)", got, err, tt.want)
+			}
+		})
+	}
+}
+
+// TestEngine_ExcludeOSLifecycle: an excluded host makes Installed, Install,
+// Update and Remove no-ops that run no commands, mirroring the OS/desktop gates.
+func TestEngine_ExcludeOSLifecycle(t *testing.T) {
+	t.Parallel()
+	fake := exec.NewFake()
+	fake.AddPath("tool", "/usr/bin/tool")
+	engine := backend.Default(fake, privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+	pkg := manifest.Package{Name: "tool", Backend: manifest.BackendCustomScript, Script: "bin/missing.sh", Provides: []string{"tool"}, OS: "linux", ExcludeOS: []string{"debian"}}
+	debian := platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrHomebrew}
+	fedora := platform.Info{OS: platform.OSRedHat, PkgMgr: platform.PkgMgrDNF}
+
+	if ok, err := engine.Installed(pkg, debian); err != nil || ok {
+		t.Errorf("Installed(excluded) = (%t, %v), want (false, nil)", ok, err)
+	}
+	if err := engine.Install(pkg, debian); err != nil {
+		t.Errorf("Install(excluded) = %v, want nil no-op", err)
+	}
+	for _, act := range []backend.Action{backend.ActionUpdate, backend.ActionRemove} {
+		if err := engine.Perform(act, pkg, debian); err != nil {
+			t.Errorf("Perform(%v, excluded) = %v, want nil no-op", act, err)
+		}
+	}
+	if calls := fake.CallsSnapshot(); len(calls) != 0 {
+		t.Errorf("excluded lifecycle ran commands %v, want none", calls)
+	}
+	if ok, err := engine.Installed(pkg, fedora); err != nil || !ok {
+		t.Errorf("Installed(allowed) = (%t, %v), want (true, nil)", ok, err)
+	}
+}
+
 // TestEngine_Installed_OSGate verifies the os gate short-circuits Engine.Installed
 // to (false, nil) off-platform — even when the underlying probe binary IS on
 // PATH — so a macOS-scoped sentinel is never (falsely) evaluated on Linux. On

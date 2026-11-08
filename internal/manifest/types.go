@@ -304,6 +304,16 @@ type Package struct {
 	// (x86_64, arm64). Empty means every architecture.
 	Arch []string `toml:"arch"`
 
+	// ExcludeOS is a static OS-family exclusion gate: the package is
+	// not-applicable when ANY listed token matches the host, using the same
+	// tokens and semantics as OS ("linux" matches every Linux-family host;
+	// "debian"/"redhat"/"arch"/"suse"/"macos"/"windows" match exactly). It is
+	// evaluated in addition to OS, so a package can say "all Linux except
+	// Debian-family". Use it to hand a host to a sibling route (an official
+	// .deb on Debian) regardless of which package manager is primary. Empty
+	// excludes nothing.
+	ExcludeOS []string `toml:"exclude_os"`
+
 	// Requires names prerequisite packages selected alongside this package.
 	Requires []string `toml:"requires"`
 
@@ -370,6 +380,16 @@ type AppInstall struct {
 
 	// ExecArgs is extra arguments appended to the generated .desktop Exec line.
 	ExecArgs string `toml:"exec_args"`
+
+	// StartupWMClass is the generated .desktop StartupWMClass value (the
+	// window class the shell uses to match windows to the launcher). When set
+	// it overrides a same-named key from a vendor .desktop file.
+	StartupWMClass string `toml:"startup_wm_class"`
+
+	// MimeType is the generated .desktop MimeType value (e.g.
+	// "x-scheme-handler/foo;"). When set it overrides a same-named key from a
+	// vendor .desktop file.
+	MimeType string `toml:"mime_type"`
 }
 
 // PostInstallStep is a single git-clone activation step: a literal argv vector

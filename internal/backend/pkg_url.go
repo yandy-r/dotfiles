@@ -50,18 +50,31 @@ func pkgFormat(pkg manifest.Package) string {
 	return ""
 }
 
+// effectiveMgr is the package manager that owns a pkg-url artifact on this
+// host. A .deb is always an apt concern: on a Debian-family host where
+// Linuxbrew was detected as the primary manager (info.PkgMgr == homebrew) the
+// native apt/dpkg tools still apply, so a deb resolves to apt there. Every
+// other combination (including all RPM routes) uses the detected manager.
+func effectiveMgr(pkg manifest.Package, info platform.Info) platform.PkgMgr {
+	if pkgFormat(pkg) == "deb" && info.OS == platform.OSDebian && info.PkgMgr == platform.PkgMgrHomebrew {
+		return platform.PkgMgrAPT
+	}
+	return info.PkgMgr
+}
+
 func (b *pkgURLBackend) applicableFor(pkg manifest.Package, info platform.Info) bool {
 	switch pkgFormat(pkg) {
 	case "rpm":
-		return info.PkgMgr == platform.PkgMgrDNF
+		return effectiveMgr(pkg, info) == platform.PkgMgrDNF
 	case "deb":
-		return info.PkgMgr == platform.PkgMgrAPT
+		return effectiveMgr(pkg, info) == platform.PkgMgrAPT
 	}
 	return false
 }
 
 func (b *pkgURLBackend) Installed(pkg manifest.Package, info platform.Info) (bool, error) {
-	name, args, err := installedQuery(info.PkgMgr, pkg.PkgName)
+	mgr := effectiveMgr(pkg, info)
+	name, args, err := installedQuery(mgr, pkg.PkgName)
 	if err != nil {
 		return false, err
 	}
@@ -69,7 +82,7 @@ func (b *pkgURLBackend) Installed(pkg manifest.Package, info platform.Info) (boo
 	if err != nil {
 		return false, nil
 	}
-	if info.PkgMgr == platform.PkgMgrAPT {
+	if mgr == platform.PkgMgrAPT {
 		return dpkgStatusInstalled(out), nil
 	}
 	if pkg.RPMRepackStripBuildID {
@@ -151,7 +164,7 @@ func (b *pkgURLBackend) Remove(pkg manifest.Package, info platform.Info) error {
 	if strings.TrimSpace(pkg.PkgName) == "" {
 		return fmt.Errorf("pkg-url %q: pkg_name is required for remove", pkg.Name)
 	}
-	argv, err := removeArgv(info.PkgMgr, pkg.PkgName)
+	argv, err := removeArgv(effectiveMgr(pkg, info), pkg.PkgName)
 	if err != nil {
 		return err
 	}

@@ -492,6 +492,27 @@ pkg_name = "app"`,
 			wantErr: "deb requires sha256",
 		},
 		{
+			name: "pinned github deb without checksum rejected",
+			pkg: `
+name = "app"
+backend = "pkg-url"
+repo = "owner/app"
+tag = "v1"
+asset = "app_amd64.deb"
+pkg_name = "app"`,
+			wantErr: "deb requires sha256",
+		},
+		{
+			name: "rolling non-github url deb without checksum rejected",
+			pkg: `
+name = "app"
+backend = "pkg-url"
+url = "https://example.com/app.deb"
+class = "rolling"
+pkg_name = "app"`,
+			wantErr: "deb requires sha256",
+		},
+		{
 			name: "pkg-url fields rejected on script-url",
 			pkg: `
 name = "app"
@@ -1088,6 +1109,29 @@ func TestValidateRequiresAndArch(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q missing %q", err, want)
 		}
+	}
+}
+
+func TestValidateExcludeOS(t *testing.T) {
+	pkg := func(excl ...string) *manifest.Manifest {
+		return &manifest.Manifest{Packages: []manifest.Package{{Name: "app", Backend: manifest.BackendCustomScript, Script: "x.sh", Class: manifest.ClassManaged, Justification: "test", ExcludeOS: excl}}}
+	}
+	for _, ok := range []string{"debian", "linux", "macos"} {
+		if err := manifest.Validate(pkg(ok)); err != nil {
+			t.Fatalf("Validate(exclude_os %q) = %v, want nil", ok, err)
+		}
+	}
+	for _, tt := range []struct{ name, val, want string }{
+		{"unknown", "plan9", `exclude_os "plan9" must be one of`},
+		{"empty", "", "exclude_os entries must be non-empty"},
+		{"wsl", "wsl", `exclude_os "wsl" must be one of`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := manifest.Validate(pkg(tt.val))
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("Validate() = %v, want substring %q", err, tt.want)
+			}
+		})
 	}
 }
 

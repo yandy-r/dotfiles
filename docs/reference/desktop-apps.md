@@ -29,6 +29,7 @@ Use repeated `--only` flags for multiple apps. Bare app names select their exact
 | LM Studio | Official rolling AppImage | Homebrew cask | Official rolling AppImage |
 | Obsidian | Official rolling AppImage | Homebrew cask | Official rolling AppImage |
 | LocalSend | Upstream rolling AppImage | Homebrew cask | Upstream rolling AppImage |
+| T3 Code client | Official rolling AppImage | Official `t3-code` cask | Official rolling AppImage |
 | Discord | Official rolling tarball | Homebrew cask | Official rolling tarball |
 | Google Chrome | Google repo | Homebrew cask | AUR |
 | VS Code Insiders (`code-insiders`) | Microsoft repo | Homebrew cask | AUR |
@@ -40,7 +41,7 @@ Use repeated `--only` flags for multiple apps. Bare app names select their exact
 | WinBoat | Upstream rolling RPM (unsigned) | Not supported | AUR |
 | WhatsApp | Excluded | Official cask (`whatsapp-macos`) | Excluded |
 
-On Linux arm64 (for example Fedora Asahi Remix), ChatGPT and Google Chrome use the same vendor repos (arch-templated), and Zed Preview, LM Studio, Obsidian, Beekeeper Studio and Teams for Linux use `-arm64` sibling entries pointing at upstream's arm64/aarch64 build. The remaining apt/dnf and artifact routes are gated to `x86_64` and are not-applicable there: 1Password (the arm64 vendor repos carry only the CLI), LocalSend (upstream ships an arm64 `.tar.gz` and `.deb` but no arm64 AppImage, and the manifest has no arm64 entry), Discord, Slack, Zoom and WinBoat.
+On Linux arm64 (for example Fedora Asahi Remix), ChatGPT and Google Chrome use the same vendor repos (arch-templated), and Zed Preview, LM Studio, Obsidian, non-Debian T3 Code, Beekeeper Studio and Teams for Linux use `-arm64` sibling entries pointing at upstream's arm64/aarch64 build (Debian-family T3 Code uses the shared `.deb` route, which picks the host-arch package). The remaining apt/dnf and artifact routes are gated to `x86_64` and are not-applicable there: 1Password (the arm64 vendor repos carry only the CLI), LocalSend (upstream ships an arm64 `.tar.gz` and `.deb` but no arm64 AppImage, and the manifest has no arm64 entry), Discord, Slack, Zoom and WinBoat.
 
 Obsidian's arm64 AppImage runtime links the unversioned `libz.so`, which Fedora and Debian ship only in their zlib development package (Arch's `zlib` includes it). `obsidian-arm64` therefore requires `appimage-libz` (`zlib-ng-compat-devel` on Fedora, `zlib1g-dev` on Debian, `zlib` on Arch). Without it the AppImage exits with `libz.so: cannot open shared object file` before Electron starts.
 
@@ -84,11 +85,62 @@ installation input or a repo-managed file. See the
 [Herdr app configuration guide](../../herdr-app/README.md) for the files managed
 by `dotf link`.
 
+## T3 Code
+
+The client and server are separate packages and install independently:
+
+```bash
+dotf install --only t3-code-client
+dotf install --only t3-code-server
+dotf install --only t3-code-client --only t3-code-server
+# Update the client through dotf:
+dotf install --update --only t3-code-client
+# Update the server with its own updater (or re-run the official installer):
+t3 update --yes
+dotf install --only t3-code-server --force
+```
+
+`t3-code-client` selects exactly one route per host, split by distro family
+(stable releases only, Linux `x86_64` and `arm64`):
+
+- **Debian family (Debian/Ubuntu, including hosts where Linuxbrew is the primary
+  package manager, and apt-based WSL):** the official rolling `.deb`
+  (`t3-code-client-debian`, package `t3code`). The package ships its own desktop
+  launcher. dotf picks the host-arch asset from the latest release and verifies
+  GitHub's SHA256 digest before native `apt` installs it, even when Linuxbrew is
+  primary.
+- **Other Linux (Fedora, Arch, openSUSE, ...):** the official rolling AppImage
+  (`t3-code-client` / `t3-code-client-arm64`) under dotf's app directory, with a
+  dotf-generated `.desktop` launcher and the official icon. Upstream ships no RPM.
+  These entries set `exclude_os = ["debian"]` so they never overlap the `.deb`. The
+  generated launcher mirrors the official `.deb`: `Exec` takes `%U`, it registers
+  the `t3code` and `t3code-dev` URL schemes (`x-scheme-handler/...`) and sets
+  `StartupWMClass=t3code`. Like every AppImage entry, these require
+  `appimage-runtime`; when Linuxbrew is the primary manager on a non-Debian host,
+  that native-package prerequisite (FUSE 2) may not be provisioned. That existing
+  limitation is not changed here.
+- **macOS:** the official `t3-code` Homebrew cask.
+
+The AppImage and the `.deb` can update themselves from inside the app, but that is
+separate from dotf; prefer `dotf install --update --only t3-code-client` for the
+managed AppImage so dotf's verified copy and launcher stay authoritative.
+
+`t3-code-server` (opt-in `ai` intent; headless, no desktop session needed) runs
+the official noninteractive installer at <https://t3.codes/install.sh>. It
+installs the stable full runtime by default and `~/.local/bin/t3`, verifying the
+release tarball against its published `SHA256SUMS`. `T3CODE_*` environment
+variables, if set, can override the installer's defaults (channel, version,
+location). The script itself is a rolling HTTPS-only download with no pinned hash,
+and the checksums come from the same release origin. dotf does not enable a service: run
+`t3 service install` yourself if you want the background service. `script-url`
+does not support dotf's `--update`/`--remove`, so use `t3 update --yes` or
+`--force` as above. Keep `~/.local/bin` on `PATH` so dotf can detect `t3`.
+
 ## Native artifact installs
 
 `app-artifact` installs Linux AppImages/tarballs under `$XDG_DATA_HOME/dotf/apps/<name>` (default `~/.local/share/dotf/apps`) and writes a dotf-owned desktop entry. No root is needed. Updates download and verify a new copy before replacing the old one. Removal touches dotf-owned paths only. AppImage entries require `appimage-runtime`, so `--only` also installs FUSE 2 support. Do not assume every app's internal updater replaces its full runtime: use `dotf install --update --only <app>`. Zed's own updater remains enabled; a later `dotf install --update --only zed-preview` replaces it with the latest upstream preview release.
 
-The GitHub-hosted artifacts (Zed Preview, Obsidian, LocalSend, Teams for Linux, Beekeeper Studio and WinBoat) are `class = "rolling"` with no `tag`: every install or update resolves the latest GitHub release (the newest prerelease for Zed Preview) and verifies the download against the SHA256 digest GitHub reports for that asset. That digest provides integrity, not a vendor signing identity, and no version is pinned in the manifest. Rolling LM Studio and Discord downloads trust vendor HTTPS and have no published SHA256.
+The GitHub-hosted artifacts (Zed Preview, Obsidian, LocalSend, T3 Code, Teams for Linux, Beekeeper Studio and WinBoat) are `class = "rolling"` with no `tag`: every install or update resolves the latest GitHub release (the newest prerelease for Zed Preview) and verifies the download against the SHA256 digest GitHub reports for that asset. That digest provides integrity, not a vendor signing identity, and no version is pinned in the manifest. Rolling LM Studio and Discord downloads trust vendor HTTPS and have no published SHA256.
 
 `pkg-url` verifies RPM/DEB magic, package name and architecture before invoking the host package manager. Signed RPMs require a verified key fingerprint and a valid RPM signature. Upstream unsigned RPMs require explicit `allow_unsigned` metadata plus a checksum (a manifest `sha256`, or the GitHub asset digest on the rolling route); this exception is documented per package. Imported signing keys remain after uninstall because other packages may share them.
 

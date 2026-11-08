@@ -113,6 +113,11 @@ func TestLatestReleaseArtifact_ArchSelection(t *testing.T) {
 		"LocalSend-1.18.2-linux-x86-64.AppImage",
 	}
 
+	t3 := []string{
+		"T3-Code-0.1.7-x86_64.AppImage", "T3-Code-0.1.7-arm64.AppImage",
+		"T3-Code-0.1.7-amd64.deb", "T3-Code-0.1.7-arm64.deb",
+	}
+
 	tests := []struct {
 		name    string
 		host    platform.Info
@@ -154,6 +159,14 @@ func TestLatestReleaseArtifact_ArchSelection(t *testing.T) {
 			"LocalSend-1.18.2-linux-x86-64.tar.gz", ""},
 		{"arm-64 spelling is foreign on 32-bit arm", linuxARM, localSend, "LocalSend-*-linux-*.tar.gz",
 			"", "no asset matches"},
+		{"T3 deb glob selects amd64 on x86_64", linuxX86, t3, "T3-Code-*.deb",
+			"T3-Code-0.1.7-amd64.deb", ""},
+		{"T3 deb glob selects arm64 on arm64", linuxARM64, t3, "T3-Code-*.deb",
+			"T3-Code-0.1.7-arm64.deb", ""},
+		{"T3 x86_64 AppImage glob is unambiguous", linuxX86, t3, "T3-Code-*-x86_64.AppImage",
+			"T3-Code-0.1.7-x86_64.AppImage", ""},
+		{"T3 arm64 AppImage glob is unambiguous", linuxARM64, t3, "T3-Code-*-arm64.AppImage",
+			"T3-Code-0.1.7-arm64.AppImage", ""},
 		{"host token outweighs a foreign token in the same name", linuxX86,
 			[]string{"arm-gnu-toolchain-14-x86_64-arm-none-eabi.tar.xz", "arm-gnu-toolchain-14-aarch64-arm-none-eabi.tar.xz"},
 			"arm-gnu-toolchain-*-arm-none-eabi.tar.xz", "arm-gnu-toolchain-14-x86_64-arm-none-eabi.tar.xz", ""},

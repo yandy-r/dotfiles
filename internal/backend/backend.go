@@ -79,13 +79,25 @@ func (e *Engine) Installed(pkg manifest.Package, info platform.Info) (bool, erro
 	return b.Installed(pkg, info)
 }
 
-// HostAllows reports whether pkg's static host gates — OS, arch, and
-// requires_desktop — admit the host described by info. It is pure (runs no
-// commands) and ignores backend/package-manager applicability; every Engine
-// entry point (Applicable/Installed/Install/Update/Remove) uses it, and package
+// HostAllows reports whether pkg's static host gates — OS, exclude_os, arch,
+// and requires_desktop — admit the host described by info. exclude_os rejects
+// the host when ANY listed token matches it under osGateAllows semantics (so
+// "linux" excludes every Linux-family host), independent of the host's package
+// manager. It is pure (runs no commands) and ignores backend-specific
+// applicability; every Engine entry point
+// (Applicable/Installed/Install/Update/Remove) uses it, and package
 // selection uses it to decide whose prerequisites to follow.
 func HostAllows(pkg manifest.Package, info platform.Info) bool {
-	return osGateAllows(pkg.OS, info.OS) && (len(pkg.Arch) == 0 || slices.Contains(pkg.Arch, string(info.Arch))) && (!pkg.RequiresDesktop || info.Desktop)
+	if !osGateAllows(pkg.OS, info.OS) {
+		return false
+	}
+	for _, tok := range pkg.ExcludeOS {
+		if tok != "" && osGateAllows(tok, info.OS) {
+			return false
+		}
+	}
+	return (len(pkg.Arch) == 0 || slices.Contains(pkg.Arch, string(info.Arch))) &&
+		(!pkg.RequiresDesktop || info.Desktop)
 }
 
 // osGateAllows reports whether a package restricted to the manifest os token

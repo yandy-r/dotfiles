@@ -66,6 +66,118 @@ func tmpPkg(t *testing.T, body []byte) string {
 	return p
 }
 
+var (
+	debMagic = []byte("!<arch>\ndebian-binary")
+	// debianBrew is a Debian-family host whose primary manager was detected as
+	// Linuxbrew; native apt/dpkg still own .deb packages there.
+	debianBrew = platform.Info{OS: platform.OSDebian, Arch: platform.ArchX86_64, PkgMgr: platform.PkgMgrHomebrew}
+	debianAPT  = platform.Info{OS: platform.OSDebian, Arch: platform.ArchX86_64, PkgMgr: platform.PkgMgrAPT}
+	fedoraBrew = platform.Info{OS: platform.OSRedHat, Arch: platform.ArchX86_64, PkgMgr: platform.PkgMgrHomebrew}
+)
+
+func debPkg() manifest.Package {
+	return manifest.Package{Name: "t3-code-client-debian", Backend: manifest.BackendPkgURL, PkgName: "t3code", Format: "deb", OS: "debian"}
+}
+
+func TestPkgURLEffectiveMgr(t *testing.T) {
+	deb, rpm := debPkg(), manifest.Package{Name: "r", Backend: manifest.BackendPkgURL, PkgName: "r", Format: "rpm"}
+	for _, tc := range []struct {
+		name string
+		pkg  manifest.Package
+		info platform.Info
+		want platform.PkgMgr
+	}{
+		{"deb on apt", deb, debianAPT, platform.PkgMgrAPT},
+		{"deb on debian linuxbrew", deb, debianBrew, platform.PkgMgrAPT},
+		{"deb on non-debian linuxbrew unchanged", deb, fedoraBrew, platform.PkgMgrHomebrew},
+		{"deb on dnf unchanged", deb, rpmInfo, platform.PkgMgrDNF},
+		{"rpm on debian linuxbrew unchanged", rpm, debianBrew, platform.PkgMgrHomebrew},
+		{"rpm on dnf", rpm, rpmInfo, platform.PkgMgrDNF},
+	} {
+		if got := effectiveMgr(tc.pkg, tc.info); got != tc.want {
+			t.Errorf("%s: effectiveMgr = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+	b := newPkgURLBackend(exec.NewFake())
+	if !b.applicableFor(deb, debianBrew) || !b.applicableFor(deb, debianAPT) {
+		t.Error("deb must be applicable on Debian with apt or Linuxbrew primary")
+	}
+	if b.applicableFor(deb, fedoraBrew) || b.applicableFor(deb, rpmInfo) {
+		t.Error("deb must not be applicable on non-Debian hosts")
+	}
+	if b.applicableFor(rpm, debianBrew) {
+		t.Error("rpm must stay inapplicable on a Debian Linuxbrew host")
+	}
+}
+
+func TestPkgURLDebOnDebianLinuxbrewUsesNativeAPT(t *testing.T) {
+	// Installed uses dpkg-query, not brew, and honours the dpkg status.
+	f := exec.NewFake()
+	f.AddCommand("dpkg-query", []string{"-W", "-f=${db:Status-Status}", "t3code"}, []byte("installed"), nil)
+	if ok, err := newPkgURLBackend(f).Installed(debPkg(), debianBrew); err != nil || !ok {
+		t.Fatalf("Installed(installed) = (%t, %v), want (true, nil)", ok, err)
+	}
+	f = exec.NewFake()
+	f.AddCommand("dpkg-query", []string{"-W", "-f=${db:Status-Status}", "t3code"}, []byte("config-files"), nil)
+	if ok, err := newPkgURLBackend(f).Installed(debPkg(), debianBrew); err != nil || ok {
+		t.Fatalf("Installed(config-files) = (%t, %v), want (false, nil)", ok, err)
+	}
+	for _, c := range f.CallsSnapshot() {
+		if c.Name == "brew" {
+			t.Errorf("unexpected brew call: %v", c)
+		}
+	}
+
+	// Remove runs apt-get remove through sudo env, never brew.
+	f = exec.NewFake()
+	if err := newPkgURLBackend(f).Remove(debPkg(), debianBrew); err != nil {
+		t.Fatalf("Remove() error = %v", err)
+	}
+	calls := f.CallsSnapshot()
+	if len(calls) != 1 || calls[0].Name != "sudo" ||
+		strings.Join(calls[0].Args, " ") != "env DEBIAN_FRONTEND=noninteractive apt-get remove -y t3code" {
+		t.Errorf("Remove calls = %+v, want sudo env DEBIAN_FRONTEND=noninteractive apt-get remove -y t3code", calls)
+	}
+
+	// Install (and therefore Update) uses noninteractive apt-get install.
+	sum := sha256.Sum256(debMagic)
+	fakeHTTPGet(t, map[string][]byte{"t3code.deb": debMagic})
+	r := &pkgRunner{Fake: exec.NewFake(), name: "t3code", arch: "amd64"}
+	pkg := debPkg()
+	pkg.URL, pkg.SHA256 = "https://v.example/t3code.deb", hex.EncodeToString(sum[:])
+	for name, run := range map[string]func(manifest.Package, platform.Info) error{
+		"Install": newPkgURLBackend(r).Install,
+		"Update":  newPkgURLBackend(r).Update,
+	} {
+		if err := run(pkg, debianBrew); err != nil {
+			t.Fatalf("%s() error = %v", name, err)
+		}
+	}
+	var installs int
+	for _, c := range r.CallsSnapshot() {
+		if c.Name != "sudo" {
+			continue
+		}
+		args := strings.Join(c.Args, " ")
+		if !strings.HasPrefix(args, "env DEBIAN_FRONTEND=noninteractive apt-get install -y ") {
+			t.Errorf("unexpected sudo call %q", args)
+		}
+		installs++
+	}
+	if installs != 2 {
+		t.Errorf("sudo apt-get install ran %d times, want 2 (Install+Update)", installs)
+	}
+
+	// A non-Debian Linuxbrew host stays unsupported and runs nothing.
+	f = exec.NewFake()
+	if err := newPkgURLBackend(f).Remove(debPkg(), fedoraBrew); err == nil {
+		t.Error("Remove(deb, fedora linuxbrew) = nil, want UnsupportedPlatformError")
+	}
+	if len(f.CallsSnapshot()) != 0 {
+		t.Errorf("unsupported Remove ran commands: %v", f.CallsSnapshot())
+	}
+}
+
 func TestCheckPkgMagic(t *testing.T) {
 	for _, tc := range []struct {
 		format string

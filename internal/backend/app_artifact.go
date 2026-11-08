@@ -498,6 +498,12 @@ func desktopEntry(pkg manifest.Package, execPath, iconPath string, vendor map[st
 		if pkg.App.Categories != "" {
 			keys["Categories"] = pkg.App.Categories
 		}
+		if pkg.App.StartupWMClass != "" {
+			keys["StartupWMClass"] = pkg.App.StartupWMClass
+		}
+		if pkg.App.MimeType != "" {
+			keys["MimeType"] = pkg.App.MimeType
+		}
 		if pkg.App.ExecArgs != "" {
 			execLine += " " + pkg.App.ExecArgs
 		}

@@ -93,6 +93,62 @@ func TestAppArtifactLifecycle(t *testing.T) {
 	}
 }
 
+// TestDesktopEntryManifestLauncherFields: manifest app metadata (exec_args,
+// startup_wm_class, mime_type, categories) is emitted into the generated entry
+// and overrides same-named vendor keys, while Exec and Icon stay dotf-owned.
+func TestDesktopEntryManifestLauncherFields(t *testing.T) {
+	pkg := manifest.Package{Name: "t3", App: &manifest.AppInstall{
+		DesktopName:    "T3 Code",
+		Categories:     "Development;",
+		ExecArgs:       "%U",
+		StartupWMClass: "t3code",
+		MimeType:       "x-scheme-handler/t3code;x-scheme-handler/t3code-dev;",
+	}}
+	vendor := map[string]string{
+		"StartupWMClass": "vendor-class",
+		"MimeType":       "text/plain;",
+		"Exec":           "/evil %f", // not in vendorKeys in practice, must never win
+		"Comment":        "Vendor comment",
+	}
+	e, err := desktopEntry(pkg, "/opt/t3/T3.AppImage", "/opt/t3/icon.png", vendor)
+	if err != nil {
+		t.Fatalf("desktopEntry() error = %v", err)
+	}
+	for _, want := range []string{
+		"Name=T3 Code\n",
+		"Categories=Development;\n",
+		"StartupWMClass=t3code\n",
+		"MimeType=x-scheme-handler/t3code;x-scheme-handler/t3code-dev;\n",
+		`Exec="/opt/t3/T3.AppImage" %U` + "\n",
+		"Icon=/opt/t3/icon.png\n",
+		"Comment=Vendor comment\n",
+	} {
+		if !bytes.Contains(e, []byte(want)) {
+			t.Errorf("desktop entry missing %q:\n%s", want, e)
+		}
+	}
+	for _, bad := range []string{"vendor-class", "text/plain", "/evil"} {
+		if bytes.Contains(e, []byte(bad)) {
+			t.Errorf("desktop entry leaked %q:\n%s", bad, e)
+		}
+	}
+
+	// Without manifest fields, vendor StartupWMClass/MimeType are still copied.
+	plain, err := desktopEntry(manifest.Package{Name: "x"}, "/run", "", map[string]string{"StartupWMClass": "v", "MimeType": "a/b;"})
+	if err != nil {
+		t.Fatalf("desktopEntry() error = %v", err)
+	}
+	if !bytes.Contains(plain, []byte("StartupWMClass=v\n")) || !bytes.Contains(plain, []byte("MimeType=a/b;\n")) {
+		t.Errorf("vendor keys not preserved without manifest override:\n%s", plain)
+	}
+
+	// A newline in a manifest-supplied value is rejected like any other key.
+	bad := manifest.Package{Name: "x", App: &manifest.AppInstall{MimeType: "a/b;\nExec=evil"}}
+	if _, err := desktopEntry(bad, "/run", "", nil); err == nil {
+		t.Error("newline in manifest mime_type: want error")
+	}
+}
+
 func TestDesktopEntryQuotesAndRejectsNewline(t *testing.T) {
 	e, err := desktopEntry(manifest.Package{Name: "x"}, "/opt/my app/run", "", nil)
 	if err != nil {
