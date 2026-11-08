@@ -133,6 +133,12 @@ func DefaultTable() []LinkSpec {
 		// unix_configs (macOS and all Linux families; herdr is a single file so runtime
 		// logs stay local; espanso reads ~/.config/espanso on both)
 		{Src: "herdr/config.toml", Dest: ".config/herdr/config.toml", Facet: FacetUnix},
+		// The Herdr GUI app owns ~/.config/herdr-app (layouts, state, generated docs),
+		// so only the person's files are linked: keys, settings, theme and own mods.
+		{Src: "herdr-app/keys.json", Dest: ".config/herdr-app/keys.json", Facet: FacetUnix},
+		{Src: "herdr-app/settings.json", Dest: ".config/herdr-app/settings.json", Facet: FacetUnix},
+		{Src: "herdr-app/themes/catppuccin-mocha.json", Dest: ".config/herdr-app/themes/catppuccin-mocha.json", Facet: FacetUnix},
+		{Src: "herdr-app/mods/prefix", Dest: ".config/herdr-app/mods/prefix", IsDir: true, Facet: FacetUnix},
 		{Src: "espanso", Dest: ".config/espanso", IsDir: true, Facet: FacetUnix},
 
 		// generic_linux_desktop_configs (Linux family, opt-in; directories —

@@ -33,23 +33,23 @@ func TestPlan_IdenticalSet_PerOS(t *testing.T) {
 		mustNotHave []string
 	}{
 		{
-			name: "macos", os: platform.OSMacOS, wantCreated: 33,
-			mustHave:    []string{".bashrc", ".config/aerospace", ".config/herdr/config.toml", ".config/espanso", ".config/zed/settings.json"},
+			name: "macos", os: platform.OSMacOS, wantCreated: 37,
+			mustHave:    []string{".bashrc", ".config/aerospace", ".config/herdr/config.toml", ".config/herdr-app/keys.json", ".config/herdr-app/mods/prefix", ".config/espanso", ".config/zed/settings.json"},
 			mustNotHave: []string{".config/hypr", ".config/systemd/user/tmux.service"},
 		},
 		{
-			name: "arch-no-desktop", os: platform.OSArch, wantCreated: 33,
+			name: "arch-no-desktop", os: platform.OSArch, wantCreated: 37,
 			mustHave:    []string{".config/herdr/config.toml", ".config/systemd/user/tmux.service"},
 			mustNotHave: []string{".config/aerospace", ".config/hypr"},
 		},
 		{
-			name: "arch-desktop", os: platform.OSArch, ld: true, wantCreated: 44,
+			name: "arch-desktop", os: platform.OSArch, ld: true, wantCreated: 48,
 			mustHave: []string{".config/hypr", ".local/share/applications/wifi-tui.desktop",
 				".local/share/applications/arch-update.desktop", ".config/herdr/config.toml", ".config/systemd/user/tmux.service"},
 			mustNotHave: []string{".config/aerospace"},
 		},
 		{
-			name: "debian-no-desktop", os: platform.OSDebian, wantCreated: 33,
+			name: "debian-no-desktop", os: platform.OSDebian, wantCreated: 37,
 			mustHave:    []string{".bashrc", ".config/herdr/config.toml", ".config/nvim", ".config/systemd/user/tmux.service"},
 			mustNotHave: []string{".config/aerospace", ".config/hypr"},
 		},
@@ -58,33 +58,33 @@ func TestPlan_IdenticalSet_PerOS(t *testing.T) {
 			// gained (+1) exactly as the Arch-only arch-update.desktop is lost
 			// (-1). Spelling that out so the unchanged count does not read as a
 			// false pass.
-			name: "debian-desktop", os: platform.OSDebian, ld: true, wantCreated: 43,
+			name: "debian-desktop", os: platform.OSDebian, ld: true, wantCreated: 47,
 			mustHave:    []string{".config/herdr/config.toml", ".config/hypr", ".config/waybar", ".config/systemd/user/tmux.service"},
 			mustNotHave: []string{".config/aerospace", ".local/share/applications/arch-update.desktop"},
 		},
 		{
-			name: "generic-linux", os: platform.OSLinux, ld: true, wantCreated: 32,
+			name: "generic-linux", os: platform.OSLinux, ld: true, wantCreated: 36,
 			mustHave:    []string{".config/herdr/config.toml", ".config/espanso"},
 			mustNotHave: []string{".config/hypr", ".config/aerospace"},
 		},
 		{
-			name: "redhat-no-desktop", os: platform.OSRedHat, wantCreated: 33,
+			name: "redhat-no-desktop", os: platform.OSRedHat, wantCreated: 37,
 			mustHave:    []string{".bashrc", ".config/herdr/config.toml", ".config/nvim", ".config/systemd/user/tmux.service"},
 			mustNotHave: []string{".config/aerospace", ".config/hypr", ".local/share/applications/arch-update.desktop"},
 		},
 		{
-			name: "suse-no-desktop", os: platform.OSSUSE, wantCreated: 33,
+			name: "suse-no-desktop", os: platform.OSSUSE, wantCreated: 37,
 			mustHave:    []string{".config/herdr/config.toml", ".config/systemd/user/tmux.service"},
 			mustNotHave: []string{".config/aerospace", ".config/hypr"},
 		},
 		{
-			name: "wsl", os: platform.OSWSL, wantCreated: 33,
+			name: "wsl", os: platform.OSWSL, wantCreated: 37,
 			mustHave:    []string{".config/herdr/config.toml", ".config/systemd/user/tmux.service"},
 			mustNotHave: []string{".config/aerospace", ".config/hypr"},
 		},
 		{
 			name: "windows-excludes-herdr", os: platform.OSWindows, wantCreated: 30,
-			mustNotHave: []string{".config/herdr/config.toml", ".config/espanso", ".config/aerospace", ".config/hypr"},
+			mustNotHave: []string{".config/herdr/config.toml", ".config/herdr-app/keys.json", ".config/espanso", ".config/aerospace", ".config/hypr"},
 		},
 	}
 

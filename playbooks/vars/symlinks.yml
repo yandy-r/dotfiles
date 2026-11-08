@@ -55,6 +55,10 @@ app_configs:
 macos_configs:
   - { src: 'aerospace', dest: '.config/aerospace', type: 'directory' }
   - { src: 'herdr/config.toml', dest: '.config/herdr/config.toml' }
+  - { src: 'herdr-app/keys.json', dest: '.config/herdr-app/keys.json' }
+  - { src: 'herdr-app/settings.json', dest: '.config/herdr-app/settings.json' }
+  - { src: 'herdr-app/themes/catppuccin-mocha.json', dest: '.config/herdr-app/themes/catppuccin-mocha.json' }
+  - { src: 'herdr-app/mods/prefix', dest: '.config/herdr-app/mods/prefix', type: 'directory' }
   - { src: 'espanso', dest: '.config/espanso', type: 'directory' }
 
 # Linux-specific configurations (systemd user services; ADR-12 — the tmux unit
@@ -63,6 +67,10 @@ macos_configs:
 linux_configs:
   - { src: 'common/systemd/user/tmux.service', dest: '.config/systemd/user/tmux.service' }
   - { src: 'herdr/config.toml', dest: '.config/herdr/config.toml' }
+  - { src: 'herdr-app/keys.json', dest: '.config/herdr-app/keys.json' }
+  - { src: 'herdr-app/settings.json', dest: '.config/herdr-app/settings.json' }
+  - { src: 'herdr-app/themes/catppuccin-mocha.json', dest: '.config/herdr-app/themes/catppuccin-mocha.json' }
+  - { src: 'herdr-app/mods/prefix', dest: '.config/herdr-app/mods/prefix', type: 'directory' }
   - { src: 'espanso', dest: '.config/espanso', type: 'directory' }
 
 # Generic Linux desktop configuration
