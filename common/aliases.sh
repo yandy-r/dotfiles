@@ -733,6 +733,7 @@ alias cbp='$DOTFILES_PASTE_CMD'
 alias claude='claude --allow-dangerously-skip-permissions'
 alias cc-itcn='CLAUDE_CONFIG_DIR="$HOME/.config/claude-itcn" claude --allow-dangerously-skip-permissions'
 alias cc-th='CLAUDE_CONFIG_DIR="$HOME/.config/claude-th" claude --allow-dangerously-skip-permissions'
+alias cc-rth='CLAUDE_CONFIG_DIR="$HOME/.config/claude-th" command claude'
 alias oc='opencode --auto'
 
 # ================================================================
