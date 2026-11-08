@@ -159,7 +159,7 @@ The repository now uses a unified configuration system that provides feature par
   - **iTerm2**: Profiles and color schemes
   - **WezTerm**: Modular configuration with functions, keybindings, statusbar
   - **Ghostty**: Modern terminal configuration
-  - **Herdr app**: `herdr-app/` — keys (tmux-style `ctrl+b` prefix mod), settings and a Catppuccin Mocha theme, linked file-by-file into `~/.config/herdr-app` (the app owns the rest)
+  - **Herdr app**: `herdr-app/` — keys (tmux-style `ctrl+b` prefix mod), a `broadcast` mod (send one command to every terminal in a tab, a space, or all spaces, on local and/or remote machines), settings and a Catppuccin Mocha theme, linked file-by-file into `~/.config/herdr-app` (the app owns the rest)
 
 ### Window Management
 

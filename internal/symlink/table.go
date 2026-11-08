@@ -139,6 +139,7 @@ func DefaultTable() []LinkSpec {
 		{Src: "herdr-app/settings.json", Dest: ".config/herdr-app/settings.json", Facet: FacetUnix},
 		{Src: "herdr-app/themes/catppuccin-mocha.json", Dest: ".config/herdr-app/themes/catppuccin-mocha.json", Facet: FacetUnix},
 		{Src: "herdr-app/mods/prefix", Dest: ".config/herdr-app/mods/prefix", IsDir: true, Facet: FacetUnix},
+		{Src: "herdr-app/mods/broadcast", Dest: ".config/herdr-app/mods/broadcast", IsDir: true, Facet: FacetUnix},
 		{Src: "espanso", Dest: ".config/espanso", IsDir: true, Facet: FacetUnix},
 
 		// generic_linux_desktop_configs (Linux family, opt-in; directories —

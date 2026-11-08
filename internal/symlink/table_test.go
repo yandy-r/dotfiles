@@ -7,7 +7,7 @@ import (
 )
 
 func TestTable_Count(t *testing.T) {
-	if got, want := len(DefaultTable()), 49; got != want {
+	if got, want := len(DefaultTable()), 50; got != want {
 		t.Errorf("len(DefaultTable()) = %d, want %d", got, want)
 	}
 }
@@ -24,7 +24,7 @@ func TestTable_FacetCounts(t *testing.T) {
 		FacetArch:        0,
 		FacetWindows:     0,
 		FacetLinux:       1,
-		FacetUnix:        6,
+		FacetUnix:        7,
 		FacetHyprland:    10,
 		FacetArchDesktop: 1,
 	}
@@ -67,6 +67,7 @@ func TestTable_MatchesPlaybook(t *testing.T) {
 		{Src: "herdr-app/settings.json", Dest: ".config/herdr-app/settings.json", Facet: FacetUnix},
 		{Src: "herdr-app/themes/catppuccin-mocha.json", Dest: ".config/herdr-app/themes/catppuccin-mocha.json", Facet: FacetUnix},
 		{Src: "herdr-app/mods/prefix", Dest: ".config/herdr-app/mods/prefix", IsDir: true, Facet: FacetUnix},
+		{Src: "herdr-app/mods/broadcast", Dest: ".config/herdr-app/mods/broadcast", IsDir: true, Facet: FacetUnix},
 		{Src: "espanso", Dest: ".config/espanso", IsDir: true, Facet: FacetUnix},
 		{Src: "hypr", Dest: ".config/hypr", IsDir: true, Facet: FacetHyprland},
 		{Src: "waybar", Dest: ".config/waybar", IsDir: true, Facet: FacetHyprland},
