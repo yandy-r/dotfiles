@@ -11,10 +11,10 @@
 #   agent-prompt --target "ITC-600, ITC-601"               # issue IDs
 #   agent-prompt --target "Website redesign" --task any    # one Linear project
 #
-# Without a profile (or with "auto") the prompt is generic: the agent derives
-# the Linear workspace, team, and projects from the repo it runs in. Optional
-# profiles/<name>.conf files pin those names when the repo can't tell; see
-# profiles/README.md. Target always wins over the profile.
+# Without a profile (or with "auto") the prompt is generic: the agent uses the
+# itcn workspace and derives the Linear team and projects from the repo it runs
+# in. Optional profiles/<name>.conf files pin those names when the repo can't
+# tell; see profiles/README.md. Target always wins over the profile.
 
 set -euo pipefail
 
@@ -34,6 +34,7 @@ ISSUE_COUNT=0
 # agent works the value out from the repo.
 NAME=""
 WORKSPACE=""
+TEAM=""
 ISSUE_PREFIX=""
 RELEASE_LABEL=""
 POOL=""
@@ -51,7 +52,7 @@ Render the end-to-end agent workflow prompt to stdout.
 
 OPTIONS:
     --profile NAME     Profile from $PROFILE_DIR, or auto (default: auto,
-                       the agent derives Linear names from the repo)
+                       use itcn workspace; derive team/projects from the repo)
     --task TASK        bugs, features, or any (default: bugs)
     --target TEXT      Issue IDs ("YAN-1, YAN-2") to work exactly those, or a
                        Linear project to pick from; overrides the profile
@@ -88,7 +89,7 @@ load_profile() {
     value="${value#\"}"
     value="${value%\"}"
     case "$key" in
-    NAME | WORKSPACE | ISSUE_PREFIX | RELEASE_LABEL | POOL | BUGS_PROJECT | FEATURES_PROJECT | CODERABBIT | SECRETS | SECRETS_FILES)
+    NAME | WORKSPACE | TEAM | ISSUE_PREFIX | RELEASE_LABEL | POOL | BUGS_PROJECT | FEATURES_PROJECT | CODERABBIT | SECRETS | SECRETS_FILES)
       printf -v "$key" '%s' "$value"
       ;;
     PROJECT) die "$file: PROJECT was renamed to POOL" ;;
@@ -150,9 +151,15 @@ is_issue_list() {
   ISSUE_COUNT=${#words[@]}
 }
 
-# " (<name> workspace)" when the profile pins one.
-in_workspace() {
-  [[ -n "$WORKSPACE" ]] && printf ' (%s workspace)' "$WORKSPACE"
+# " (<workspace> workspace, <team> team)" for names pinned by the profile.
+linear_location() {
+  local location=""
+  [[ -n "$WORKSPACE" ]] && location="$WORKSPACE workspace"
+  if [[ -n "$TEAM" ]]; then
+    [[ -n "$location" ]] && location+=", "
+    location+="$TEAM team"
+  fi
+  [[ -n "$location" ]] && printf ' (%s)' "$location"
   return 0
 }
 
@@ -173,7 +180,7 @@ render_issue_scope() {
     label="Linear issues"
     which="any"
   fi
-  printf -- '- %s: %s%s\n' "$label" "$TARGET" "$(in_workspace)"
+  printf -- '- %s: %s%s\n' "$label" "$TARGET" "$(linear_location)"
   printf -- '- If %s is already done or has an open PR/branch, resume that work\n' "$which"
 }
 
@@ -197,14 +204,14 @@ render_pick_scope() {
   esac
 
   if [[ -n "$project" ]]; then
-    printf -- '- Pick the next best Linear issue from the open **%s** project%s\n' "$project" "$(in_workspace)"
+    printf -- '- Pick the next best Linear issue from the open **%s** project%s\n' "$project" "$(linear_location)"
   elif [[ "$TASK" == "any" ]] && [[ -z "$POOL" ]] && [[ -n "$BUGS_PROJECT" ]] && [[ -n "$FEATURES_PROJECT" ]]; then
-    printf -- '- Pick the next best Linear issue from the open **%s** or **%s** projects%s\n' "$BUGS_PROJECT" "$FEATURES_PROJECT" "$(in_workspace)"
+    printf -- '- Pick the next best Linear issue from the open **%s** or **%s** projects%s\n' "$BUGS_PROJECT" "$FEATURES_PROJECT" "$(linear_location)"
   else
     if [[ -n "$POOL" ]]; then
-      printf -- '- Pick the next best %s from any open **%s** project%s\n' "$kind" "$POOL" "$(in_workspace)"
+      printf -- '- Pick the next best %s from any open **%s** project%s\n' "$kind" "$POOL" "$(linear_location)"
     else
-      printf -- "- Pick the next best %s from this repo's open Linear projects%s\n" "$kind" "$(in_workspace)"
+      printf -- "- Pick the next best %s from this repo's open Linear projects%s\n" "$kind" "$(linear_location)"
     fi
   fi
   printf '  - %s; prefer unblocked, well-specified issues\n' "$rank"
@@ -216,8 +223,8 @@ render_pick_scope() {
 # when a project or label is renamed, so the agent repairs rather than stops;
 # naming the profile lets it catch one picked for the wrong repo.
 render_linear_context() {
-  if [[ -z "$WORKSPACE$POOL$BUGS_PROJECT$FEATURES_PROJECT$RELEASE_LABEL" ]]; then
-    printf -- "- Linear workspace/team/projects: from RELEASING.md/AGENTS.md, else the repo name; name them in the report\n"
+  if [[ -z "$WORKSPACE$TEAM$POOL$BUGS_PROJECT$FEATURES_PROJECT$RELEASE_LABEL" ]]; then
+    printf -- "- Linear workspace: itcn; team (itcn or yandy-r)/projects: from RELEASING.md/AGENTS.md, else the repo name; name them in the report\n"
   else
     printf -- '- Profile for %s (other repo? stop). Name missing in Linear? Use the closest match; report it\n' "${NAME:-$PROFILE}"
   fi

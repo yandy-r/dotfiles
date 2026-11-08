@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/espanso/espanso/dev/schemas/match.schema.json
 #
 # :projdone - finish a Linear project: loop the :e2e ship workflow over every
-# remaining issue until the project is done. Profile-free: the agent finds the
-# workspace and team from the repo. (Not ":e2e..." - espanso would expand :e2e
-# mid-word.)
+# remaining issue until the project is done. Profile-free: the agent uses the
+# itcn workspace and finds the team from the repo. (Not ":e2e..." - espanso
+# would expand :e2e mid-word.)
 
 matches:
   - trigger: ':projdone'
@@ -21,7 +21,7 @@ matches:
 
       ## Scope
 
-      - Workspace/team: from RELEASING.md/AGENTS.md, else the repo name; project missing or ambiguous? stop and ask
+      - Workspace/team: itcn workspace; team (itcn or yandy-r) from RELEASING.md/AGENTS.md, else the repo name; project missing or ambiguous? stop and ask
       - Inventory every open issue in the project, sub-issues included
       - Order by blocking relations, then milestone, then priority; batch small related issues sharing a target release into one PR
       - Skip issues assigned to others or with a PR/branch you didn't make; resume your own in-flight work

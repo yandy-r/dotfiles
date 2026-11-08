@@ -1,10 +1,10 @@
 # agent-prompt profiles
 
 Profiles are optional. With the `auto` profile, `../agent-prompt` asks the
-agent to find the Linear workspace, team, and projects from the repo itself
-(`RELEASING.md`, `AGENTS.md`, or the repo name), so a new repo needs no
-profile. Add `<name>.conf` only to pin names the agent can't infer, then add
-its name to the `profile` choices in `../../match/prompts/agent-e2e.yml`
+agent to use the `itcn` workspace and find the Linear team and projects from
+the repo itself (`RELEASING.md`, `AGENTS.md`, or the repo name), so a new repo
+needs no profile. Add `<name>.conf` only to pin names the agent can't infer,
+then add its name to the `profile` choices in `../../match/prompts/agent-e2e.yml`
 (`npm run test:espanso` fails until the two match).
 
 Files are read as `KEY=value` lines, never executed. Every key is optional;
@@ -16,7 +16,8 @@ the repo can't say for itself.
 | Key                | Meaning                                                      |
 | ------------------ | ------------------------------------------------------------ |
 | `NAME`             | Project name; the agent stops if the repo is a different one |
-| `WORKSPACE`        | Linear workspace                                             |
+| `WORKSPACE`        | Linear workspace (`itcn`)                                    |
+| `TEAM`             | Linear team (`itcn` or `yandy-r`)                            |
 | `ISSUE_PREFIX`     | Issue key for `Closes <PREFIX>-N` (default `<TEAM>`)         |
 | `RELEASE_LABEL`    | Release label; empty = RELEASING.md tracker rules            |
 | `POOL`             | Pool for "any open X project" (all tasks)                    |

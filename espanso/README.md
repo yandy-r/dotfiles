@@ -30,19 +30,20 @@ end-to-end Linear-to-merge workflow prompt. The text comes from
 `:projdone` is the project-sized sibling: give it a Linear project name and the
 agent loops the same ship workflow over every remaining issue (dependency
 order, re-reading the project after each merge) until the project is done. It
-has no profiles; the workspace comes from the repo. A blocked issue is marked
-and skipped rather than ending the run, follow-ups the project needs join the
+has no profiles; it uses the `itcn` workspace and the team comes from the repo.
+A blocked issue is marked and skipped rather than ending the run, follow-ups
+the project needs join the
 loop, and the project is marked Completed only when every issue is Done or
 Canceled with a reason.
 
 **Profile** says where the Linear names come from:
 
-- `auto` (default) works in any repo with nothing to maintain: the agent
-  finds the workspace, team, and projects from `RELEASING.md`/`AGENTS.md` or
-  the repo name, and reports which ones it used. Secrets and CodeRabbit rules
-  are phrased conditionally ("if present").
+- `auto` (default) works in any repo with nothing to maintain: the agent uses
+  the `itcn` workspace and finds the team (`itcn` or `yandy-r`) and projects
+  from `RELEASING.md`/`AGENTS.md` or the repo name, and reports which ones it
+  used. Secrets and CodeRabbit rules are phrased conditionally ("if present").
 - A named profile (`scripts/profiles/<name>.conf`) pins those names for repos
-  where they can't be inferred (shared workspaces, pooled projects). Profile
+  where they can't be inferred (shared teams, pooled projects). Profile
   values are hints: if a project or label was renamed, the agent uses the
   closest match and reports it instead of failing. See
   [scripts/profiles/README.md](scripts/profiles/README.md).

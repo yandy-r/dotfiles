@@ -3,8 +3,8 @@
 # :e2e - end-to-end agent workflow (Linear issue -> RELEASING.md -> PR -> merge
 # -> backport -> close). The text is rendered by scripts/agent-prompt.
 #
-# Profile: "auto" works in any repo (the agent finds the Linear workspace,
-# team, and projects itself); a named profile pins them from
+# Profile: "auto" works in any repo (the agent uses the itcn workspace and
+# finds the team and projects itself); a named profile pins them from
 # scripts/profiles/<name>.conf. Keep these choices in sync with that directory
 # (`npm run test:espanso` checks it).
 #
