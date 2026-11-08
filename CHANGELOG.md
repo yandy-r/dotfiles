@@ -8,6 +8,10 @@ This project adheres to [Conventional Commits](https://www.conventionalcommits.o
 
 ### Features
 
+- Install the Herdr GUI with `dotf install --intent desktop` or `--only herdr-app`
+  through the official rolling installer on Linux x86_64/arm64 and macOS Apple
+  silicon. Keep the existing Herdr CLI packages; update the app with `--force`
+  reinstall rather than the unsupported `script-url` `--update` action.
 - Install OpenCode 2 through `bin/install-opencode.sh`: remove an OpenCode 1 package
   install while preserving configuration and data, then install V2 with the official
   per-OS method. The side-by-side `opencode2` manifest package is retired.

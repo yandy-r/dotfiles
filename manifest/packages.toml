@@ -125,6 +125,8 @@ packages = [
     "ghostty",
     "ghostty-fedora",
     "ghostty-macos",
+    "herdr-app",
+    "herdr-app-macos",
     # Vendor-repo apps.
     "1password",
     "1password-linux",
@@ -637,6 +639,31 @@ name = "starship"
 backend = "script-url"
 url = "https://starship.rs/install.sh"
 args = ["--yes"]
+
+# Official Herdr GUI installer: handles the app, launcher and initial core
+# bootstrap. The installer tracks latest and rotates, so do not pin its hash.
+# Keep these separate from the existing herdr/herdr-macos CLI packages.
+[[package]]
+name = "herdr-app"
+arch = ["x86_64", "arm64"]
+backend = "script-url"
+os = "linux"
+requires_desktop = true
+url = "https://releases.herdr.dev/app/install.sh"
+provides = ["herdr-app"]
+class = "rolling"
+justification = "official installer tracks latest and its hash rotates; upstream manages the app, launcher and core bootstrap"
+
+[[package]]
+name = "herdr-app-macos"
+arch = ["arm64"]
+backend = "script-url"
+os = "macos"
+requires_desktop = true
+url = "https://releases.herdr.dev/app/install.sh"
+provides = ["herdr-app"]
+class = "rolling"
+justification = "official installer tracks latest and its hash rotates; upstream manages the app, launcher and core bootstrap"
 
 # --- custom-script: executes an arbitrary local script -------------------
 # Each entry wraps a hardened bin/install-*.sh. The backend runs them as

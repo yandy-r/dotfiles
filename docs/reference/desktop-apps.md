@@ -24,6 +24,7 @@ Use repeated `--only` flags for multiple apps. Bare app names select their exact
 | Grok Bot | Vendor CDN repo | Homebrew cask | AUR `grok-bot-bin` |
 | WezTerm | Author's nightly COPR | Homebrew cask | Distro package |
 | Ghostty | Community COPR listed by Ghostty | Homebrew cask | Distro package |
+| Herdr (`herdr-app`) | Official rolling installer | Official rolling installer (Apple silicon) | Official rolling installer |
 | Zed Preview | Official rolling preview tarball | `zed@preview` cask | Official rolling preview tarball |
 | LM Studio | Official rolling AppImage | Homebrew cask | Official rolling AppImage |
 | Obsidian | Official rolling AppImage | Homebrew cask | Official rolling AppImage |
@@ -48,6 +49,40 @@ On Fedora and Fedora remixes, Claude Desktop installs through `bin/install-claud
 AUR entries carry no `arch` gate, so on an Arch Linux arm64 host the AUR siblings (`1password`, `slack-arch`, `zoom-arch`, `winboat-arch` and the rest) are still applicable. dotf does not read a PKGBUILD's `arch` array, so an x86_64-only AUR package fails at build time there instead of being skipped.
 
 OBS Studio, GIMP, darktable, Kdenlive, Meld, Pinta, VLC, Qalculate, Fedora Media Writer and LibreOffice use distro packages on Linux and Homebrew on macOS where available. Fedora Pinta can lag upstream. VLC may need RPM Fusion on older Fedora releases.
+
+## Herdr app
+
+Install the GUI with the desktop intent or select it directly:
+
+```bash
+dotf install --intent desktop
+dotf install --only herdr-app
+# Re-run the official installer to install the latest app, even when present:
+dotf install --only herdr-app --force
+```
+
+`herdr-app` supports Linux `x86_64` and `arm64`; its `herdr-app-macos` sibling
+supports macOS `arm64` (Apple silicon). Intel macOS and Windows are not applicable
+to these manifest entries. Linux still requires a detected graphical session.
+The existing `herdr` and `herdr-macos` CLI packages in the `dev` intent are unchanged.
+
+The [official download page](https://herdr.dev/download/) supplies the
+[`script-url` installer](https://releases.herdr.dev/app/install.sh). It installs
+the app and `~/.local/bin/herdr-app`, registers the Linux launcher or macOS app,
+and attempts to bootstrap `herdr-core` only when absent. If core installation
+fails, the app offers it when opened; an existing core is left alone, and the app
+keeps it current. dotf probes `herdr-app` on PATH, so keep `~/.local/bin` on PATH.
+
+This is a rolling installer, deliberately without a pinned script hash: dotf
+trusts HTTPS for the script, while the installer verifies the app download against
+the SHA256 from its release manifest. `script-url` does not support dotf's
+`--update` or `--remove`; use the `--force` reinstall above to update this app.
+Consequently, `dotf install --update --intent desktop` cannot update every entry.
+
+After launch, the app supplies `~/.config/herdr-app/AGENTS.md`; it is not an
+installation input or a repo-managed file. See the
+[Herdr app configuration guide](../../herdr-app/README.md) for the files managed
+by `dotf link`.
 
 ## Native artifact installs
 

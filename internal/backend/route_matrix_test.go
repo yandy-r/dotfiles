@@ -70,6 +70,9 @@ var unsupportedRoutes = map[string]map[routeHost]string{
 		debianX86: "no Debian route declared; Fedora takes the dnf repo, Arch the AUR",
 		debianARM: "no Debian route declared; Fedora takes the dnf repo, Arch the AUR",
 	},
+	"herdr-app": {
+		macosX86: "official macOS app installer supports Apple silicon only; Intel Macs are unsupported",
+	},
 	"localsend": {
 		debianARM: "Linux app-artifact route is gated to x86_64; no arm64 build declared",
 		redhatARM: "Linux app-artifact route is gated to x86_64; no arm64 build declared",
