@@ -28,7 +28,9 @@ Terminal-herdr actions with no app equivalent (`o` last pane, `[` copy mode, `sh
 ## Broadcast
 
 The `broadcast` dialog types one command into many terminals at once. Each target gets it
-through `hc send`, which pastes the text and presses Enter. A toast reports how many sends
+through herdr-core's `terminal.send` API (via `hc connect`, as a person rather than a program,
+so remote cores don't wrap it in `<hc from=…>` agent tags), which pastes the text and presses
+Enter. A toast reports how many sends
 succeeded and lists any that failed. Open it from the prefix with a preset, or with
 `herdr-app do mod.open --name broadcast`, which reuses your last choices:
 

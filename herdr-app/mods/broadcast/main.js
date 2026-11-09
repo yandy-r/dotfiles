@@ -1,7 +1,8 @@
 // Broadcast: type one command into many terminals at once, like tmux's
 // synchronize-panes. It opens as a dialog. Pick a scope (this tab, this space,
 // every space) and which machines to include, then press Enter. Each target
-// gets the text through `hc send`, which pastes it and presses Enter.
+// gets the text through herdr-core's terminal.send (see sendAsPerson), which
+// pastes it and presses Enter.
 //
 // Open it with `mod.open:broadcast`, which uses the last choices, or with
 // openOverlay({ mod: "broadcast", props: { scope, machines } }) to preset them
@@ -15,7 +16,7 @@
 
 import { View, div } from 'gpui-kit';
 import { v_flex, h_flex, InputState, Input } from 'gpui-base';
-import { closeOverlay, focused, hc, machines, notify, panes, props, setShared, shared, spaces, theme } from 'herdr';
+import { closeOverlay, exec, focused, machines, notify, panes, props, setShared, shared, spaces, theme } from 'herdr';
 
 const PREFS = 'broadcast.prefs';
 const HISTORY = 'broadcast.history';
@@ -30,6 +31,41 @@ const SCOPES = [
 
 const machineKey = (m) => m ?? LOCAL;
 const machineLabel = (k) => (k === LOCAL ? 'this computer' : k);
+
+// Types `text` into one terminal and presses Enter, as a person would.
+//
+// Not `hc send`: the CLI always names a caller (HC_TERMINAL_ID, else its parent
+// process, here the app as `ppid:<pid>`). A core on another machine treats text
+// from a remote caller as an agent-to-agent note and wraps it in
+// `<hc from="g7/ppid:…">…</hc>` whenever the target once sent an OSC 7501 status
+// report (any shell an agent has run in). The API's terminal.send takes
+// `caller: null`, meaning a person typed it, which is what a broadcast is, so
+// this goes through `hc connect` (JSON-RPC over stdin/stdout) instead.
+async function sendAsPerson(address, text) {
+  const req = (id, method, params) => JSON.stringify({ jsonrpc: '2.0', id, method, params });
+  const r = await exec('sh', [
+    '-c',
+    'printf "%s\\n" "$1" "$2" | hc connect',
+    'sh',
+    req(1, 'hello', {}),
+    req(2, 'terminal.send', { terminal: address, text, caller: null }),
+  ]);
+  for (const line of r.stdout.split('\n')) {
+    let msg;
+    try {
+      msg = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (msg?.id !== 2) continue;
+    if (msg.error) {
+      const hint = msg.error.data?.hint;
+      return { ok: false, why: hint ? `${msg.error.message} (${hint})` : msg.error.message };
+    }
+    return { ok: true, why: '' };
+  }
+  return { ok: false, why: (r.stderr || r.stdout).trim() || `hc connect exited ${r.code}` };
+}
 
 // Every machine Herdr shows: this computer first, then the others by name.
 function knownMachines() {
@@ -123,8 +159,8 @@ export default class Broadcast extends View {
     cx.spawn(async (cx) => {
       const results = await Promise.all(
         targets.map((t) =>
-          hc(['send', t.address, text])
-            .then((r) => ({ t, ok: r.code === 0, why: (r.stderr || r.stdout).trim() }))
+          sendAsPerson(t.address, text)
+            .then((r) => ({ t, ...r }))
             .catch((e) => ({ t, ok: false, why: String(e) }))
         )
       );
