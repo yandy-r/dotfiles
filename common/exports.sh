@@ -251,7 +251,6 @@ fi
 
 # Enable colors in terminal
 export CLICOLOR=1
-export FORCE_COLOR=1
 
 # Color settings for ls
 if is_macos; then
