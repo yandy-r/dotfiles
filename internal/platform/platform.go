@@ -2,6 +2,7 @@ package platform
 
 import (
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -29,28 +30,60 @@ func Detect(r exec.Runner) Info {
 		Distro:    rel.distro(),
 		Codename:  rel.Codename,
 		VersionID: rel.VersionID,
-		Desktop:   detectDesktop(os, getenv),
+		Desktop:   detectDesktop(os, getenv, hasWaylandSocket),
 	}
 }
 
 // detectDesktop reports whether a graphical session is available to GUI
-// packages (manifest requires_desktop). macOS always has one. On the Linux
-// family it requires XDG_SESSION_TYPE x11/wayland or a WAYLAND_DISPLAY socket
-// (WSLg sets the latter); DISPLAY alone is deliberately ignored because SSH X11
-// forwarding sets it on otherwise headless hosts. SSH/TTY/container shells and
-// root shells with a stripped environment therefore report false.
-func detectDesktop(o OS, getenv func(string) string) bool {
+// packages (manifest requires_desktop). DOTF_DESKTOP=1|true|0|false overrides
+// detection on macOS and the Linux family (never enabling it elsewhere). macOS
+// otherwise always has one. On the Linux family it requires XDG_SESSION_TYPE
+// x11/wayland, a WAYLAND_DISPLAY name (WSLg sets it), or a live wayland-*
+// socket in XDG_RUNTIME_DIR — the last covers tmux/herdr and SSH shells on a
+// machine whose desktop session is running but whose session env vars did not
+// reach the shell. DISPLAY alone is deliberately ignored because SSH X11
+// forwarding sets it on otherwise headless hosts.
+func detectDesktop(o OS, getenv func(string) string, waylandSocket func(runtimeDir string) bool) bool {
+	if o != OSMacOS && !IsLinuxFamily(o) {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(getenv("DOTF_DESKTOP"))) {
+	case "1", "true", "yes":
+		return true
+	case "0", "false", "no":
+		return false
+	}
 	if o == OSMacOS {
 		return true
-	}
-	if !IsLinuxFamily(o) {
-		return false
 	}
 	switch strings.ToLower(strings.TrimSpace(getenv("XDG_SESSION_TYPE"))) {
 	case "x11", "wayland":
 		return true
 	}
-	return strings.TrimSpace(getenv("WAYLAND_DISPLAY")) != ""
+	if strings.TrimSpace(getenv("WAYLAND_DISPLAY")) != "" {
+		return true
+	}
+	rt := strings.TrimSpace(getenv("XDG_RUNTIME_DIR"))
+	return rt != "" && waylandSocket(rt)
+}
+
+// hasWaylandSocket reports whether runtimeDir (an absolute XDG_RUNTIME_DIR)
+// holds a wayland-N unix socket, i.e. a compositor is running for this user.
+// Lock files and non-socket entries do not count.
+func hasWaylandSocket(runtimeDir string) bool {
+	if runtimeDir == "" || !filepath.IsAbs(runtimeDir) {
+		return false
+	}
+	matches, _ := filepath.Glob(filepath.Join(runtimeDir, "wayland-*"))
+	for _, m := range matches {
+		if strings.HasSuffix(m, ".lock") {
+			continue
+		}
+		if fi, err := os.Lstat(m); err == nil && fi.Mode()&os.ModeSocket != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // detectOS determines the canonical OS/distro family from the os-release file

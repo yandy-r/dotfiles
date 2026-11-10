@@ -703,7 +703,7 @@ func TestSetFlags_ExactFlagNames(t *testing.T) {
 		// registration — while the bare "read"/"manifest" cases below stay pure,
 		// proving setReadFlags/setDriftFlags return arities are UNCHANGED.
 		{"install", func(fs *flag.FlagSet) { setInstallFlags(fs); setNoUserConfigFlag(fs) },
-			[]string{"dry-run", "force", "intent", "manifest", "no-user-config", "only", "remove", "skip", "update"}},
+			[]string{"desktop", "dry-run", "force", "intent", "manifest", "no-user-config", "only", "remove", "skip", "update"}},
 		{"manifest", func(fs *flag.FlagSet) { setManifestFlag(fs) },
 			[]string{"manifest"}},
 		{"read", func(fs *flag.FlagSet) { setReadFlags(fs) },
@@ -722,7 +722,7 @@ func TestSetFlags_ExactFlagNames(t *testing.T) {
 		// apply registers --no-user-config inside setApplyFlags (its own env-twin
 		// path), so this case does not wrap and just expects the name.
 		{"apply", func(fs *flag.FlagSet) { setApplyFlags(fs) },
-			[]string{"dry-run", "enable-ollama", "force", "gaming", "headless", "homebrew", "hyprland", "intent", "linux-desktop", "manifest", "no-backup", "no-user-config", "only", "plasma", "skip", "snapper"}},
+			[]string{"desktop", "dry-run", "enable-ollama", "force", "gaming", "headless", "homebrew", "hyprland", "intent", "linux-desktop", "manifest", "no-backup", "no-user-config", "only", "plasma", "skip", "snapper"}},
 		{"lock", func(fs *flag.FlagSet) { setLockFlags(fs); setNoUserConfigFlag(fs) },
 			[]string{"check", "dry-run", "json", "lock", "manifest", "no-user-config", "only", "platform", "skip"}},
 		// self-update is flag-only: four booleans, and deliberately NO

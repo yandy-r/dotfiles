@@ -1,6 +1,6 @@
 # Desktop apps
 
-Desktop apps are opt-in and require a graphical session. On macOS they are always applicable; Linux needs a detected X11/Wayland session.
+Desktop apps are opt-in and require a graphical session. On macOS they are always applicable; Linux needs a detected X11/Wayland session (a running Wayland compositor is found even from tmux/herdr/SSH shells); force it with `--desktop` on `install`/`apply` or `DOTF_DESKTOP=1`.
 
 ```bash
 dotf install --only 1password

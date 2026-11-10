@@ -319,7 +319,8 @@ type Package struct {
 
 	// RequiresDesktop marks a GUI package that only makes sense inside a
 	// graphical session. When no desktop session is detected
-	// (platform.Info.Desktop false — SSH/TTY/container) the package is skipped
+	// (platform.Info.Desktop false — headless SSH/TTY/container; DOTF_DESKTOP
+	// or --desktop overrides) the package is skipped
 	// as not-applicable, gating Engine.Applicable/Installed/Install exactly like
 	// OS (same defense-in-depth model).
 	RequiresDesktop bool `toml:"requires_desktop"`

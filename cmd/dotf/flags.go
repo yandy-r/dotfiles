@@ -95,6 +95,19 @@ const noUserConfigFlagUsage = "disable the ~/.config/dotf user-config overlay (p
 // arities while this one flag still spans every manifest-consuming command.
 // (apply registers it inside setApplyFlags instead, since apply resolves every
 // boolean's env twin through its own applyFlags struct.)
+// desktopFlagUsage is the shared --desktop help string (install and apply).
+const desktopFlagUsage = "treat this host as having a graphical session, for shells (tmux/herdr/SSH) that lack its env vars; same as DOTF_DESKTOP=1"
+
+// forceDesktop applies a parsed --desktop flag by setting DOTF_DESKTOP=1, the
+// override platform.Detect honors, so every Detect call in the run (including
+// apply's per-phase re-detection) sees the same answer. false leaves any
+// user-set DOTF_DESKTOP (e.g. 0 to force GUI packages off) untouched.
+func forceDesktop(on bool) {
+	if on {
+		_ = os.Setenv("DOTF_DESKTOP", "1")
+	}
+}
+
 func setNoUserConfigFlag(fs *flag.FlagSet) *bool {
 	return fs.Bool("no-user-config", false, noUserConfigFlagUsage)
 }

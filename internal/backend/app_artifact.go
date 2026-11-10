@@ -202,7 +202,7 @@ func (b *appArtifactBackend) Install(pkg manifest.Package, info platform.Info) e
 	if err := fetchVerifyExtract(a.URL, a.SHA256, staging, a.Asset); err != nil {
 		return fmt.Errorf("app-artifact %q: %w", pkg.Name, err)
 	}
-	execRel, err := appExecutable(staging, pkg.Binary)
+	execRel, err := appExecutable(staging, pkg.Name, pkg.Binary)
 	if err != nil {
 		return fmt.Errorf("app-artifact %q: %w", pkg.Name, err)
 	}
@@ -311,8 +311,8 @@ func (b *appArtifactBackend) Remove(pkg manifest.Package, _ platform.Info) error
 
 // appExecutable returns the executable path relative to dir: the declared
 // binary (guarded against traversal), else the sole extracted regular file
-// (the AppImage case), which is made executable.
-func appExecutable(dir, binary string) (string, error) {
+// (the AppImage case, renamed to <pkgName>.AppImage), which is made executable.
+func appExecutable(dir, pkgName, binary string) (string, error) {
 	if binary != "" {
 		p, err := safeExtractPath(dir, binary)
 		if err != nil {
@@ -342,6 +342,16 @@ func appExecutable(dir, binary string) (string, error) {
 		return "", fmt.Errorf("artifact is not a single file; set `binary` to the executable path")
 	}
 	name := entries[0].Name()
+	// Store a bare AppImage under a version-free name. In-app self-updaters
+	// (electron-updater) overwrite the running file in place only when its name
+	// carries no x.y.z version; otherwise they write a new versioned file and
+	// delete the old one, leaving the dotf launcher pointing at nothing.
+	if stable := pkgName + ".AppImage"; strings.HasSuffix(strings.ToLower(name), ".appimage") && name != stable {
+		if err := os.Rename(filepath.Join(dir, name), filepath.Join(dir, stable)); err != nil {
+			return "", err
+		}
+		name = stable
+	}
 	if err := os.Chmod(filepath.Join(dir, name), 0o755); err != nil {
 		return "", err
 	}

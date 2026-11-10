@@ -47,6 +47,7 @@ func runApply(args []string, stdout, stderr io.Writer, r exec.Runner) (code int)
 		return 2
 	}
 
+	forceDesktop(f.Desktop)
 	opts := resolveApplyOptions(*f, os.Getenv)
 
 	if !validHomebrew(opts.Homebrew) {

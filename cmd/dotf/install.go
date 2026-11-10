@@ -95,6 +95,7 @@ func runInstall(args []string, stdout, stderr io.Writer, r exec.Runner) (code in
 		return 2
 	}
 
+	forceDesktop(o.desktop)
 	info := platform.Detect(r)
 	pkgs := packagesForInstall(m, o.intents)
 
@@ -288,6 +289,7 @@ type installOpts struct {
 	force    bool
 	update   bool
 	remove   bool
+	desktop  bool
 	intents  multiFlag
 	only     multiFlag
 	skip     multiFlag
@@ -304,6 +306,7 @@ func setInstallFlags(fs *flag.FlagSet) *installOpts {
 	fs.BoolVar(&o.force, "force", false, "reinstall packages even when already installed")
 	fs.BoolVar(&o.update, "update", false, "update the named package(s) in place (backend must support it)")
 	fs.BoolVar(&o.remove, "remove", false, "remove the named package(s) (backend must support it)")
+	fs.BoolVar(&o.desktop, "desktop", false, desktopFlagUsage)
 	fs.Var(&o.intents, "intent", "limit installs to packages from this intent (repeatable)")
 	fs.Var(&o.only, "only", "install only these named packages, independent of --intent (repeatable)")
 	fs.Var(&o.skip, "skip", "exclude these named packages after intent/only selection (repeatable)")

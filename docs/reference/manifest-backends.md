@@ -102,7 +102,11 @@ Try these in order; the first that fits is the right one:
 
 Any backend accepts `requires_desktop = true` for GUI apps: the package is
 `applicable=false` unless dotf sees a graphical session (macOS, or Linux with
-`XDG_SESSION_TYPE=x11|wayland` or `WAYLAND_DISPLAY`). It applies to `--only` too.
+`XDG_SESSION_TYPE=x11|wayland`, `WAYLAND_DISPLAY`, or a live `wayland-*` socket
+in `$XDG_RUNTIME_DIR` — the last covers tmux/herdr/SSH shells on a machine whose
+desktop is running). It applies to `--only` too. Override detection with
+`DOTF_DESKTOP=1|0` (any command), or pass `--desktop` to `install`/`apply`, e.g.
+for an X11 desktop reached from a shell without its session variables.
 
 ## How to add a native entry
 
@@ -271,7 +275,9 @@ menu entry. Declare `url` (HTTPS) or `repo`/`tag`/`asset`, plus `app` metadata
 (`icon`, `desktop_name`, optional `desktop`, `categories`, `exec_args`,
 `startup_wm_class` and `mime_type`; the last three override the same keys from a
 vendor `.desktop` file, and `Exec`/`Icon` always stay dotf-owned). Archives need
-`binary` relative to their root. SHA256 pins immutable artifacts; rolling
+`binary` relative to their root. A bare AppImage is stored as
+`<name>.AppImage` (no upstream version in the filename), so apps that update
+themselves in place (electron-updater) keep the dotf launcher valid. SHA256 pins immutable artifacts; rolling
 vendor URLs rely on HTTPS. ELF architecture, archive paths and desktop values
 are checked before activation. Install/update stages the full artifact before
 replacing the old copy; remove touches only dotf-owned paths.

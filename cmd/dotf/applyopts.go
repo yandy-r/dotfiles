@@ -18,6 +18,7 @@ type applyFlags struct {
 	Hyprland, Snapper  bool
 	LinuxDesktop       bool
 	Plasma             bool
+	Desktop            bool // applied via forceDesktop (DOTF_DESKTOP), not applyOptions
 	DryRun             bool
 	NoBackup           bool
 	NoUserConfig       bool
@@ -42,6 +43,7 @@ func setApplyFlags(fs *flag.FlagSet) *applyFlags {
 	fs.BoolVar(&f.LinuxDesktop, "linux-desktop", false, "deprecated alias for --hyprland")
 	fs.BoolVar(&f.Snapper, "snapper", false, "take a snapper pre-apply snapshot (Linux only, no-op without snapper)")
 	fs.BoolVar(&f.Plasma, "plasma", false, "sync the KDE Plasma config set (Linux/KDE only, no-op elsewhere)")
+	fs.BoolVar(&f.Desktop, "desktop", false, desktopFlagUsage)
 	fs.BoolVar(&f.DryRun, "dry-run", false, "compose the plan without executing; never primes sudo")
 	fs.BoolVar(&f.NoBackup, "no-backup", false, "replace real files in $HOME without backing them up first")
 	// --no-user-config lives inside setApplyFlags (rather than the standalone

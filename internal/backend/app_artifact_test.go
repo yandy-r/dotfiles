@@ -61,13 +61,13 @@ func TestAppArtifactLifecycle(t *testing.T) {
 		t.Fatalf("Installed() = %v, %v; want true, nil", ok, err)
 	}
 	appDir := filepath.Join(dataHome, "dotf", "apps", "test-app")
-	got, _ := os.ReadFile(filepath.Join(appDir, "test.AppImage"))
+	got, _ := os.ReadFile(filepath.Join(appDir, "test-app.AppImage"))
 	desktop := filepath.Join(dataHome, "applications", "dotf-test-app.desktop")
 	entry, _ := os.ReadFile(desktop)
 	if !bytes.Equal(got, elf) {
 		t.Errorf("installed binary = %q, want ELF payload", got)
 	}
-	if !bytes.Contains(entry, []byte(`Exec="`+filepath.Join(appDir, "test.AppImage")+`"`)) {
+	if !bytes.Contains(entry, []byte(`Exec="`+filepath.Join(appDir, "test-app.AppImage")+`"`)) {
 		t.Errorf("desktop entry missing quoted Exec path:\n%s", entry)
 	}
 
@@ -76,7 +76,7 @@ func TestAppArtifactLifecycle(t *testing.T) {
 	if err := b.Update(pkg, info); err == nil || !strings.Contains(err.Error(), "SHA256 mismatch") {
 		t.Fatalf("Update() error = %v; want SHA256 mismatch", err)
 	}
-	got2, _ := os.ReadFile(filepath.Join(appDir, "test.AppImage"))
+	got2, _ := os.ReadFile(filepath.Join(appDir, "test-app.AppImage"))
 	entry2, _ := os.ReadFile(desktop)
 	if !bytes.Equal(got2, elf) || !bytes.Equal(entry2, entry) {
 		t.Error("failed Update modified the installed binary or desktop entry")
@@ -90,6 +90,53 @@ func TestAppArtifactLifecycle(t *testing.T) {
 	}
 	if ok, err := b.Installed(pkg, info); err != nil || ok {
 		t.Fatalf("Installed() after Remove = %v, %v; want false, nil", ok, err)
+	}
+}
+
+// TestAppArtifactStableAppImageName: a bare AppImage is stored under a
+// version-free name derived from the package, so an in-app self-updater
+// (electron-updater overwrites in place only when the filename carries no
+// x.y.z version) cannot strand the dotf launcher on a deleted versioned file.
+func TestAppArtifactStableAppImageName(t *testing.T) {
+	dataHome := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", dataHome)
+	elf := make([]byte, 20)
+	copy(elf, "\x7fELF\x02\x01")
+	elf[18] = 62
+	fakeHTTPGet(t, map[string][]byte{"T3-Code-0.1.7-x86_64.AppImage": elf})
+
+	pkg := manifest.Package{
+		Name:    "t3-code-client",
+		Backend: manifest.BackendAppArtifact,
+		URL:     "https://vendor.example/v0.1.7/T3-Code-0.1.7-x86_64.AppImage",
+	}
+	info := platform.Info{OS: platform.OSRedHat, Arch: platform.ArchX86_64, Desktop: true}
+	b := newAppArtifactBackend(exec.NewFake())
+	if err := b.Install(pkg, info); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	appDir := filepath.Join(dataHome, "dotf", "apps", "t3-code-client")
+	want := filepath.Join(appDir, "t3-code-client.AppImage")
+	if fi, err := os.Lstat(want); err != nil || !fi.Mode().IsRegular() {
+		t.Fatalf("stable AppImage %s missing: %v", want, err)
+	}
+	if _, err := os.Lstat(filepath.Join(appDir, "T3-Code-0.1.7-x86_64.AppImage")); err == nil {
+		t.Error("versioned upstream filename still present; want only the stable name")
+	}
+	entry, _ := os.ReadFile(filepath.Join(dataHome, "applications", "dotf-t3-code-client.desktop"))
+	if !bytes.Contains(entry, []byte(`Exec="`+want+`"`)) {
+		t.Errorf("desktop entry Exec not the stable path:\n%s", entry)
+	}
+
+	// Simulate the app self-updating in place (same stable path, new bytes):
+	// dotf must still consider it installed.
+	upd := append([]byte(nil), elf...)
+	upd[19] = 0
+	if err := os.WriteFile(want, append(upd, 'x'), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := b.Installed(pkg, info); err != nil || !ok {
+		t.Fatalf("Installed() after in-place self-update = %v, %v; want true", ok, err)
 	}
 }
 
