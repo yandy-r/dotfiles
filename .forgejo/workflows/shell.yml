@@ -20,7 +20,9 @@ name: Shell
 #     for the local-overrides hook, shell parity, the bash prompt, the startup
 #     cache, the platform predicates and the startup smoke driver) plus the
 #     bats-core suite in tests/shell, on Linux, with zsh installed so the zsh
-#     cases run too. The GitHub twin also covers macOS (Homebrew bash 5 and
+#     cases run too, plus the hermetic tool/installer tests
+#     (cursor-export-secrets, install-*, targeted-research, tea-tools). The GitHub
+#     twin also covers macOS (Homebrew bash 5 and
 #     the system /bin/bash 3.2), which this job cannot.
 
 on:
@@ -99,13 +101,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Install zsh and git
+      - name: Install zsh, git, jq and sqlite3
         # The Forgejo runner image may run as root without sudo, and may lack
         # zsh or git. Disabling man-db's trigger keeps the install fast.
         run: |
           if command -v sudo >/dev/null; then SUDO=sudo; else SUDO=; fi
           $SUDO rm -f /var/lib/man-db/auto-update
-          $SUDO apt-get update -q && $SUDO apt-get install -y -q --no-install-recommends zsh git
+          $SUDO apt-get update -q && $SUDO apt-get install -y -q --no-install-recommends zsh git jq sqlite3
 
       - name: Shell versions
         run: |
@@ -138,6 +140,29 @@ jobs:
 
       - name: Shell startup smoke
         run: bash scripts/test-shell-startup-smoke.sh
+
+      # Hermetic tool/installer tests (mirrors the GitHub twin's Linux steps).
+
+      - name: Cursor secrets export
+        run: bash scripts/test-cursor-export-secrets.sh
+
+      - name: Codex installer lifecycle
+        run: bash scripts/test-install-codex.sh
+
+      - name: oh-my-pi installer lifecycle
+        run: bash scripts/test-install-omp.sh
+
+      - name: OpenCode installer lifecycle
+        run: bash scripts/test-install-opencode.sh
+
+      - name: Playwright CLI installer
+        run: bash scripts/test-install-playwright-cli.sh
+
+      - name: Targeted-research call surface
+        run: bash scripts/test-targeted-research-call-surface.sh
+
+      - name: tea-tools
+        run: bash scripts/test-tea-tools.sh
 
       - name: Bats suite
         run: bats tests/shell

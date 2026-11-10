@@ -13,7 +13,8 @@ name: Shell
 #     the zsh cases run too. On macOS the drivers run under Homebrew bash 5
 #     (the prompt test needs bash >= 4.4), and the local-hook, parity and smoke
 #     tests run a second time with the shells under test pinned to the system
-#     /bin/bash 3.2.
+#     /bin/bash 3.2. Linux additionally runs the hermetic tool/installer tests
+#     (cursor-export-secrets, install-*, targeted-research, tea-tools).
 
 on:
   pull_request:
@@ -102,7 +103,7 @@ jobs:
           set -euo pipefail
           sudo rm -f /var/lib/man-db/auto-update
           sudo apt-get update -q
-          sudo apt-get install -y -q --no-install-recommends zsh
+          sudo apt-get install -y -q --no-install-recommends zsh jq sqlite3
 
       - name: Install bash 5 (macOS)
         # macOS ships bash 3.2 as /bin/bash; the drivers need bash >= 4 and the
@@ -166,6 +167,37 @@ jobs:
         # per-process reload guards) must hold on the stock /bin/bash too.
         if: runner.os == 'macOS'
         run: TEST_BASH=/bin/bash bash scripts/test-shell-startup-smoke.sh
+
+      # Hermetic tool/installer tests. Linux only: the fixtures lean on GNU
+      # userland (stat -c, apt/dnf stubs) and are not verified on macOS.
+
+      - name: Cursor secrets export
+        if: runner.os == 'Linux'
+        run: bash scripts/test-cursor-export-secrets.sh
+
+      - name: Codex installer lifecycle
+        if: runner.os == 'Linux'
+        run: bash scripts/test-install-codex.sh
+
+      - name: oh-my-pi installer lifecycle
+        if: runner.os == 'Linux'
+        run: bash scripts/test-install-omp.sh
+
+      - name: OpenCode installer lifecycle
+        if: runner.os == 'Linux'
+        run: bash scripts/test-install-opencode.sh
+
+      - name: Playwright CLI installer
+        if: runner.os == 'Linux'
+        run: bash scripts/test-install-playwright-cli.sh
+
+      - name: Targeted-research call surface
+        if: runner.os == 'Linux'
+        run: bash scripts/test-targeted-research-call-surface.sh
+
+      - name: tea-tools
+        if: runner.os == 'Linux'
+        run: bash scripts/test-tea-tools.sh
 
       - name: Bats suite
         run: bats tests/shell

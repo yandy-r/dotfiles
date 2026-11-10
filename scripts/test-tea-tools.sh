@@ -338,7 +338,7 @@ test_zsh_startup_registers_installed_completion() {
 
   local result
   result="$(PATH="$REPO_ROOT/bin:$PATH" TEA_TOOLS_TEST_COMPLETION_DIR="$completion_dir" \
-    zsh -fic 'fpath=("$TEA_TOOLS_TEST_COMPLETION_DIR" $fpath); autoload -Uz compinit; compinit -D; print ${_comps[tea-tools]-missing}' 2>/dev/null)"
+    zsh -fic 'fpath=("$TEA_TOOLS_TEST_COMPLETION_DIR" $fpath); autoload -Uz compinit; compinit -u -D; print ${_comps[tea-tools]-missing}' 2>/dev/null)"
   [[ "$result" == "_tea-tools" || "$result" == "_tea_tools" ]] ||
     fail "zsh login shell should register tea-tools completion, got: ${result:-empty}"
 }
