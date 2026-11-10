@@ -730,7 +730,7 @@ alias cbp='$DOTFILES_PASTE_CMD'
 # CLAUDE / CODEX / OpenCode ALIASES
 # ================================================================
 
-alias claude='cc --allow-dangerously-skip-permissions'
+alias cca='claude --allow-dangerously-skip-permissions'
 alias cc-iot='CLAUDE_CONFIG_DIR="$HOME/.config/claude-iot" claude --allow-dangerously-skip-permissions'
 alias cc-ry='CLAUDE_CONFIG_DIR="$HOME/.config/claude-ry" claude --allow-dangerously-skip-permissions'
 alias cc-apple='CLAUDE_CONFIG_DIR="$HOME/.config/claude-apple" claude --allow-dangerously-skip-permissions'
