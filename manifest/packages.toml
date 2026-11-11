@@ -7,8 +7,6 @@
 # intents (runtimes, ai, cloud, git-tools) — see #31. It defines:
 #   - [intents.<name>]   named, user-selectable bundles of packages
 #   - [[package]]         installable units, one entry per supported backend
-#   - [[symlink]]         dotfiles-to-$HOME mappings, ported from
-#                          playbooks/vars/symlinks.yml
 #
 # Schema contract: internal/manifest/types.go (Manifest/Intent/Package/
 # Symlink/Backend). Keep this file in sync with that package — it is the
@@ -1456,43 +1454,6 @@ os = "macos"
 provides = ["gls", "gsed", "gtar", "ggrep"]
 class = "managed"
 justification = "installed via Homebrew on macOS, which owns versioning"
-
-# ================================================================
-# SYMLINKS
-# ================================================================
-# Dotfiles-to-$HOME mappings, ported from playbooks/vars/symlinks.yml.
-# `type` mirrors the Ansible {src,dest,type} contract; `os` restricts a
-# symlink to a specific platform.OS value (empty applies everywhere).
-
-[[symlink]]
-src = "starship.toml"
-dest = ".config/starship.toml"
-
-[[symlink]]
-src = "nvim"
-dest = ".config/nvim"
-type = "directory"
-
-[[symlink]]
-src = "wezterm"
-dest = ".config/wezterm"
-type = "directory"
-
-[[symlink]]
-src = "espanso"
-dest = ".config/espanso"
-type = "directory"
-
-[[symlink]]
-src = "blesh"
-dest = ".config/blesh"
-type = "directory"
-
-[[symlink]]
-src = "aerospace"
-dest = ".config/aerospace"
-type = "directory"
-os = "macos"
 
 # ================================================================
 # SETUP MODULES

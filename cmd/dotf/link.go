@@ -28,8 +28,8 @@ import (
 //
 // There is deliberately no --manifest flag: the engine is driven by the static
 // DefaultTable (ported 1:1 from playbooks/vars/symlinks.yml), not m.Symlinks
-// (which is only a 4-entry partial mirror). A --manifest flag would be dead
-// here and mislead — see docs/prps/plans/phase-4-symlink-engine.plan.md Data
+// (the shipped manifest declares no [[symlink]] entries). A --manifest flag
+// would be dead here and mislead — see docs/prps/plans/phase-4-symlink-engine.plan.md Data
 // Model.
 func runLink(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	fs := flag.NewFlagSet("link", flag.ContinueOnError)
