@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/yandy-r/dotfiles/internal/backend"
 )
@@ -31,8 +32,12 @@ const arNameSize = 16
 const debFirstMember = "debian-binary"
 
 // httpGet is the HTTP fetch seam; tests replace it to aim at an httptest.Server.
-// It mirrors internal/backend/download.go's identical seam.
-var httpGet = http.Get
+// The default is a client with a total timeout.
+var httpGet = httpClient.Get
+
+// httpClient bounds the download, including the body read: the zero-value
+// net/http client has no timeout, so a stalled mirror would hang the CLI.
+var httpClient = &http.Client{Timeout: 10 * time.Minute}
 
 // ErrNotDeb reports that a file is not a Debian package. Callers match it with
 // errors.Is to distinguish a malformed input from an I/O failure.
@@ -168,7 +173,7 @@ func isInsecureURL(s string) bool {
 func (c *Converter) download(url, dir string) (string, hash.Hash, error) {
 	resp, err := httpGet(url)
 	if err != nil {
-		// http.Get's error already names the URL, so it is not repeated.
+		// the client error already names the URL, so it is not repeated.
 		return "", nil, fmt.Errorf("download: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()

@@ -19,8 +19,9 @@ import (
 )
 
 // httpGet is the artifact-download seam (tarball + checksums.txt). Tests replace
-// it to aim at an httptest.Server, mirroring internal/backend/download.go:21.
-var httpGet = http.Get
+// it to aim at an httptest.Server. The default is a client with a total timeout
+// (net/http has none by default).
+var httpGet = httpClient.Get
 
 // executablePath is the running-binary seam so tests can point the replace at a
 // temp file instead of the test binary itself.

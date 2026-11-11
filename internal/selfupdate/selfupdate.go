@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/yandy-r/dotfiles/internal/platform"
 	"github.com/yandy-r/dotfiles/internal/version"
@@ -29,9 +30,14 @@ const binaryName = "dotf"
 const ChecksumsAsset = "checksums.txt"
 
 // httpDo is the GitHub REST seam (release-metadata calls, which need
-// Accept/Authorization headers). Tests replace it to aim at an httptest.Server,
-// mirroring internal/backend/ghapi.go:16.
-var httpDo = http.DefaultClient.Do
+// Accept/Authorization headers). Tests replace it to aim at an httptest.Server.
+// The default is a client with a total timeout (net/http has none by default).
+var httpDo = httpClient.Do
+
+// httpClient bounds every self-update request, including the body read: the
+// zero-value net/http client has no timeout, so a stalled mirror would hang the
+// CLI forever.
+var httpClient = &http.Client{Timeout: 10 * time.Minute}
 
 // ErrDevBuild is returned by Run on the actual replace path when the running
 // binary's version is unparseable (the "dev" default) and --force was not
