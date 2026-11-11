@@ -10,8 +10,8 @@ import (
 // customScriptBaseline is the sanctioned number of custom-script escape-hatch
 // packages in the embedded manifest. custom-script is the LAST-RESORT backend
 // (see docs/reference/manifest-backends.md): the manifest reaches for it only
-// when none of the native backends (pkg, aur, apt-repo, toolchain,
-// github-release, script-url, git-clone) can express the install.
+// when none of the native backends (pkg, aur, toolchain, github-release,
+// script-url, git-clone) can express the install.
 //
 // This is an EXACT-match tripwire, not a one-directional ceiling: adding OR
 // removing a custom-script entry must move this number in the same commit, so

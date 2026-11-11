@@ -83,9 +83,6 @@ func (b *gitCloneBackend) Install(pkg manifest.Package, _ platform.Info) error {
 	// forever and never re-run post_install (even under --force). dest was absent
 	// before this call (the guard returned early otherwise), so removing it
 	// restores the pre-install state and a re-apply re-clones + re-runs post_install.
-	// (A SIGINT between clone and post_install can still leave a partial dir — the
-	// same interruptible-install caveat the apply phases carry — but a deterministic
-	// post_install failure is fully rolled back.)
 	if err := b.runPostInstall(pkg, dest); err != nil {
 		_ = os.RemoveAll(dest)
 		return err

@@ -1,5 +1,3 @@
--- Programs (merged from CachyOS baseline)
-
 local mainMod = "SUPER"
 local terminal = "ghostty"
 local terminalAlt = "wezterm start --always-new-process"

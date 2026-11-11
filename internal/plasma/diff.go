@@ -214,11 +214,6 @@ func (e *Engine) Status(files []FileSpec, opts Options) (*StatusReport, error) {
 		}
 	}
 
-	// A file absent from BOTH sides is the one state diffFile has nothing to
-	// say about, so it is usually missing from `diffs` entirely — which is why
-	// the MANAGED TABLE, not the diff set, is what makes it reportable. Leaving
-	// it out let `status --json` fall through to "present" for six files that
-	// exist nowhere at all.
 	for _, spec := range files {
 		if !somewhere[spec.Path] {
 			report.Absent = append(report.Absent, spec.Path)
@@ -229,9 +224,7 @@ func (e *Engine) Status(files []FileSpec, opts Options) (*StatusReport, error) {
 
 // StatusReport is the read-only summary `dotf plasma status` renders. It holds
 // only what Status DERIVES from the filesystem; the run switches stay on
-// Options, which the CLI already has. It used to echo Options.Session back and
-// no renderer ever read it — the plasma.session= line comes from the CLI's own
-// copy — so the field was one more thing to keep in sync for no reader.
+// Options, which the CLI already has.
 type StatusReport struct {
 	// Managed is len(files) after --only filtering.
 	Managed int

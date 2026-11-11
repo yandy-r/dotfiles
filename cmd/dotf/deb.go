@@ -38,8 +38,7 @@ const debRemedyPrompt = "run this command now? [y/N] "
 
 // debDBDir and debPkgfileDir locate the system caches the preflight inspects.
 // They are package vars rather than constants so tests can point them at temp
-// directories instead of the real /var/cache trees, following the same
-// override-for-tests idiom as privilege.keepAliveInterval.
+// directories instead of the real /var/cache trees.
 var (
 	debDBDir      = debtap.DefaultDBDir
 	debPkgfileDir = debtap.DefaultPkgfileDir

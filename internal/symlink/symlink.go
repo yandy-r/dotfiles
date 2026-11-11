@@ -17,20 +17,19 @@ import (
 // Options are the CLI knobs, mapped 1:1 from playbooks/vars/symlinks.yml config
 // vars.
 type Options struct {
-	// DryRun disables all filesystem mutations (Ansible dry_run).
+	// DryRun disables all filesystem mutations.
 	DryRun bool
 	// Backup copies every real file or directory the plan replaces into
 	// BackupDir before removing it. The CLIs default it to true (--no-backup
 	// opts out); false removes real files without a copy.
 	Backup bool
-	// Force is retained for parity with Ansible force_symlinks; it is inert in
-	// practice because cleanup (ActionRemove) owns real-file removal.
+	// Force is inert in practice because cleanup (ActionRemove) owns real-file
+	// removal.
 	Force bool
-	// Validate runs post-apply validation (Ansible validate_after; default true).
+	// Validate runs post-apply validation (default true).
 	Validate bool
-	// ManageHyprland opts into the Hyprland/wlroots desktop config set (Ansible
-	// manage_linux_desktop). The CLI spells it --hyprland, with --linux-desktop
-	// retained as a back-compat alias.
+	// ManageHyprland opts into the Hyprland/wlroots desktop config set. The CLI
+	// spells it --hyprland, with --linux-desktop retained as a back-compat alias.
 	ManageHyprland bool
 	// BackupDir, when non-empty, is an existing backup dir (an earlier
 	// Apply's Report.BackupDir in the same run) that Apply reuses instead of
@@ -140,8 +139,7 @@ func NewEngine(repoRoot, home string) *Engine {
 	return &Engine{repoRoot: repoRoot, home: home}
 }
 
-// MissingSourceTreeError is returned when the dotfiles source tree does not
-// exist (Ansible pre_task step 3, a hard pre-flight failure).
+// MissingSourceTreeError is returned when the dotfiles source tree does not exist.
 type MissingSourceTreeError struct {
 	// Root is the missing repo root path.
 	Root string
@@ -153,8 +151,8 @@ func (e *MissingSourceTreeError) Error() string {
 }
 
 // LinuxDesktopGuardError is returned when the Linux-desktop set is requested on
-// a Linux-family host with neither dry-run nor backups enabled (the Ansible
-// safety gate that prevents clobbering real ~/.config desktop directories).
+// a Linux-family host with neither dry-run nor backups enabled (the safety gate
+// that prevents clobbering real ~/.config desktop directories).
 type LinuxDesktopGuardError struct{}
 
 // Error implements the error interface.

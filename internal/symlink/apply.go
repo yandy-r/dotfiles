@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	// dirPerm is the mode for directories the engine creates (Ansible 0755).
+	// dirPerm is the mode for directories the engine creates.
 	dirPerm os.FileMode = 0o755
-	// zedMode is the mode for the copied Zed settings file (Ansible 0644).
+	// zedMode is the mode for the copied Zed settings file.
 	zedMode os.FileMode = 0o644
 )
 

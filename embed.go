@@ -1,11 +1,9 @@
 // Package dotfiles owns the embedded default provisioning manifest.
 //
 // It lives at the module root (rather than under internal/) because an
-// embed directive cannot reach outside the directory that contains it, and
-// the top-level manifest/ directory is PRD-locked as the canonical location
-// for the shipped TOML manifest. This file imports
-// nothing from internal/ so it stays cycle-free: internal/manifest (the
-// typed schema) and any future loader can import dotfiles.ManifestFS
+// embed directive cannot reach outside the directory that contains it. This
+// file imports nothing from internal/ so it stays cycle-free: internal/manifest
+// (the typed schema) and any future loader can import dotfiles.ManifestFS
 // without dotfiles importing back into internal/.
 package dotfiles
 

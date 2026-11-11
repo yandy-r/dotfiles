@@ -195,11 +195,7 @@ func entryFlags(g *Group, e *Entry) string {
 // It is deliberately a thin predicate over diffDocs rather than a second
 // comparison loop: convergence is EXACTLY "diffDocs found no actionable
 // difference", since every repo-side kind (missing-live, value-mismatch,
-// flags-mismatch) is actionable and every live-only kind is not. The two were
-// once independent implementations of that same triple, which meant a fix to
-// one comparison rule left PlanApply (which resolves here) and Diff (which
-// resolves to diffDocs) disagreeing about the same file — apply rewriting it on
-// every run while diff reported it converged, with validate agreeing with diff.
+// flags-mismatch) is actionable and every live-only kind is not.
 // TestConvergedMatchesDiffDocs is the tripwire that keeps them one predicate.
 //
 // A nil live document needs no special case: findGroup and findEntry are both

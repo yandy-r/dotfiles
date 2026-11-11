@@ -106,13 +106,6 @@ func (e *Engine) PlanApply(files []FileSpec, opts Options) (*Plan, error) {
 // resolveReloads rewrites each planned reload's argv[0] to the binary that
 // actually exists on this host, at PLAN time rather than at run time.
 //
-// ReloadPlan is deliberately pure (no Runner), so it emits the generic "qdbus"
-// name. Resolution used to happen only inside Engine.Reload, which returns
-// early unless Options.Reload is set — so the far more common path, printing
-// the commands the run did NOT execute, advertised a binary that does not exist
-// on a Plasma 6 host (only qdbus6 ships). The printed line exists to be
-// copy-pasted, so an unresolvable-as-printed command defeats its only purpose.
-//
 // A command whose binary resolves nowhere is left exactly as planned rather
 // than dropped: the reload set is advisory here, and telling the user which
 // component needs reloading is more useful than silently omitting it.

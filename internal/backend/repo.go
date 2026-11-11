@@ -58,8 +58,6 @@ func newRepoBackend(r exec.Runner) *repoBackend {
 
 // newAptRepoBackend constructs the repo backend under its deprecated apt-repo
 // alias, retained one release so existing manifests keep working.
-//
-// Deprecated: use newRepoBackend.
 func newAptRepoBackend(r exec.Runner) *repoBackend { return newRepoBackend(r) }
 
 // applicableFor reports whether this package can be installed on this host: the
@@ -102,7 +100,6 @@ func (b *repoBackend) Install(pkg manifest.Package, info platform.Info) error {
 	case platform.PkgMgrDNF:
 		return b.installDNF(pkg, info)
 	default:
-		// Unreachable past applicableFor; defense-in-depth for a direct caller.
 		return &UnsupportedPlatformError{
 			Backend: backendLabel(pkg),
 			OS:      info.OS,

@@ -6,14 +6,6 @@ package plasma
 // the CLI's exit code and message, and none of them carries behaviour. Every
 // member is CONSTRUCTED on some production path — an exported error the CLI can
 // never receive is a contract that reads as a guarantee and enforces nothing.
-//
-// That is why there is no ownership-conflict error here. The §3.1 guarantee
-// that `dotf link` and `dotf plasma` never both own a path is a property of two
-// COMPILE-TIME tables, symlink.DefaultTable and DefaultFiles, so a runtime check
-// would recompute a constant answer on every command and could only fail on a
-// build that was already broken. It is enforced instead by
-// TestNoOverlapWithSymlinkTable in plasma_test.go, which fails the build the
-// moment a widening of either table double-claims a path.
 
 import (
 	"fmt"

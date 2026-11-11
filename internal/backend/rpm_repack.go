@@ -164,8 +164,6 @@ func rpmNone(s string) string {
 
 // parseRPMDump parses `rpm --dump` lines. The format is space-separated and
 // unquoted, so paths containing whitespace are rejected outright.
-// ponytail: 11-field lines only; quoted/escaped rpm dump variants can be
-// added if a vendor ever ships a spaced path.
 func parseRPMDump(out []byte) ([]rpmDumpEntry, error) {
 	var entries []rpmDumpEntry
 	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {

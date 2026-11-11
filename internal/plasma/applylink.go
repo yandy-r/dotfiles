@@ -16,8 +16,7 @@ import "os"
 //
 // It returns the action to plan and whether the guard has anything to say about
 // this file. A conflicting file whose planned action turns out to be ActionSkip
-// yields no conflict at all: naming files a run would not touch is what made
-// `dotf plasma apply --yes` refuse, with exit 1, over twenty converged files.
+// yields no conflict at all.
 func resolveLinkGuard(act FileAction, conflict, guardSatisfied bool) (FileAction, bool, error) {
 	if !conflict || !mutatesLive(act.Kind) {
 		return act, false, nil
@@ -133,8 +132,7 @@ const (
 //
 // Two cells earn their asymmetry. A plain apply over a file linked INTO the
 // repo is not a conflict and not a write: the repo file IS the live file, so
-// there is nothing to converge, and treating it as a transition made a fully
-// linked tree refuse a run that would have touched nothing. And --unlink over a
+// there is nothing to converge. And --unlink over a
 // repo link is not a conflict either — it discards nothing (the bytes written
 // are the ones KDE was already reading, and the repo copy is untouched) and the
 // user asked for it by name, so demanding --backup on top would be ceremony.

@@ -37,8 +37,8 @@ func (c Class) Valid() bool {
 }
 
 // classByBackend is the per-backend legality table: which classes a given
-// Backend may declare. The authority-managed backends (pkg/aur/apt-repo/repo/
-// toolchain/git-clone/font) accept only "managed"; github-release is always
+// Backend may declare. The authority-managed backends (pkg/aur/repo/toolchain/
+// git-clone/font) accept only "managed"; github-release is always
 // "pinned"; script-url may be "pinned" (checksummed) or "rolling" (rotating
 // installer); custom-script — the escape hatch — accepts all three but must
 // declare one explicitly (see validateClass).
@@ -79,7 +79,7 @@ func joinClasses(classes []Class) string {
 }
 
 // EffectiveClass resolves p's update-policy class: the explicit Class when set,
-// otherwise the class inferred from the backend. pkg/aur/apt-repo/repo/toolchain,
+// otherwise the class inferred from the backend. pkg/aur/repo/toolchain,
 // git-clone (a governed clone setup step, never a checksummed lockable artifact)
 // and font (either the package authority installs it, or the download verifies
 // its own checksum at install time) infer "managed"; github-release infers

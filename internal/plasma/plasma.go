@@ -160,14 +160,8 @@ func (k ActionKind) String() string {
 }
 
 // KeyAction is one (group, key, locale) write. Action granularity is per key,
-// not per file, so `plasma.change=` lines carry real detail.
-//
-// Every field here is one a renderer or a caller actually reads. The written
-// entry's flag string used to be carried too and nothing ever read it: the
-// authoritative flags live on the Doc the write is derived from, so a copy on
-// the report was a second spelling of the same state that no consumer asked for
-// and every future maintainer had to keep in sync. Add a field when a consumer
-// exists, not in anticipation of one.
+// not per file, so `plasma.change=` lines carry real detail. Add a field when
+// a consumer exists, not in anticipation of one.
 type KeyAction struct {
 	// Group is the decoded group path segments; nil means the root group.
 	Group []string
