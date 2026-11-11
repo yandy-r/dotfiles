@@ -11,16 +11,6 @@ aws-lambda-update() {
 	aws lambda update-function-code --function-name $1 --s3-bucket $2 --s3-key $3 --profile $4
 }
 
-# Create a new directory and enter it
-mkd() {
-	mkdir -pv -- "$1" &&
-		cd -P -- "$1"
-}
-# create directory
-mkf() {
-	mkdir -pv -- "$1"
-}
-
 # CD Into Things
 cd_go_proj() {
 	cd "$HOME/go/src/github.com/ipyandy/$1"
@@ -31,19 +21,8 @@ f() {
 	find . -name "$1"
 }
 
-# cd into whatever is the forefront Finder window.
-cdf() { # short for cdfinder
-	cd "$(osascript -e 'tell app "Finder" to POSIX path of (insertion location as alias)')"
-}
-
-# Nix-Darwain Aliases
-function nix-rebuild() {
-  darwin-rebuild switch --flake "${HOME}"/.config/dotfiles/nix-darwin#"${1:-${HOSTNAME}}"
-}
-
 # TERRAFORM
 tf-plan() {
-	# terraform plan -out plan.tfplan >plan.txt | tee
 	terraform plan -out plan.tfplan
 }
 
@@ -64,10 +43,6 @@ tf-destroy() {
 }
 
 # KUBERNETES
-reset-kubeconfig() {
-	source "${HOME}/.bin/reset-kubeconfig.sh"
-}
-
 get-eks-dashboard-token() {
 	local secret_name=$(kubectl -n kube-system get secret | grep eks-admin | awk '{print $1}')
 	[[ -n "$secret_name" ]] && kubectl -n kube-system describe secret "$secret_name"
@@ -86,8 +61,6 @@ az-get-aks-creds() {
 
 # RSYNC
 
-# RSYNC
-
 rsync-ssh-win() {
 	command rsync -tvau -h --modify-window=10 --exclude .DS_Store --exclude node_modules --progress -e ssh $1 $2
 }
@@ -97,9 +70,6 @@ rsync-win() {
 }
 
 rsync_ssh() {
-	command rsync -tvau -h --exclude .DS_Store --exclude node_modules --progress -e ssh $1 $2
-}
-cp_ssh() {
 	command rsync -tvau -h --exclude .DS_Store --exclude node_modules --progress -e ssh $1 $2
 }
 # copies over ssh and deletes source files
@@ -124,12 +94,6 @@ rcp() {
 # delete source files
 rcpd() {
 	command rsync -tvau -h --remove-source-files --exclude .DS_Store --exclude node_modules --progress $1 rsync://$2
-}
-
-# Test if HTTP compression (RFC 2616 + SDCH) is enabled for a given URL.
-# Send a fake UA string for sites that sniff it instead of using the Accept-Encoding header. (Looking at you, ajax.googleapis.com!)
-httpcompression() {
-	encoding="$(curl -LIs -H 'User-Agent: Mozilla/5 Gecko' -H 'Accept-Encoding: gzip,deflate,compress,sdch' "$1" | grep '^Content-Encoding:')" && echo "$1 is encoded using ${encoding#* }" || echo "$1 is not using any encoding"
 }
 
 # DOCKER
@@ -175,11 +139,6 @@ dc-up() {
 	docker compose up -d --remove-orphans
 }
 
-# docker compose up - 1Password integration
-op-dc-up() {
-	op run --no-masking -- docker compose up -d --remove-orphans
-}
-
 # docker compose down
 dc-down() {
 	docker compose down --remove-orphans
@@ -203,40 +162,9 @@ docker-rm-containers() {
 	[[ -n "$containers" ]] && sudo docker container rm $containers
 }
 
-# Syntax-highlight JSON strings or files
-json() {
-	if [ -p /dev/stdin ]; then
-		# piping, e.g. `echo '{"foo":42}' | json`
-		python -mjson.tool | pygmentize -l javascript
-	else
-		# e.g. `json '{"foo":42}'`
-		python -mjson.tool <<<"$*" | pygmentize -l javascript
-	fi
-}
-
-# take this repo and copy it to somewhere else minus the .git stuff.
-gitexport() {
-	mkdir -p "$1"
-	git archive master | tar -x -C "$1"
-}
-
-# get gzipped size
-gz() {
-	echo "orig size    (bytes): "
-	cat "$1" | wc -c
-	echo "gzipped size (bytes): "
-	gzip -c "$1" | wc -c
-}
-
 # All the dig info
 digga() {
 	dig +nocmd "$1" any +multiline +noall +answer
-}
-
-# Escape UTF-8 characters into their 3-byte format
-escape() {
-	printf "\\\x%s" $(printf "$@" | xxd -p -c1 -u)
-	echo # newline
 }
 
 # Decode \x{ABCD}-style Unicode escape sequences
