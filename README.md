@@ -259,7 +259,7 @@ failures (1), a usage error (2), and a hard abort (3).
 | Flag / env                               | Effect                                                                  |
 | ---------------------------------------- | ----------------------------------------------------------------------- |
 | `--headless` / `NON_INTERACTIVE=true`    | Skip the TUI and all prompts; apply the resolved intent set             |
-| `--force` / `FORCE_INSTALL=true`         | Imply `--headless`; force symlink recreation                            |
+| `--force` / `FORCE_INSTALL=true`         | Imply `--headless`; reinstall already-installed packages                |
 | `--gaming` / `ENABLE_GAMING=true`        | Add the `gaming` intent to the packages phase                           |
 | `--enable-ollama` / `ENABLE_OLLAMA=true` | Add the `ollama` intent (no-op until the manifest defines it)           |
 | `--linux-desktop` / `LINUX_DESKTOP=true` | Manage the opt-in Linux desktop set (Linux: refused with `--no-backup`) |

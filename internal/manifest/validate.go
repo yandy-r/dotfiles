@@ -140,10 +140,6 @@ func Validate(m *Manifest) error {
 		}
 	}
 
-	for _, s := range m.Symlinks {
-		errs = append(errs, validateSymlink(s)...)
-	}
-
 	errs = append(errs, validateSysconfig(m.Sysconfig)...)
 
 	errs = append(errs, validateModules(m, names)...)
@@ -444,7 +440,7 @@ func validateActions(p Package) []error {
 // validateGitClone checks a git-clone package: URL is required and must be https
 // (reusing the script-url https rule — the git remote is fetched over https),
 // and Dest is required and $HOME-contained (not absolute, no ".." segment,
-// mirroring validateSymlink). Ref is optional (empty = the remote's default
+// mirroring the old symlink rule). Ref is optional (empty = the remote's default
 // branch). git-clone is intentionally excluded from pathInstallBackends, so
 // validateProbe already rejects provides/installed_when on it — the dest is the
 // intrinsic probe.
@@ -976,33 +972,6 @@ func validateScriptPath(p Package) []error {
 	for _, elem := range strings.Split(path.Clean(p.Script), "/") {
 		if elem == ".." {
 			errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("custom-script script %q must not contain ..", p.Script)})
-			break
-		}
-	}
-
-	return errs
-}
-
-// validateSymlink checks a single Symlink against path-safety rules enforced
-// at manifest-load time so a future apply step cannot join an unsafe dest
-// onto $HOME.
-func validateSymlink(s Symlink) []error {
-	var errs []error
-
-	if s.Src == "" {
-		errs = append(errs, &ValidationError{Msg: "symlink missing required src"})
-	}
-	if s.Dest == "" {
-		errs = append(errs, &ValidationError{Msg: "symlink missing required dest"})
-	}
-	if path.IsAbs(s.Dest) {
-		errs = append(errs, &ValidationError{Msg: fmt.Sprintf("symlink dest %q must be relative to $HOME", s.Dest)})
-	}
-
-	clean := path.Clean(s.Dest)
-	for _, elem := range strings.Split(clean, "/") {
-		if elem == ".." {
-			errs = append(errs, &ValidationError{Msg: fmt.Sprintf("symlink dest %q must not contain ..", s.Dest)})
 			break
 		}
 	}

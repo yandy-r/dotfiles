@@ -452,7 +452,7 @@ func TestPrintCommandHelp_Link(t *testing.T) {
 
 	for _, want := range []string{
 		"dotf link - ", "Usage:", "Description:", "Flags:", "Examples:",
-		"--backup", "--dry-run", "--force", "--hyprland", "--linux-desktop", "--no-backup", "--no-validate",
+		"--backup", "--dry-run", "--hyprland", "--linux-desktop", "--no-backup", "--no-validate",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("printCommandHelp(link) missing %q", want)
@@ -515,7 +515,7 @@ func TestRenderFlags_DoubleDashAndSorted(t *testing.T) {
 		}
 	}
 
-	order := []string{"--backup", "--dry-run", "--force", "--hyprland", "--linux-desktop", "--no-backup", "--no-validate"}
+	order := []string{"--backup", "--dry-run", "--hyprland", "--linux-desktop", "--no-backup", "--no-validate"}
 	last := -1
 	for _, name := range order {
 		// Match the flag's own line, not a mention inside another usage string.
@@ -593,9 +593,9 @@ func TestSetLinkFlags_Parses(t *testing.T) {
 	if !o.dryRun || !o.backup {
 		t.Errorf("dryRun=%v backup=%v, want both true", o.dryRun, o.backup)
 	}
-	if o.force || o.noValidate || o.hyprland || o.linuxDesktop {
-		t.Errorf("unexpected true flag: force=%v noValidate=%v hyprland=%v linuxDesktop=%v",
-			o.force, o.noValidate, o.hyprland, o.linuxDesktop)
+	if o.noValidate || o.hyprland || o.linuxDesktop {
+		t.Errorf("unexpected true flag: noValidate=%v hyprland=%v linuxDesktop=%v",
+			o.noValidate, o.hyprland, o.linuxDesktop)
 	}
 }
 
@@ -694,7 +694,7 @@ func TestSetFlags_ExactFlagNames(t *testing.T) {
 		names []string
 	}{
 		{"link", func(fs *flag.FlagSet) { setLinkFlags(fs) },
-			[]string{"backup", "dry-run", "force", "hyprland", "linux-desktop", "no-backup", "no-validate", "prune"}},
+			[]string{"backup", "dry-run", "hyprland", "linux-desktop", "no-backup", "no-validate", "prune"}},
 		{"unlink", func(fs *flag.FlagSet) { setUnlinkFlags(fs) },
 			[]string{"all", "dry-run", "restore"}},
 		// install/plan/status/diff/sysconfig/lock each add --no-user-config via a

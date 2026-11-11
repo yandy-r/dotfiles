@@ -23,10 +23,7 @@ type Options struct {
 	// BackupDir before removing it. The CLIs default it to true (--no-backup
 	// opts out); false removes real files without a copy.
 	Backup bool
-	// Force is inert in practice because cleanup (ActionRemove) owns real-file
-	// removal.
-	Force bool
-	// Validate runs post-apply validation (default true).
+	// Validate runs post-apply validation (Ansible validate_after; default true).
 	Validate bool
 	// ManageHyprland opts into the Hyprland/wlroots desktop config set. The CLI
 	// spells it --hyprland, with --linux-desktop retained as a back-compat alias.
@@ -378,7 +375,7 @@ func newAction(spec LinkSpec, kind ActionKind, srcAbs, destAbs, reason string) A
 }
 
 // validateDest rejects absolute dests and dests containing a parent (..)
-// segment, mirroring manifest.validateSymlink so a join onto $HOME cannot escape.
+// segment so a join onto $HOME cannot escape.
 func validateDest(dest string) error {
 	if path.IsAbs(dest) {
 		return &UnsafeDestError{Dest: dest}

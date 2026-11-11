@@ -48,9 +48,6 @@ func TestParse_Valid(t *testing.T) {
 	if len(m.Packages) != 7 {
 		t.Errorf("len(Packages) = %d, want 7 (one per backend)", len(m.Packages))
 	}
-	if len(m.Symlinks) != 3 {
-		t.Errorf("len(Symlinks) = %d, want 3", len(m.Symlinks))
-	}
 
 	if m.Sysconfig == nil {
 		t.Fatal("Parse() Sysconfig = nil, want non-nil [sysconfig] block")
@@ -283,7 +280,6 @@ func TestParse_InvalidManifests(t *testing.T) {
 		{name: "unknown names/pkgmgr key", file: "invalid_pkgmgr_key.toml"},
 		{name: "duplicate package name", file: "invalid_duplicate_name.toml"},
 		{name: "missing package name", file: "invalid_missing_package_name.toml"},
-		{name: "symlink path traversal", file: "invalid_symlink_traversal.toml"},
 		{name: "script-url http scheme", file: "invalid_script_url_http.toml"},
 		{name: "github-release with no checksum source", file: "invalid_missing_sha256.toml"},
 		{name: "github-release checksum source without tag", file: "invalid_github_release_no_tag.toml"},

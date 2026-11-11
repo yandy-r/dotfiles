@@ -411,14 +411,8 @@ echo "Homebrew path: $DOTFILES_HOMEBREW_PATH"
 #### Adding New Applications
 
 1. Add configuration files to appropriate directories
-2. Add a `[[symlink]]` entry to `manifest/packages.toml` and run `dotf link`:
-
-   ```toml
-   [[symlink]]
-   src = "myapp"
-   dest = ".config/myapp"
-   type = "directory"
-   ```
+2. Add a `LinkSpec` entry to `DefaultTable()` in `internal/symlink/table.go` and run `dotf link`
+   (`dotf link` reads that table only; `manifest/packages.toml` has no `[[symlink]]` table)
 
 3. To make a tool **installable**, add a `[[package]]` entry and choose a backend.
    Prefer a **native** backend (`pkg`, `aur`, `apt-repo`, `toolchain`,

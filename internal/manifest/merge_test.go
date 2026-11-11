@@ -238,42 +238,6 @@ func TestMerge_DescriptionOverrideRecordsCollision(t *testing.T) {
 	}
 }
 
-func TestMerge_SymlinkDestCollisionIsHardError(t *testing.T) {
-	base := &manifest.Manifest{
-		Packages: []manifest.Package{pkgPkg("a")},
-		Symlinks: []manifest.Symlink{{Src: "repo/gitconfig", Dest: ".gitconfig", Type: "file"}},
-	}
-	overlay := &manifest.Manifest{
-		Symlinks: []manifest.Symlink{{Src: "user/gitconfig", Dest: ".gitconfig", Type: "file"}},
-	}
-
-	_, _, err := manifest.Merge(base, overlayLayer("frag.toml", overlay))
-	if err == nil {
-		t.Fatal("Merge() error = nil, want a hard error on symlink Dest collision")
-	}
-	if !strings.Contains(err.Error(), ".gitconfig") {
-		t.Errorf("Merge() error = %v, want it to name the colliding dest", err)
-	}
-}
-
-func TestMerge_SymlinkAppendsWithoutCollision(t *testing.T) {
-	base := &manifest.Manifest{
-		Packages: []manifest.Package{pkgPkg("a")},
-		Symlinks: []manifest.Symlink{{Src: "repo/gitconfig", Dest: ".gitconfig", Type: "file"}},
-	}
-	overlay := &manifest.Manifest{
-		Symlinks: []manifest.Symlink{{Src: "user/vimrc", Dest: ".vimrc", Type: "file"}},
-	}
-
-	merged, _, err := manifest.Merge(base, overlayLayer("frag.toml", overlay))
-	if err != nil {
-		t.Fatalf("Merge() error = %v, want nil", err)
-	}
-	if len(merged.Symlinks) != 2 {
-		t.Errorf("merged symlinks = %d, want 2 (append, distinct dests)", len(merged.Symlinks))
-	}
-}
-
 func TestMerge_SysconfigFieldWiseOverride(t *testing.T) {
 	base := &manifest.Manifest{
 		Packages:  []manifest.Package{pkgPkg("a")},
@@ -372,7 +336,6 @@ func TestMerge_NoOverlaysDeepEqualsBase(t *testing.T) {
 	base := &manifest.Manifest{
 		Packages:  []manifest.Package{pkgPkg("a"), pkgPkg("b")},
 		Intents:   map[string]manifest.Intent{"dev": {Description: "d", Packages: []string{"a"}}},
-		Symlinks:  []manifest.Symlink{{Src: "s", Dest: ".d", Type: "file"}},
 		Sysconfig: &manifest.Sysconfig{Timezone: "UTC"},
 	}
 

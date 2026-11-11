@@ -27,8 +27,7 @@ import (
 // platform env cache (see refreshPlatformCache).
 //
 // There is deliberately no --manifest flag: the engine is driven by the static
-// DefaultTable (ported 1:1 from playbooks/vars/symlinks.yml), not m.Symlinks
-// (the shipped manifest declares no [[symlink]] entries). A --manifest flag
+// DefaultTable (ported 1:1 from playbooks/vars/symlinks.yml). A --manifest flag
 // would be dead here and mislead — see docs/prps/plans/phase-4-symlink-engine.plan.md Data
 // Model.
 func runLink(args []string, stdout, stderr io.Writer, r exec.Runner) int {
@@ -65,7 +64,6 @@ func runLink(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	opts := symlink.Options{
 		DryRun:         o.dryRun,
 		Backup:         !o.noBackup,
-		Force:          o.force,
 		Validate:       !o.noValidate,
 		ManageHyprland: o.hyprland || o.linuxDesktop,
 	}
@@ -198,7 +196,7 @@ func linkValidate(stderr io.Writer, eng *symlink.Engine, specs []symlink.LinkSpe
 // Backups are on by default: backup is the explicit (redundant) spelling of
 // the default, kept so existing scripts keep working, and noBackup opts out.
 type linkOpts struct {
-	dryRun, backup, noBackup, force, noValidate, hyprland, linuxDesktop, prune bool
+	dryRun, backup, noBackup, noValidate, hyprland, linuxDesktop, prune bool
 }
 
 // setLinkFlags registers link's flags on fs and returns the opts pointer they
@@ -209,7 +207,6 @@ func setLinkFlags(fs *flag.FlagSet) *linkOpts {
 	fs.BoolVar(&o.dryRun, "dry-run", false, "print the plan without executing")
 	fs.BoolVar(&o.backup, "backup", false, "back up real files before replacing them (the default; --backup=false does not disable backups, use --no-backup)")
 	fs.BoolVar(&o.noBackup, "no-backup", false, "replace real files without backing them up first")
-	fs.BoolVar(&o.force, "force", false, "force symlink recreation (parity; cleanup owns real-file removal)")
 	fs.BoolVar(&o.noValidate, "no-validate", false, "skip post-apply validation")
 	fs.BoolVar(&o.prune, "prune", false,
 		"remove stale symlinks into the repo (dangling, or a managed source at an old location; table links whose source is gone)")

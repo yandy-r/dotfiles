@@ -1,7 +1,6 @@
 // Package manifest defines the typed schema for the dotf provisioning
 // manifest: the TOML-decoded contract describing intents (named bundles of
-// packages), packages (installable units across every supported backend),
-// and symlinks (dotfiles-to-$HOME mappings).
+// packages (installable units across every supported backend).
 //
 // This package is the single source of truth for the manifest's shape. It
 // is intentionally dependency-free (no go-toml, no huh) so that it can be
@@ -10,8 +9,7 @@
 package manifest
 
 // Manifest is the top-level decoded shape of the provisioning manifest
-// file: a set of named intents plus the flat lists of packages and
-// symlinks they reference.
+// file: a set of named intents plus the flat list of packages they reference.
 type Manifest struct {
 	// Intents maps an intent name (e.g. "base", "dev") to its definition.
 	Intents map[string]Intent `toml:"intents"`
@@ -19,9 +17,6 @@ type Manifest struct {
 	// Packages is the flat list of installable package records, spanning
 	// all supported backends.
 	Packages []Package `toml:"package"`
-
-	// Symlinks is the flat list of dotfiles-to-$HOME symlink records.
-	Symlinks []Symlink `toml:"symlink"`
 
 	// Sysconfig holds repo-wide default OS-level system-config values. It is
 	// optional; a nil pointer means the manifest declares no defaults and
@@ -168,7 +163,7 @@ type Package struct {
 	Ref string `toml:"ref"`
 
 	// Dest is the clone destination, relative to $HOME, for the "git-clone"
-	// backend — the same $HOME-relative convention as Symlink.Dest. It doubles
+	// backend — a $HOME-relative path, never absolute and never containing "..". It doubles
 	// as the intrinsic installed-state probe (the clone existing = installed).
 	Dest string `toml:"dest"`
 
@@ -509,23 +504,6 @@ type Font struct {
 	// and extracts it under the XDG fonts directory. Empty means this family
 	// is only installable through a host package manager (Names).
 	Archive string `toml:"archive"`
-}
-
-// Symlink is a single dotfiles-to-$HOME mapping, OS-faceted variant of the
-// canonical {src,dest,type} contract.
-type Symlink struct {
-	// Src is the source path within the dotfiles repo.
-	Src string `toml:"src"`
-
-	// Dest is the destination path, relative to $HOME.
-	Dest string `toml:"dest"`
-
-	// Type is the symlink kind (e.g. "file", "directory").
-	Type string `toml:"type"`
-
-	// OS restricts this symlink to a specific platform.OS value. Empty
-	// means the symlink applies on every platform.
-	OS string `toml:"os"`
 }
 
 // Backend identifies the installation mechanism for a Package.

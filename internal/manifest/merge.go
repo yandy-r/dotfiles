@@ -61,11 +61,6 @@ type Collision struct {
 //   - Modules: appended; on a Name collision the overlay module replaces the
 //     base one (last-wins) and a Collision{Kind:"module"} is recorded — the same
 //     last-wins policy as packages, so a user overlay can redefine a setup bundle.
-//   - Symlinks: appended; a Dest collision is a hard ERROR — silently shadowing
-//     a repo dotfile symlink is more dangerous than shadowing a package. (Note:
-//     manifest.Symlinks is not yet consumed by the link engine — it uses the
-//     built-in DefaultTable — so overlay symlinks are forward-compatible but
-//     inert today; this fence is correctness for when that wiring lands.)
 //   - Sysconfig: field-wise override — each non-empty overlay field wins; a nil
 //     base adopts the overlay's table wholesale.
 //
@@ -97,9 +92,6 @@ func Merge(base *Manifest, overlays ...Layer) (*Manifest, []Collision, error) {
 		collisions = append(collisions, mergeIntents(merged, layer, intentSource)...)
 		collisions = append(collisions, mergePackages(merged, layer, pkgSource)...)
 		collisions = append(collisions, mergeModules(merged, layer, moduleSource)...)
-		if err := mergeSymlinks(merged, layer.Manifest.Symlinks); err != nil {
-			return nil, nil, err
-		}
 		mergeSysconfig(merged, layer.Manifest.Sysconfig)
 	}
 
@@ -215,28 +207,6 @@ func mergeModules(merged *Manifest, layer Layer, source map[string]string) []Col
 	return collisions
 }
 
-// mergeSymlinks appends layer's symlinks to merged, returning a hard error on a
-// Dest collision. Shadowing a repo dotfile symlink is more surprising and
-// dangerous than shadowing a package, so it fails fast rather than last-wins.
-func mergeSymlinks(merged *Manifest, overlay []Symlink) error {
-	if len(overlay) == 0 {
-		return nil
-	}
-
-	dests := make(map[string]bool, len(merged.Symlinks))
-	for _, s := range merged.Symlinks {
-		dests[s.Dest] = true
-	}
-	for _, s := range overlay {
-		if dests[s.Dest] {
-			return fmt.Errorf("manifest: overlay symlink dest %q collides with an existing symlink (refusing to shadow a repo dotfile)", s.Dest)
-		}
-		dests[s.Dest] = true
-		merged.Symlinks = append(merged.Symlinks, s)
-	}
-	return nil
-}
-
 // mergeSysconfig field-wise overrides merged's sysconfig with overlay's
 // non-empty fields. A nil base adopts the overlay's table wholesale; a nil
 // overlay leaves the base untouched. merged.Sysconfig is already a deep copy
@@ -297,7 +267,7 @@ func sortedIntentNames(intents map[string]Intent) []string {
 }
 
 // cloneManifest returns a deep-enough copy of m for Merge to mutate the result
-// (its intent map, package/symlink/module slices, and sysconfig pointer) without
+// (its intent map, package/module slices, and sysconfig pointer) without
 // touching the caller's base manifest. Package/Module inner maps/slices are
 // shared but never mutated — Merge only appends or replaces whole values.
 func cloneManifest(m *Manifest) *Manifest {
@@ -313,11 +283,6 @@ func cloneManifest(m *Manifest) *Manifest {
 	if m.Packages != nil {
 		out.Packages = make([]Package, len(m.Packages))
 		copy(out.Packages, m.Packages)
-	}
-
-	if m.Symlinks != nil {
-		out.Symlinks = make([]Symlink, len(m.Symlinks))
-		copy(out.Symlinks, m.Symlinks)
 	}
 
 	if m.Modules != nil {

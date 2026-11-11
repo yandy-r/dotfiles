@@ -1,5 +1,5 @@
 # Valid fixture mirroring manifest/packages.toml's shape: one package per
-# supported backend, an intent referencing them all, and a few symlinks.
+# supported backend, and an intent referencing them all.
 
 [intents.base]
 description = "Minimal baseline tools for any machine"
@@ -60,20 +60,8 @@ script = "bin/install-atuin.sh"
 class = "rolling"
 justification = "official installer tracks latest; no single pinnable artifact"
 
-[[symlink]]
-src = "starship.toml"
-dest = ".config/starship.toml"
 
-[[symlink]]
-src = "nvim"
-dest = ".config/nvim"
-type = "directory"
 
-[[symlink]]
-src = "aerospace"
-dest = ".config/aerospace"
-type = "directory"
-os = "macos"
 
 # --- sysconfig ---------------------------------------------------------------
 [sysconfig]

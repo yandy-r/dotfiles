@@ -412,28 +412,6 @@ func TestApply_ReplaceRealFile(t *testing.T) {
 	}
 }
 
-func TestApply_ForceInert_SourceMissingPreservesRealFile(t *testing.T) {
-	repoRoot := t.TempDir()
-	home := t.TempDir()
-	// No source for .bashrc; a real user file sits at the dest.
-	writeFile(t, filepath.Join(home, ".bashrc"), []byte("user rc"))
-
-	// Force=true must NOT cause the real file to be removed when src is missing.
-	planApply(t, repoRoot, home, onlyBashSpec(), platform.Info{OS: platform.OSDebian}, Options{Force: true})
-
-	dest := filepath.Join(home, ".bashrc")
-	if isSymlink(t, dest) {
-		t.Error(".bashrc became a symlink despite missing source")
-	}
-	data, err := os.ReadFile(dest)
-	if err != nil {
-		t.Fatalf("ReadFile(.bashrc) error = %v", err)
-	}
-	if !bytes.Equal(data, []byte("user rc")) {
-		t.Errorf(".bashrc content = %q, want preserved %q", data, "user rc")
-	}
-}
-
 func TestApply_Zed_CopyNotSymlink(t *testing.T) {
 	repoRoot := t.TempDir()
 	buildFullSourceTree(t, repoRoot)

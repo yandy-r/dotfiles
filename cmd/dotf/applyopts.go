@@ -36,7 +36,7 @@ func setApplyFlags(fs *flag.FlagSet) *applyFlags {
 	fs.StringVar(&f.Manifest, "manifest", "", manifestFlagUsage)
 	fs.StringVar(&f.Homebrew, "homebrew", "", "Homebrew tristate: true|false ('' = OS default; Linux true is a no-op)")
 	fs.BoolVar(&f.Headless, "headless", false, "skip the TUI and all prompts; apply the resolved intent set")
-	fs.BoolVar(&f.Force, "force", false, "imply --headless, force symlink recreation, and reinstall already-installed packages")
+	fs.BoolVar(&f.Force, "force", false, "imply --headless and reinstall already-installed packages")
 	fs.BoolVar(&f.Gaming, "gaming", false, "add the gaming intent to the packages phase")
 	fs.BoolVar(&f.Ollama, "enable-ollama", false, "add the ollama intent (no-op until the manifest defines it)")
 	fs.BoolVar(&f.Hyprland, "hyprland", false, "manage the opt-in Hyprland/wlroots desktop config set (refused with --no-backup on Linux)")
