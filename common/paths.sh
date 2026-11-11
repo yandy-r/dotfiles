@@ -151,6 +151,7 @@ fix_homebrew_path_order() {
             priority_paths+=("$brew_path/sbin")
             priority_paths+=("$HOME/.bin")
             priority_paths+=("$HOME/.local/bin")
+            priority_paths+=("$HOME/.local/go/bin")
             priority_paths+=("/usr/local/sbin")
             priority_paths+=("${HOME}/.opencode/bin")
             priority_paths+=("${KREW_ROOT:-$HOME/.krew}/bin")
@@ -160,6 +161,7 @@ fix_homebrew_path_order() {
             # Linux: User paths first, but NOT Homebrew (it goes with other paths)
             priority_paths+=("$HOME/.bin")
             priority_paths+=("$HOME/.local/bin")
+            priority_paths+=("$HOME/.local/go/bin")
             priority_paths+=("${HOME}/.opencode/bin")
             priority_paths+=("${KREW_ROOT:-$HOME/.krew}/bin")
         fi
@@ -352,6 +354,9 @@ setup_user_paths() {
     setup_pnpm_paths                            # PNPM (v11+ bins in $PNPM_HOME/bin)
 
     # Go paths
+    # Official Go toolchain (bootstrap installs it to ~/.local/go). Prepended so
+    # it shadows an older distro Go in /usr/bin that can't satisfy go.mod.
+    prepend_path "$HOME/.local/go/bin"
     if [[ -n "${GOPATH:-}" ]]; then
         append_path "$GOPATH/bin"
     elif [[ -d "$HOME/go" ]]; then
