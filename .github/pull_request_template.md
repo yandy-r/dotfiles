@@ -21,9 +21,9 @@ Closes #<!-- issue number -->
 ## Testing
 
 - [ ] `npm run lint` passes
-- [ ] `npm test` passes
+- [ ] `npm run lint:md:modified` passes (if Markdown touched)
 - [ ] `bash -l -c 'true'` and `zsh -l -c 'true'` succeed after change
-- [ ] `ansible-playbook playbooks/symlinks.yml --extra-vars "dryrun=true"` is clean (if symlink layout touched)
+- [ ] `dotf link --dry-run` is clean (if symlink layout touched)
 - [ ] `shellcheck` clean for modified shell scripts
 
 ## Platform Verification

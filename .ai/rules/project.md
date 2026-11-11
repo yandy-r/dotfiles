@@ -17,5 +17,6 @@ Full agent rules live in [`CLAUDE.md`](../../CLAUDE.md). Key points surfaced for
 
 ## Verification
 
-Run `npm test`, `npm run lint`, `bash -l -c 'true'`, and `zsh -l -c 'true'` before marking work complete.
+Run `npm run lint`, `npm run lint:md`, `npm run go:build`, `bash -l -c 'true'`, and `zsh -l -c 'true'` before marking work complete.
+Go changes: `go build ./... && go vet ./... && go test -race ./... && golangci-lint run ./...`.
 Symlink changes: validate with `dotf link --dry-run`.

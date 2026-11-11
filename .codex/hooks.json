@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/yandy/.local/bin/graphify hook-check"
+            "command": "graphify hook-check"
           }
         ]
       }

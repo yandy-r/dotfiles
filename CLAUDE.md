@@ -601,7 +601,6 @@ All issues MUST use the YAML form templates in `.github/ISSUE_TEMPLATE/`:
 
 - **Bug Report** (`bug_report.yml`): Use `gh issue create --template bug_report.yml`
 - **Feature Request** (`feature_request.yml`): Use `gh issue create --template feature_request.yml`
-- **Compatibility Report** (`compatibility_report.yml`): Use `gh issue create --template compatibility_report.yml`
 
 Blank issues are disabled via `config.yml`. Never bypass templates with `--title`-only issue creation.
 
