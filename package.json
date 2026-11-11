@@ -5,7 +5,6 @@
   "type": "commonjs",
   "private": true,
   "scripts": {
-    "smartsheet": "tsx smartsheet-cli.ts",
     "install-deps": "npm install",
     "lint": "bin/lint.sh --python --shell --go",
     "lint:modified": "bin/lint.sh --modified --python --shell --go",

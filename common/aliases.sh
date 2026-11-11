@@ -569,7 +569,6 @@ alias jsonpp="python3 -m json.tool"
 # Node.js
 alias npi="npm install"
 alias nps="npm start"
-alias npt="npm test"
 alias npb="npm run build"
 alias npd="npm run dev"
 

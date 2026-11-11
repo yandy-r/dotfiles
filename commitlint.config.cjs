@@ -3,9 +3,6 @@
 // Install dependencies:
 //   npm add -D @commitlint/cli @commitlint/config-conventional
 //
-// Wire into husky:
-//   npx husky add .husky/commit-msg 'npx --no -- commitlint --edit "$1"'
-//
 // Wire into lefthook (lefthook.yml):
 //   commit-msg:
 //     commands:

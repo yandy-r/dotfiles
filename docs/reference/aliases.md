@@ -442,7 +442,6 @@ Development environment shortcuts.
 | ----- | --------------- | ---------------------- |
 | `npi` | `npm install`   | Install packages       |
 | `nps` | `npm start`     | Start application      |
-| `npt` | `npm test`      | Run tests              |
 | `npb` | `npm run build` | Build project          |
 | `npd` | `npm run dev`   | Run development server |
 
