@@ -27,11 +27,11 @@ standalone installer, migrating away from npm/pnpm/Bun/Homebrew installs.
 OPTIONS:
     --install           Install (default); skip when already present
     --update            Install the latest/requested version, even when present
-    --uninstall         Remove the standalone install; keep configuration and data
+    --uninstall         Remove the CLI and daemon packages; keep configuration and data
     --force             Reinstall even when already present; approve prompts
     --version VERSION   Release version (e.g. 0.163.0 or v0.163.0; default: latest)
     --dir PATH          Installation directory (default: ~/.local/bin)
-    --check             Print the installed version and foreign installs
+    --check             Print the installed CLI/daemon versions and foreign installs
     --dry-run           Preview without downloads or changes
     -h, --help          Show this help
 
@@ -46,12 +46,16 @@ ENVIRONMENT:
     NONINTERACTIVE      1 to approve prompts
 
 Uses $INSTALL_URL (upstream verifies the release SHA256). Only standalone
-installs under CODEX_HOME/packages/standalone are updated or removed.
+installs under CODEX_HOME/packages/standalone and the app-server daemon package
+the CLI requires (CODEX_HOME/packages/app-server-daemon) are updated or
+removed. Install and update install the daemon at the CLI's version when it is
+missing or older than the CLI (the CLI's self-update installs only the CLI);
+install repairs that drift when the CLI is already present.
 Configuration, authentication, and sessions in CODEX_HOME (config.toml,
-auth.json, sessions, skills, packages/app-server-daemon) are preserved:
-uninstall removes only the standalone package directory, the install-dir
-symlinks, and the PATH blocks the upstream installer appends to shell files
-(dotfiles manage PATH, so those blocks are always stripped again).
+auth.json, sessions, skills) are preserved: uninstall stops the daemon and
+removes only the two package directories, the install-dir symlinks, and the
+PATH blocks the upstream installer appends to shell files (dotfiles manage
+PATH, so those blocks are always stripped again).
 EOF
 }
 
@@ -118,6 +122,45 @@ native_binary_path() {
 		return 0
 	fi
 	return 1
+}
+
+daemon_binary_path() {
+	local current
+	current="$CODEX_HOME/packages/app-server-daemon/current"
+	if [[ -x "$current/bin/codex" ]]; then
+		printf '%s\n' "$current/bin/codex"
+		return 0
+	fi
+	if [[ -x "$current/codex" ]]; then
+		printf '%s\n' "$current/codex"
+		return 0
+	fi
+	return 1
+}
+
+# Prints the version a Codex binary reports ("codex-cli 0.167.1" -> 0.167.1).
+binary_version() {
+	local out
+	out="$("$1" --version 2>/dev/null)" || return 1
+	out="${out##* }"
+	[[ -n "$out" ]] || return 1
+	printf '%s\n' "$out"
+}
+
+# True when the daemon is missing or older than the CLI. A daemon newer than
+# the CLI (its own updater tracks latest) is left alone, never downgraded.
+daemon_behind_cli() {
+	local cli daemon bin oldest
+	bin="$(daemon_binary_path)" || return 0
+	daemon="$(binary_version "$bin")" || return 0
+	bin="$(native_binary_path)" || return 1
+	cli="$(binary_version "$bin")" || return 1
+	[[ "$cli" != "$daemon" ]] || return 1
+	# sort -V ranks 0.168.0 before 0.168.0-alpha.1; "~" sorts prereleases first.
+	cli="${cli/-alpha/~alpha}" && cli="${cli/-beta/~beta}"
+	daemon="${daemon/-alpha/~alpha}" && daemon="${daemon/-beta/~beta}"
+	oldest="$(printf '%s\n%s\n' "$cli" "$daemon" | sort -V | head -n 1)"
+	[[ "$oldest" == "$daemon" ]]
 }
 
 native_version_string() {
@@ -307,6 +350,50 @@ TEMP_DIR=""
 FORCE_BACKUP=""
 FORCE_RELEASE_DIR=""
 
+# Downloads the upstream installer completely before execution; a failed or
+# partial download must not run. Sets INSTALLER_SCRIPT.
+INSTALLER_SCRIPT=""
+download_installer() {
+	TEMP_DIR="$(mktemp -d)"
+	trap cleanup_temp EXIT
+	INSTALLER_SCRIPT="$TEMP_DIR/install.sh"
+	curl -fsSL --connect-timeout 10 --max-time 120 "$INSTALL_URL" -o "$INSTALLER_SCRIPT"
+}
+
+# The TUI (0.167+) runs against a separately packaged app-server daemon under
+# CODEX_HOME/packages/app-server-daemon. The default installer run and the
+# CLI's self-update install only the standalone CLI, so install the daemon in
+# daemon-only mode, pinned to the CLI's version. Releases that predate the
+# daemon reject daemon-only mode; that is a warning, not a failure.
+install_daemon() {
+	local cli_version
+	local -a release_args=()
+	cli_version="$("$CODEX_INSTALL_DIR/codex" --version 2>/dev/null)" || cli_version=""
+	cli_version="${cli_version##* }"
+	if [[ "$cli_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then release_args=(--release "$cli_version"); fi
+	log "Installing the Codex app-server daemon ${cli_version:-latest}"
+	if ! env CODEX_INSTALL_DAEMON_ONLY=1 CODEX_NON_INTERACTIVE=true CODEX_HOME="$CODEX_HOME" sh "$INSTALLER_SCRIPT" ${release_args[@]+"${release_args[@]}"} || ! daemon_binary_path >/dev/null; then
+		log "WARNING: the app-server daemon was not installed; run codex with --no-daemon, or rerun with --update"
+		return 0
+	fi
+	remove_stale_daemon_socket
+}
+
+# A dangling control-socket link (e.g. into a /tmp directory of an old uid)
+# makes the daemon fail to start with "File exists (os error 17)".
+stale_daemon_socket() {
+	local sock="$CODEX_HOME/app-server-control/app-server-control.sock"
+	[[ -L "$sock" && ! -e "$sock" ]] || return 1
+	printf '%s\n' "$sock"
+}
+
+remove_stale_daemon_socket() {
+	local sock
+	sock="$(stale_daemon_socket)" || return 0
+	log "Removing dangling daemon socket link $sock"
+	rm -f -- "$sock"
+}
+
 cleanup_temp() {
 	if [[ -n "$TEMP_DIR" ]]; then rm -rf -- "$TEMP_DIR"; fi
 	TEMP_DIR=""
@@ -345,7 +432,7 @@ clear_force_backup() {
 }
 
 install_codex() {
-	local bin_link already_version script installed_version resolved
+	local bin_link already_version installed_version resolved
 	local -a release_args=()
 	bin_link="$CODEX_INSTALL_DIR/codex"
 	if [[ "$ACTION" == install && "$FORCE_INSTALL" != true ]] && native_installed; then
@@ -356,6 +443,21 @@ install_codex() {
 			log "Codex is already installed; use --update or --force to reinstall"
 		fi
 		migrate_foreign_installs
+		if daemon_behind_cli; then
+			log "The Codex app-server daemon is missing or older than the CLI; installing it"
+			if [[ "$DRY_RUN" == true ]]; then
+				log "Dry run: no changes made"
+				return 0
+			fi
+			command -v curl >/dev/null 2>&1 || error_exit "curl is required"
+			confirm "Download and execute the official Codex installer?"
+			download_installer
+			install_daemon
+			cleanup_temp
+			trap - EXIT
+		elif [[ "$DRY_RUN" != true ]]; then
+			remove_stale_daemon_socket
+		fi
 		return 0
 	fi
 	# A regular file or directory here could be a user-owned binary; only the
@@ -379,13 +481,9 @@ install_codex() {
 		return 0
 	fi
 	confirm "Download and execute the official Codex installer?"
-	# Download completely before execution; a failed/partial download must not run.
-	TEMP_DIR="$(mktemp -d)"
-	trap cleanup_temp EXIT
-	script="$TEMP_DIR/install.sh"
-	curl -fsSL --connect-timeout 10 --max-time 120 "$INSTALL_URL" -o "$script"
+	download_installer
 	if [[ "$FORCE_INSTALL" == true ]]; then setup_force_backup; fi
-	if ! env CODEX_NON_INTERACTIVE=true CODEX_INSTALL_DIR="$CODEX_INSTALL_DIR" CODEX_HOME="$CODEX_HOME" PATH="$CODEX_INSTALL_DIR:$PATH" sh "$script" ${release_args[@]+"${release_args[@]}"}; then
+	if ! env CODEX_NON_INTERACTIVE=true CODEX_INSTALL_DIR="$CODEX_INSTALL_DIR" CODEX_HOME="$CODEX_HOME" PATH="$CODEX_INSTALL_DIR:$PATH" sh "$INSTALLER_SCRIPT" ${release_args[@]+"${release_args[@]}"}; then
 		strip_upstream_path_blocks
 		restore_force_backup
 		error_exit "Official Codex installer failed"
@@ -394,6 +492,11 @@ install_codex() {
 	installed_version="$("$bin_link" --version)" || { restore_force_backup; error_exit "Installed Codex cannot start"; }
 	clear_force_backup
 	log "Installed Codex: $installed_version"
+	if daemon_behind_cli; then
+		install_daemon
+	else
+		remove_stale_daemon_socket
+	fi
 	resolved="$(command -v codex || true)"
 	if [[ "$resolved" != "$bin_link" ]]; then
 		if [[ -z "$resolved" ]]; then
@@ -407,11 +510,12 @@ install_codex() {
 }
 
 uninstall_codex() {
-	local bin_link host_link standalone_root entries
+	local bin_link host_link standalone_root daemon_root daemon_bin entries
 	bin_link="$CODEX_INSTALL_DIR/codex"
 	host_link="$CODEX_INSTALL_DIR/codex-code-mode-host"
 	standalone_root="$CODEX_HOME/packages/standalone"
-	if ! native_installed && [[ ! -e "$bin_link" && ! -L "$bin_link" ]]; then
+	daemon_root="$CODEX_HOME/packages/app-server-daemon"
+	if ! native_installed && [[ ! -e "$bin_link" && ! -L "$bin_link" && ! -e "$daemon_root" ]]; then
 		log "Codex is not installed at $bin_link"
 		entries="$(foreign_installs || true)"
 		if [[ -n "$entries" ]]; then
@@ -429,14 +533,22 @@ uninstall_codex() {
 	if [[ -e "$host_link" || -L "$host_link" ]] && ! link_points_under "$host_link" "$standalone_root"; then
 		error_exit "Refusing to remove $host_link; it does not point at the standalone install"
 	fi
-	log "Removing the Codex standalone install ($bin_link); configuration, auth, and sessions in $CODEX_HOME are preserved"
+	log "Removing the Codex standalone install ($bin_link) and app-server daemon ($daemon_root); configuration, auth, and sessions in $CODEX_HOME are preserved"
 	if [[ "$DRY_RUN" == true ]]; then
 		log "Dry run: no changes made"
 		return 0
 	fi
-	confirm "Uninstall the standalone Codex CLI?"
+	confirm "Uninstall the standalone Codex CLI and its app-server daemon?"
+	# Stop a running daemon before deleting the binary it runs from.
+	if daemon_bin="$(daemon_binary_path)"; then
+		if command -v timeout >/dev/null 2>&1; then
+			timeout 15 "$daemon_bin" app-server daemon stop >/dev/null 2>&1 || true
+		else
+			"$daemon_bin" app-server daemon stop >/dev/null 2>&1 || true
+		fi
+	fi
 	rm -f -- "$bin_link" "$host_link"
-	rm -rf -- "$standalone_root"
+	rm -rf -- "$standalone_root" "$daemon_root"
 	strip_upstream_path_blocks
 	hash -r
 	log "Uninstalled Codex; $CODEX_HOME configuration preserved"
@@ -457,6 +569,17 @@ check_codex() {
 	else
 		log "Native install: not found under $current"
 		status=1
+	fi
+	if bin="$(daemon_binary_path)"; then
+		log "App-server daemon: $bin ($("$bin" --version 2>/dev/null || printf 'version unknown'))"
+		if daemon_behind_cli; then
+			log "App-server daemon is older than the CLI; run $SCRIPT_NAME --install to update it"
+		fi
+	else
+		log "App-server daemon: not found under $CODEX_HOME/packages/app-server-daemon/current; run $SCRIPT_NAME --install to repair"
+	fi
+	if bin="$(stale_daemon_socket)"; then
+		log "Dangling daemon socket link: $bin; run $SCRIPT_NAME --install to remove it"
 	fi
 	if command -v codex >/dev/null 2>&1; then
 		log "codex on PATH: $(command -v codex)"

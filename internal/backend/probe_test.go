@@ -11,7 +11,8 @@ import (
 )
 
 // TestProbeInstalled exercises every probe path: a Provides list (all present
-// vs one missing), an InstalledWhen.Path (present, absent, and ~-expanded), and
+// vs one missing), an InstalledWhen.Path (present, absent, and ~-expanded),
+// InstalledWhen.Paths (all present vs one missing), and
 // the default name-based PATH fallback. HOME is set so the tilde case is
 // hermetic, so this test does not run in parallel.
 func TestProbeInstalled(t *testing.T) {
@@ -87,6 +88,16 @@ func TestProbeInstalled(t *testing.T) {
 			name: "installed_when tilde expansion",
 			pkg:  manifest.Package{Name: "tpm", InstalledWhen: &manifest.Probe{Path: "~/marker"}},
 			want: true,
+		},
+		{
+			name: "installed_when paths all exist",
+			pkg:  manifest.Package{Name: "codex", InstalledWhen: &manifest.Probe{Paths: []string{existingDir, "~/marker"}}},
+			want: true,
+		},
+		{
+			name: "installed_when paths one missing",
+			pkg:  manifest.Package{Name: "codex", InstalledWhen: &manifest.Probe{Paths: []string{existingDir, "~/nope"}}},
+			want: false,
 		},
 		{
 			name:  "default fallback name found",

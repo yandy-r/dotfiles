@@ -36,13 +36,19 @@ func probeInstalled(r exec.Runner, pkg manifest.Package) (bool, error) {
 			return false, nil // none of the any-of candidates resolved => not installed
 		}
 		return true, nil
-	case pkg.InstalledWhen != nil && pkg.InstalledWhen.Path != "":
-		path, err := expandProbePath(pkg.InstalledWhen.Path)
-		if err != nil {
-			return false, nil
+	case pkg.InstalledWhen != nil && (pkg.InstalledWhen.Path != "" || len(pkg.InstalledWhen.Paths) > 0):
+		paths := pkg.InstalledWhen.Paths
+		if pkg.InstalledWhen.Path != "" {
+			paths = []string{pkg.InstalledWhen.Path}
 		}
-		if _, err := os.Stat(path); err != nil {
-			return false, nil
+		for _, p := range paths {
+			path, err := expandProbePath(p)
+			if err != nil {
+				return false, nil
+			}
+			if _, err := os.Stat(path); err != nil {
+				return false, nil // any missing path => not installed
+			}
 		}
 		return true, nil
 	default:

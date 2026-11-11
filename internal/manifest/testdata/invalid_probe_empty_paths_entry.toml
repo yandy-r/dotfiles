@@ -1,0 +1,6 @@
+# installed_when paths entries must be non-empty.
+[[package]]
+name = "codex"
+backend = "custom-script"
+script = "bin/install-codex.sh"
+installed_when = { paths = ["~/a", ""] }

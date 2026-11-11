@@ -1202,12 +1202,14 @@ justification = "vendor installer tracks latest (CLAUDE_VERSION defaults to late
 # block upstream writes into shell profiles (this repo manages PATH itself).
 #
 # The probe is the standalone release, not `provides = ["codex"]`: an npm-installed
-# codex on PATH would otherwise report converged and skip the migration.
+# codex on PATH would otherwise report converged and skip the migration. It also
+# requires the app-server daemon package Codex 0.167+ needs to start, which the
+# CLI's own self-update does not install.
 [[package]]
 name = "codex"
 backend = "custom-script"
 script = "bin/install-codex.sh"
-installed_when = { path = "~/.codex/packages/standalone/current/bin/codex" }
+installed_when = { paths = ["~/.codex/packages/standalone/current/bin/codex", "~/.codex/packages/app-server-daemon/current/bin/codex"] }
 actions = ["update", "remove"]
 class = "rolling"
 justification = "official checksum-verifying standalone installer tracks latest; wrapper migrates npm/pnpm installs and adds update/remove"

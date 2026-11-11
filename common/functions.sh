@@ -106,6 +106,42 @@ graphify-raw() {
     command graphify "$@"
 }
 
+# Launch Codex after checking its app-server daemon package.
+#
+# Codex 0.167+ cannot start without the daemon package, and the CLI's own
+# self-update installs only the CLI, so the daemon can go missing or fall
+# behind. Compare the two selected releases (two readlinks, no subprocess when
+# they match) and let bin/install-codex.sh --install repair a missing or older
+# daemon. A daemon newer than the CLI is fine. The repair prompts, so it only
+# runs from an interactive terminal; scripted calls just get a hint.
+codex() {
+    local packages="${CODEX_HOME:-$HOME/.codex}/packages" cli daemon
+    local installer="${DOTFILES_ROOT:-$HOME/.config/dotfiles}/bin/install-codex.sh"
+    cli="$(readlink "$packages/standalone/current" 2>/dev/null)"
+    daemon="$(readlink "$packages/app-server-daemon/current" 2>/dev/null)"
+    cli="${cli##*/}"
+    daemon="${daemon##*/}"
+    # "~" makes sort -V rank prereleases (0.168.0-alpha.1) before their release.
+    local cli_key="${cli/-alpha/~alpha}" daemon_key="${daemon/-alpha/~alpha}"
+    cli_key="${cli_key/-beta/~beta}"
+    daemon_key="${daemon_key/-beta/~beta}"
+    if [[ -n "$cli" && "$cli" != "$daemon" && -x "$installer" ]] &&
+        { [[ -z "$daemon" ]] || [[ "$(printf '%s\n%s\n' "$cli_key" "$daemon_key" | sort -V | head -n 1)" == "$daemon_key" ]]; }; then
+        printf '[dotfiles] Codex app-server daemon is %s; CLI is %s\n' "${daemon:-missing}" "$cli" >&2
+        if [[ -t 0 && -t 1 ]]; then
+            "$installer" --install ||
+                printf '[dotfiles] Daemon repair failed; run %s --install, or codex --no-daemon\n' "$installer" >&2
+        else
+            printf '[dotfiles] Run %s --install to update it\n' "$installer" >&2
+        fi
+    fi
+    command codex "$@"
+}
+
+codex-raw() {
+    command codex "$@"
+}
+
 # Resolve the Fabric binary without considering aliases or shell functions.
 _fabric_command() {
 	if [[ -n "${ZSH_VERSION:-}" ]]; then

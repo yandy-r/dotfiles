@@ -950,8 +950,19 @@ func validateProbe(p Package) []error {
 		}
 	}
 
-	if p.InstalledWhen != nil && p.InstalledWhen.Path == "" {
-		errs = append(errs, &ValidationError{Package: p.Name, Msg: "installed_when requires a non-empty path"})
+	if w := p.InstalledWhen; w != nil {
+		switch {
+		case w.Path != "" && len(w.Paths) > 0:
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: "installed_when path and paths are mutually exclusive"})
+		case w.Path == "" && len(w.Paths) == 0:
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: "installed_when requires a non-empty path or paths"})
+		}
+		for _, path := range w.Paths {
+			if strings.TrimSpace(path) == "" {
+				errs = append(errs, &ValidationError{Package: p.Name, Msg: "installed_when paths entries must be non-empty"})
+				break
+			}
+		}
 	}
 
 	return errs

@@ -292,6 +292,8 @@ func TestParse_InvalidManifests(t *testing.T) {
 		{name: "provides on pkg backend", file: "invalid_probe_wrong_backend.toml"},
 		{name: "provides_any on pkg backend", file: "invalid_probe_any_wrong_backend.toml"},
 		{name: "installed_when empty path", file: "invalid_probe_empty_path.toml"},
+		{name: "installed_when path and paths both set", file: "invalid_probe_path_and_paths.toml"},
+		{name: "installed_when empty paths entry", file: "invalid_probe_empty_paths_entry.toml"},
 		{name: "probe empty provides entry", file: "invalid_probe_empty_provides.toml"},
 		{name: "probe empty provides_any entry", file: "invalid_probe_empty_any.toml"},
 		{name: "git-clone missing url", file: "invalid_git_clone_no_url.toml"},
@@ -882,8 +884,11 @@ func TestEmbeddedManifest_Phase3Migrations(t *testing.T) {
 			t.Fatalf("codex must use bin/install-codex.sh, got backend=%q script=%q", p.Backend, p.Script)
 		}
 		// A PATH probe would treat an npm-installed codex as converged and skip migration.
-		if p.InstalledWhen == nil || p.InstalledWhen.Path != "~/.codex/packages/standalone/current/bin/codex" {
-			t.Errorf("codex installed_when = %+v, want standalone release marker", p.InstalledWhen)
+		if p.InstalledWhen == nil || !slices.Equal(p.InstalledWhen.Paths, []string{
+			"~/.codex/packages/standalone/current/bin/codex",
+			"~/.codex/packages/app-server-daemon/current/bin/codex",
+		}) {
+			t.Errorf("codex installed_when = %+v, want standalone CLI and app-server daemon markers", p.InstalledWhen)
 		}
 		if !slices.Equal(p.Actions, []string{"update", "remove"}) {
 			t.Errorf("codex actions = %v, want [update remove]", p.Actions)

@@ -399,13 +399,19 @@ type PostInstallStep struct {
 	Run []string `toml:"run"`
 }
 
-// Probe is an explicit installed-state check. Exactly one facet is used;
-// today only Path is supported (a filesystem path that must exist), leaving
-// room for a future command/version probe without reshaping the schema.
+// Probe is an explicit installed-state check. Exactly one facet is used:
+// Path (one filesystem path that must exist) or Paths (several that must all
+// exist), leaving room for a future command/version probe without reshaping
+// the schema.
 type Probe struct {
 	// Path is a filesystem path that must exist for the package to count as
 	// installed. A leading ~ or $HOME/$VARS are expanded.
 	Path string `toml:"path"`
+
+	// Paths lists filesystem paths that must all exist, for packages that
+	// install several independent parts (codex: the CLI and its app-server
+	// daemon). Expanded like Path; mutually exclusive with it.
+	Paths []string `toml:"paths"`
 }
 
 // AptRepo describes an APT repository (GPG key + sources.list entry) to

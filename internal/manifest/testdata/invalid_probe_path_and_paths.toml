@@ -1,0 +1,6 @@
+# installed_when path and paths are mutually exclusive.
+[[package]]
+name = "codex"
+backend = "custom-script"
+script = "bin/install-codex.sh"
+installed_when = { path = "~/a", paths = ["~/b"] }
