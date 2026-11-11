@@ -308,7 +308,7 @@ init_python_config() {
 
   if [[ -e "${dest}" ]]; then
     error "Refusing to overwrite existing Python project file: ${dest}"
-    error "Merge the Ruff/Black settings from scripts/templates/python-pyproject.toml manually."
+    error "Merge the Ruff/Black settings from bin/templates/python-pyproject.toml manually."
     ((failed++)) || true
     return
   fi
@@ -322,7 +322,7 @@ init_ts_config() {
 
   if [[ -e "${TARGET_DIR}/package.json" ]]; then
     warn "Refusing to overwrite existing package.json: ${TARGET_DIR}/package.json"
-    warn "Merge the TypeScript tooling scripts and devDependencies from scripts/templates/package.json manually."
+    warn "Merge the TypeScript tooling scripts and devDependencies from bin/templates/package.json manually."
     ((skipped++)) || true
     return
   fi

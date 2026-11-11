@@ -260,7 +260,7 @@ xh --version
 
 ## 📚 More Information
 
-- **Full Documentation:** [bin/INSTALLERS.md](INSTALLERS.md)
+- **Full Documentation:** [installers.md](installers.md)
 - **Platform Detection:** `common/platform.sh`
 - **Tool Management:** `common/tools.sh`
 - **Bootstrap Guide:** `README.md`
@@ -321,4 +321,4 @@ To update tools later:
 
 ---
 
-**Questions?** Check the full documentation: [INSTALLERS.md](INSTALLERS.md)
+**Questions?** Check the full documentation: [installers.md](installers.md)

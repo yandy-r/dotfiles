@@ -228,7 +228,7 @@ Two rules.
 Live tripwires, so nobody trips one by accident:
 
 - **`internal/manifest/ratchet_test.go`** — `customScriptBaseline` is an **exact match in both directions**
-  (currently 16). Adding a `custom-script` entry fails the build, and so does removing one without ratcheting the
+  (currently 23). Adding a `custom-script` entry fails the build, and so does removing one without ratcheting the
   constant down. Reach for a native backend first; see [`../reference/manifest-backends.md`](../reference/manifest-backends.md).
 - **`internal/selfupdate/selfupdate_test.go`** — `TestAssetNaming_MatchesBootstrap` string-matches literals inside
   `bootstrap.sh`. Renaming a release asset means editing the goreleaser config, the shim and `selfupdate` together.

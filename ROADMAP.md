@@ -68,7 +68,7 @@ Worth doing, but off the first-boot path:
   touched; the rest of the tree has not been swept.
 - **Ratchet-_down_ candidates for the `custom-script` budget.** `atuin` and `azure-cli` both have official Fedora
   packages and are strong candidates for a native backend. The rule is worth stating plainly: `customScriptBaseline`
-  in `internal/manifest/ratchet_test.go` is an exact-match tripwire in **both** directions, currently **16** — moving
+  in `internal/manifest/ratchet_test.go` is an exact-match tripwire in **both** directions, currently **23** — moving
   an entry off `custom-script` requires lowering the baseline in the same commit, exactly as adding one requires
   raising it.
 - **openSUSE third-party repos** as a `zypper_repo` sub-table on the existing `repo` backend. Explicitly _not_ a new
@@ -110,8 +110,7 @@ Each row is a decision with its reason, not an oversight.
 
 ## Known risks carried forward
 
-These are live, understood and accepted for now; each ships with the mitigation that makes it survivable. The full
-risk register lives in the design document under `docs/plans/fedora-support/`.
+These are live, understood and accepted for now; each ships with the mitigation that makes it survivable.
 
 - **Homebrew on arm64 Linux (R3).** Homebrew publishes no aarch64-Linux bottles and its installer refuses on that host.
   _Mitigation:_ `--homebrew=true` is now declined on arm64 Linux with an explicit stderr note, and the package-manager

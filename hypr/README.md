@@ -6,11 +6,11 @@ Repo-owned Hyprland baseline for the generic Linux desktop path in this dotfiles
 
 This directory is intended for a generic CachyOS or Arch-family Hyprland install. It is a standalone repo-owned baseline with no external overlay dependencies.
 
-The dotfiles playbook only manages this config when you opt in:
+The native symlink engine only manages this config when you opt in:
 
 ```bash
-ansible-playbook playbooks/symlinks.yml --extra-vars "dryrun=true linux_desktop=true"
-ansible-playbook playbooks/symlinks.yml --extra-vars "backup=true linux_desktop=true"
+dotf link --dry-run --linux-desktop
+dotf link --backup --linux-desktop
 ```
 
 Use the dry run first. The live activation path requires `backup=true` because it can replace an existing `~/.config/hypr` tree.
@@ -171,10 +171,10 @@ Because notification daemons only receive the metadata supplied by the app, exac
 **Bar not visible?**
 
 1. **Install Waybar**: `sudo pacman -S waybar` (or your distro’s package).
-2. **Deploy config**: The bar config is only symlinked when the playbook is run with `linux_desktop=true`. Run:
+2. **Deploy config**: The bar config is only symlinked when you opt in with `--linux-desktop`. Run:
 
    ```bash
-   ansible-playbook playbooks/symlinks.yml -e "linux_desktop=true" -e "backup=true"
+   dotf link --backup --linux-desktop
    ```
 
    so that `~/.config/waybar` points at the repo’s `waybar/` directory.
@@ -266,7 +266,7 @@ Keep `monitors.lua` and `hypr-utils.sh` aligned. The current checked-in default 
 
 When an external display is connected, the runtime scripts keep workspaces `1-9` on the external monitor and leave the laptop display without dedicated workspaces. When no external display is present, all workspaces stay local to the laptop.
 
-See [`monitor-auto-switch/README.md`](./monitor-auto-switch/README.md) for installation and runtime behavior.
+See [`monitor-auto-switch/README.md`](../monitor-auto-switch/README.md) for installation and runtime behavior.
 
 ## Lock and Idle Flow
 
@@ -296,16 +296,16 @@ This checks:
 - `~/.config/fuzzel`
 - the presence of the startup hook in `~/.config/hypr/hyprland.lua`
 
-### Preview playbook changes
+### Preview changes
 
 ```bash
-ansible-playbook playbooks/symlinks.yml --extra-vars "dryrun=true linux_desktop=true"
+dotf link --dry-run --linux-desktop
 ```
 
 ### Apply with backups
 
 ```bash
-ansible-playbook playbooks/symlinks.yml --extra-vars "backup=true linux_desktop=true"
+dotf link --backup --linux-desktop
 ```
 
 ### Monitor hook sanity check

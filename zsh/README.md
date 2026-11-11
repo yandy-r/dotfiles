@@ -11,7 +11,6 @@ This directory contains the zsh shell configuration for the dotfiles repository.
 | `functions.zsh`          | Legacy zsh functions (kept for compatibility) | Sourced by zshrc |
 | `fzf.zsh`                | FZF keybindings for zsh                       | `~/.fzf.zsh` (fallback: sourced by `setup_fzf`) |
 | `completions/`           | Custom completion files                       | Added to FPATH   |
-| `omz-migration-notes.md` | Migration notes from Oh My Zsh                | Reference only   |
 
 ## How It Works
 

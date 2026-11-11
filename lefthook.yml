@@ -1,6 +1,5 @@
 # lefthook config for dotfiles
 # Install: `lefthook install` (wires hooks into .git/hooks/)
-# Docs:    docs/pre-commit-recommendation.md
 
 pre-commit:
   parallel: true

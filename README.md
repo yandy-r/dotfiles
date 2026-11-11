@@ -290,7 +290,7 @@ The repository also includes a repo-owned generic Linux desktop baseline for Cac
 Hyprland setups, with `fuzzel`, `waybar`, lock/idle flow, and monitor auto-switch support, activated
 via `--linux-desktop` / `LINUX_DESKTOP=true`.
 
-For non-interactive mode details, see [bin/NON_INTERACTIVE.md](bin/NON_INTERACTIVE.md).
+For non-interactive mode details, run `dotf install --help`.
 
 ### `dotf rc` — Claude Code Remote Control servers per repo
 
@@ -652,7 +652,7 @@ installation methods. All scripts support:
 ./bin/install-modern-cli.sh --dir ~/.local/bin
 ```
 
-See [bin/INSTALLERS.md](bin/INSTALLERS.md) for complete documentation.
+See [bin/installers.md](bin/installers.md) for complete documentation.
 
 ## 🔍 Key Files
 

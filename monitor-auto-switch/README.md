@@ -125,7 +125,7 @@ Use the `Monitor` names from that output, for example `eDP-1`, `DP-2`, or `HDMI-
 1. Preview generic desktop deployment:
 
    ```bash
-   ansible-playbook playbooks/symlinks.yml --extra-vars "dryrun=true linux_desktop=true"
+   dotf link --dry-run --linux-desktop
    ```
 
 2. Verify the deployed config surface:

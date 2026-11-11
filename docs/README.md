@@ -154,7 +154,6 @@ docs/
 
 - [Playbooks README](../playbooks/README.md) - Ansible automation documentation
 - [Installers Reference](../bin/installers.md) - Installer scripts documentation
-- [Non-Interactive Mode](../bin/NON_INTERACTIVE.md) - Automated installation guide
 - [Renovate (Forgejo)](renovate.md) - Self-hosted dependency updates for the Forgejo origin
 - [Fedora First Run](fedora-first-run.md) - Device acceptance checklist, walked before a release tag is cut
 - [Fedora Rehearsal](fedora-rehearsal.md) - The two local containers that cover what CI cannot
