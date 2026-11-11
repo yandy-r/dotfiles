@@ -56,10 +56,6 @@ func newRepoBackend(r exec.Runner) *repoBackend {
 	return &repoBackend{r: r, readFile: os.ReadFile, repoIDs: hostDNFRepoIDs}
 }
 
-// newAptRepoBackend constructs the repo backend under its deprecated apt-repo
-// alias, retained one release so existing manifests keep working.
-func newAptRepoBackend(r exec.Runner) *repoBackend { return newRepoBackend(r) }
-
 // applicableFor reports whether this package can be installed on this host: the
 // host's package manager must have a matching sub-table on the entry. It is the
 // packageGated gate, not platformGated — a repo entry that carries only

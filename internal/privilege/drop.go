@@ -72,8 +72,3 @@ func dropEnv(user, home string) []string {
 }
 
 var _ Dropper = unixDropper{}
-
-// DropEnv builds the explicit environment for a dropped child process.
-func DropEnv(user, home string) []string {
-	return dropEnv(user, home)
-}

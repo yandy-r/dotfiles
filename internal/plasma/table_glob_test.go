@@ -42,7 +42,7 @@ func probeStrip(t *testing.T, path string, tc stripCase, keepColorScheme bool) b
 	spec := specFor(t, path)
 	doc := &Doc{Groups: []Group{{
 		Path:    tc.group,
-		Entries: []Entry{{Key: tc.key, Value: []byte(tc.value), HasValue: true}},
+		Entries: []Entry{{Key: tc.key, Value: []byte(tc.value)}},
 	}}}
 	out := Strip(doc, spec, keepColorScheme)
 	for _, g := range out.Groups {

@@ -218,7 +218,7 @@ func (p *plasmaRun) apply() int {
 	// so folding it in reported one problem as two. It still forces exit 1.
 	var driftErr error
 	driftFiles, driftKeys := 0, 0
-	if diffs, verr := p.eng.Validate(p.files, p.popts); verr != nil {
+	if diffs, verr := p.eng.Diff(p.files, p.popts); verr != nil {
 		var drift *plasma.DriftError
 		if !errors.As(verr, &drift) {
 			return p.fail(verr)

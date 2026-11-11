@@ -2,6 +2,7 @@ package backend_test
 
 import (
 	"fmt"
+	"github.com/yandy-r/dotfiles/internal/privilege/privilegetest"
 	"io/fs"
 	"strings"
 	"testing"
@@ -11,7 +12,6 @@ import (
 	"github.com/yandy-r/dotfiles/internal/exec"
 	"github.com/yandy-r/dotfiles/internal/manifest"
 	"github.com/yandy-r/dotfiles/internal/platform"
-	"github.com/yandy-r/dotfiles/internal/privilege"
 )
 
 // routeHost is one cell of the OS family × arch matrix every sibling family is
@@ -158,7 +158,7 @@ func TestEmbeddedManifest_OneApplicableRoutePerHost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFS(embedded, packages.toml) error = %v", err)
 	}
-	engine := backend.Default(exec.NewFake(), privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+	engine := backend.Default(exec.NewFake(), privilegetest.NewFakeDropper(), t.TempDir(), nil)
 
 	families := routeFamilies(m)
 	if len(families) == 0 {

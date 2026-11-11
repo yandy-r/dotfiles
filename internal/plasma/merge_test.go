@@ -83,7 +83,7 @@ func TestMerge_CreatesMissingGroup(t *testing.T) {
 }
 
 // TestMerge_RepoWinsIncludingFlagsAndLocales: Value, RawFlags, Deleted and
-// HasValue all come from the repo, and a locale variant is a separate identity
+// all come from the repo, and a locale variant is a separate identity
 // that never re-stamps its siblings.
 func TestMerge_RepoWinsIncludingFlagsAndLocales(t *testing.T) {
 	live := mustParse(t, "live", []byte("[G]\nName=live\nName[de]=leben\nPath[$e]=/live\n"))

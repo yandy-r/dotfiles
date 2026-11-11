@@ -2,20 +2,19 @@ package backend_test
 
 import (
 	"errors"
+	"github.com/yandy-r/dotfiles/internal/privilege/privilegetest"
 	"testing"
 
 	"github.com/yandy-r/dotfiles/internal/backend"
 	"github.com/yandy-r/dotfiles/internal/exec"
 	"github.com/yandy-r/dotfiles/internal/manifest"
 	"github.com/yandy-r/dotfiles/internal/platform"
-	"github.com/yandy-r/dotfiles/internal/privilege"
 )
 
 func TestDefault_CoversAllValidBackends(t *testing.T) {
 	engine := backend.Default(
 		exec.NewFake(),
-		privilege.NewSudo(),
-		privilege.NewFakeDropper(),
+		privilegetest.NewFakeDropper(),
 		t.TempDir(),
 		nil,
 	)

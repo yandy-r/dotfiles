@@ -85,13 +85,6 @@ func TestSudo_KeepAlive_surfacesRefreshFailure(t *testing.T) {
 	}
 }
 
-func TestSudo_Prefix(t *testing.T) {
-	s := NewSudo()
-	if got, want := s.Prefix(), []string{"sudo"}; len(got) != 1 || got[0] != want[0] {
-		t.Errorf("Prefix() = %v, want %v", got, want)
-	}
-}
-
 func TestRealUser_nonRootUsesCurrentAccount(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("requires non-root euid")
@@ -167,52 +160,5 @@ func TestDropper_nonRootNoOps(t *testing.T) {
 	d := NewDropper()
 	if err := d.Run([]string{"true"}, t.TempDir()); err != nil {
 		t.Fatalf("Run(true) error = %v, want nil", err)
-	}
-}
-
-func TestFakeDropper_recordsArgvAndUID(t *testing.T) {
-	f := NewFakeDropper()
-	argv := []string{"makepkg", "-si"}
-
-	if err := f.Run(argv, "/home/test"); err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
-	}
-	if len(f.Runs) != 1 {
-		t.Fatalf("len(Runs) = %d, want 1", len(f.Runs))
-	}
-	if got, want := f.Runs[0].Argv, argv; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
-		t.Errorf("Runs[0].Argv = %v, want %v", got, want)
-	}
-	if f.Runs[0].Home != "/home/test" {
-		t.Errorf("Runs[0].Home = %q, want %q", f.Runs[0].Home, "/home/test")
-	}
-	if f.Runs[0].UID == 0 && os.Geteuid() != 0 {
-		t.Errorf("Runs[0].UID = 0, want current user uid")
-	}
-}
-
-func TestDropEnv_explicitFields(t *testing.T) {
-	t.Setenv("PATH", "/usr/bin:/bin")
-
-	env := DropEnv("alice", "/home/alice")
-	want := map[string]string{
-		"HOME":    "/home/alice",
-		"USER":    "alice",
-		"LOGNAME": "alice",
-		"PATH":    "/usr/bin:/bin",
-	}
-	got := map[string]string{}
-	for _, kv := range env {
-		for i := 0; i < len(kv); i++ {
-			if kv[i] == '=' {
-				got[kv[:i]] = kv[i+1:]
-				break
-			}
-		}
-	}
-	for k, v := range want {
-		if got[k] != v {
-			t.Errorf("env[%q] = %q, want %q", k, got[k], v)
-		}
 	}
 }

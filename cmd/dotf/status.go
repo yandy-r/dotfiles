@@ -13,7 +13,6 @@ import (
 	"github.com/yandy-r/dotfiles/internal/exec"
 	"github.com/yandy-r/dotfiles/internal/manifest"
 	"github.com/yandy-r/dotfiles/internal/platform"
-	"github.com/yandy-r/dotfiles/internal/privilege"
 )
 
 // runStatus resolves the manifest, probes installed state for every declared
@@ -59,7 +58,7 @@ func runDriftWithCount(args []string, stdout, stderr io.Writer, r exec.Runner, o
 	}
 
 	info := platform.Detect(r)
-	engine := backend.Default(r, privilege.NewSudo(), privilege.NewFakeDropper(), os.Getenv("DOTFILES_ROOT"), nil)
+	engine := backend.Default(r, nil, os.Getenv("DOTFILES_ROOT"), nil)
 
 	driftCount, err := driftReport(stdout, m, engine, info, onlyMissing, *jsonOut, *counts)
 	if err != nil {

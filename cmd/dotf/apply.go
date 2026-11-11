@@ -194,7 +194,7 @@ func runApply(args []string, stdout, stderr io.Writer, r exec.Runner) (code int)
 	// selected for the packages phase; a bootstrap failure is non-fatal.
 	info = applyBrew(r, stderr, info, opts, &coll)
 
-	engine := backend.Default(r, sudo, privilege.NewDropper(), repoRoot, lock)
+	engine := backend.Default(r, privilege.NewDropper(), repoRoot, lock)
 	results := applyPackages(ctx, engine, pkgs, info, opts.Force, &coll)
 
 	se := symlink.NewEngine(repoRoot, home)

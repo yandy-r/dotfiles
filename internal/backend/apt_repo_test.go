@@ -26,7 +26,7 @@ func TestAptRepoBackend_Install_KeyringSourcesUpdateInstallSequence(t *testing.T
 	r := pinnedKeyFake(dockerKeyFingerprint)
 	r.AddCommand("curl", []string{"-fsSL", keyURL}, []byte("-----BEGIN PGP PUBLIC KEY BLOCK-----\n"), nil)
 
-	b := newAptRepoBackend(r)
+	b := newRepoBackend(r)
 	pkg := manifest.Package{
 		Name:    "docker-ce",
 		Backend: manifest.BackendAPTRepo,
@@ -77,7 +77,7 @@ func TestAptRepoBackend_Install_RerunConverges(t *testing.T) {
 	r := pinnedKeyFake(dockerKeyFingerprint)
 	r.AddCommand("curl", []string{"-fsSL", keyURL}, []byte("-----BEGIN PGP PUBLIC KEY BLOCK-----\n"), nil)
 
-	b := newAptRepoBackend(r)
+	b := newRepoBackend(r)
 	pkg := manifest.Package{
 		Name:    "docker-ce",
 		Backend: manifest.BackendAPTRepo,
@@ -120,7 +120,7 @@ func TestAptRepoBackend_Install_RerunConverges(t *testing.T) {
 func TestAptRepoBackend_Install_UnsupportedPlatform(t *testing.T) {
 	t.Parallel()
 
-	b := newAptRepoBackend(exec.NewFake())
+	b := newRepoBackend(exec.NewFake())
 	pkg := manifest.Package{
 		Name:    "docker-ce",
 		Backend: manifest.BackendAPTRepo,
@@ -156,7 +156,7 @@ func TestAptRepoBackend_Installed_DpkgQuery(t *testing.T) {
 	r := exec.NewFake()
 	r.AddCommand("dpkg-query", []string{"-W", "-f=${db:Status-Status}", aptName}, []byte("installed\n"), nil)
 
-	b := newAptRepoBackend(r)
+	b := newRepoBackend(r)
 	pkg := manifest.Package{
 		Name:  "docker-ce",
 		Names: map[string]string{"apt": aptName},
@@ -186,7 +186,7 @@ func TestAptRepoBackend_Installed_ConfigFiles(t *testing.T) {
 	// Removed-but-not-purged: dpkg exits 0 but the state is "config-files".
 	r.AddCommand("dpkg-query", []string{"-W", "-f=${db:Status-Status}", aptName}, []byte("config-files\n"), nil)
 
-	b := newAptRepoBackend(r)
+	b := newRepoBackend(r)
 	pkg := manifest.Package{
 		Name:  "docker-ce",
 		Names: map[string]string{"apt": aptName},
@@ -209,7 +209,7 @@ func TestAptRepoBackend_Installed_NotInstalled(t *testing.T) {
 	r := exec.NewFake()
 	r.AddCommand("dpkg-query", []string{"-W", "-f=${db:Status-Status}", aptName}, nil, errors.New("dpkg-query: no packages found matching docker-ce"))
 
-	b := newAptRepoBackend(r)
+	b := newRepoBackend(r)
 	pkg := manifest.Package{
 		Name:  "docker-ce",
 		Names: map[string]string{"apt": aptName},
@@ -227,7 +227,7 @@ func TestAptRepoBackend_Installed_NotInstalled(t *testing.T) {
 func TestAptRepoBackend_Installed_UnsupportedPlatform(t *testing.T) {
 	t.Parallel()
 
-	b := newAptRepoBackend(exec.NewFake())
+	b := newRepoBackend(exec.NewFake())
 	pkg := manifest.Package{
 		Name:  "docker-ce",
 		Names: map[string]string{"apt": "docker-ce"},
@@ -313,7 +313,7 @@ func TestAptRepoBackend_Install_TemplatedCodename(t *testing.T) {
 	r := pinnedKeyFake(dockerKeyFingerprint)
 	r.AddCommand("curl", []string{"-fsSL", keyURL}, []byte("-----BEGIN PGP PUBLIC KEY BLOCK-----\n"), nil)
 
-	b := newAptRepoBackend(r)
+	b := newRepoBackend(r)
 	pkg := manifest.Package{
 		Name:    "docker-ce",
 		Backend: manifest.BackendAPTRepo,
@@ -348,7 +348,7 @@ func TestAptRepoBackend_Install_MissingCodename_Errors(t *testing.T) {
 	r := pinnedKeyFake(dockerKeyFingerprint)
 	r.AddCommand("curl", []string{"-fsSL", keyURL}, []byte("-----BEGIN PGP PUBLIC KEY BLOCK-----\n"), nil)
 
-	b := newAptRepoBackend(r)
+	b := newRepoBackend(r)
 	pkg := manifest.Package{
 		Name:    "docker-ce",
 		Backend: manifest.BackendAPTRepo,

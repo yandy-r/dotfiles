@@ -171,7 +171,7 @@ func TestPlanApply_RecommendedOnlyFileMergesIntoALiveFile(t *testing.T) {
 
 // TestPlanApply_LinkWithRecommendedIsRefused pins the resolution of the
 // --link/--recommended asymmetry: a linked live path IS plasma/files/<path>, so
-// the overlay has nowhere to land, while Diff and Validate honour --recommended
+// the overlay has nowhere to land, while Diff honours --recommended
 // and reported every recommended key as permanent, unfixable drift. The
 // combination is refused before anything is touched.
 func TestPlanApply_LinkWithRecommendedIsRefused(t *testing.T) {

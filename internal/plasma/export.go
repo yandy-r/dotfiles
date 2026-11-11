@@ -85,7 +85,7 @@ func (e *Engine) planExportFile(
 		Spec: spec, SrcAbs: repoPath, DestAbs: livePath,
 		ToRepo: true, Mode: repoMode(repoPath),
 	}
-	if linked, _ := e.isLinkedIntoRepo(livePath, repoPath); linked {
+	if e.isLinkedIntoRepo(livePath, repoPath) {
 		// Reading and re-writing the same inode is a no-op when converged and a
 		// deliberate re-strip when KDE has written volatile state into the repo
 		// file through the symlink. Correct, but surprising enough to name.
@@ -172,16 +172,16 @@ func repoMode(path string) os.FileMode {
 
 // isLinkedIntoRepo reports whether a live path is a symlink whose target is the
 // repo copy — the state `dotf plasma apply --link` leaves behind.
-func (e *Engine) isLinkedIntoRepo(livePath, repoPath string) (bool, string) {
+func (e *Engine) isLinkedIntoRepo(livePath, repoPath string) bool {
 	fi, err := os.Lstat(livePath)
 	if err != nil || fi.Mode()&os.ModeSymlink == 0 {
-		return false, ""
+		return false
 	}
 	target, err := os.Readlink(livePath)
 	if err != nil {
-		return false, ""
+		return false
 	}
-	return target == repoPath, target
+	return target == repoPath
 }
 
 // colorSchemeGuardFor resolves the §7.4 colour-scheme guard, but only when the

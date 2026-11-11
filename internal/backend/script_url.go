@@ -78,9 +78,7 @@ func (b *scriptURLBackend) Install(pkg manifest.Package, _ platform.Info) error 
 
 // Installed reports whether the package is present, honoring an explicit
 // Provides/InstalledWhen probe and falling back to a PATH lookup of pkg.Name.
-func (b *scriptURLBackend) Installed(pkg manifest.Package, info platform.Info) (bool, error) {
-	_ = info
-
+func (b *scriptURLBackend) Installed(pkg manifest.Package, _ platform.Info) (bool, error) {
 	return probeInstalled(b.r, pkg)
 }
 
@@ -88,9 +86,7 @@ func (b *scriptURLBackend) Installed(pkg manifest.Package, info platform.Info) (
 // only the computed sha256 (empty OS/Arch/Asset/Binary): a script-url installer
 // is one URL for every host, so a single checksum covers it. Intended for pinned
 // IMMUTABLE installers; a rolling installer is excluded upstream by Pinnable.
-func (b *scriptURLBackend) resolve(pkg manifest.Package, target platform.Info) (lockfile.Artifact, error) {
-	_ = target
-
+func (b *scriptURLBackend) resolve(pkg manifest.Package, _ platform.Info) (lockfile.Artifact, error) {
 	if pkg.URL == "" {
 		return lockfile.Artifact{}, fmt.Errorf("script-url %q: missing url", pkg.Name)
 	}

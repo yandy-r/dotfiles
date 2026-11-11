@@ -68,9 +68,6 @@ func (e *Engine) Execute(plan *Plan, opts Options) (*Report, error) {
 		if done.Err != nil {
 			failures = append(failures, done.Err)
 		}
-		if done.Restated {
-			report.Restated = append(report.Restated, done.Spec.Path)
-		}
 		if done.Kind == ActionSkip {
 			// The write-time re-check found nothing left to do, so applied=0
 			// stays the honest signal of convergence.
@@ -94,7 +91,7 @@ func mutatesLive(kind ActionKind) bool {
 
 // executeAction performs one planned action and returns the action AS
 // PERFORMED. For a live document write that is not the action it was handed:
-// Content, Keys, Mode, Reason and Restated are re-derived from the write-time
+// Content, Keys, Mode and Reason are re-derived from the write-time
 // merge, so Report.Applied describes what actually landed rather than what the
 // plan predicted.
 func (e *Engine) executeAction(act FileAction, backupDir string) (FileAction, error) {
@@ -148,7 +145,7 @@ func (e *Engine) executeAction(act FileAction, backupDir string) (FileAction, er
 // construction (it starts as a copy of live and only ever overwrites the keys
 // the repo names), so the newer live file is a strictly better input than the
 // snapshot. What the user is not told cannot be assessed, though, so bytes that
-// differ from the previewed ones set Restated, and Reason says why.
+// differ from the previewed ones set Reason, which says why.
 func (e *Engine) writeMerged(act FileAction) (FileAction, error) {
 	release, err := e.acquireLock(act.DestAbs)
 	if err != nil {
@@ -186,7 +183,6 @@ func (e *Engine) writeMerged(act FileAction) (FileAction, error) {
 	done.Mode = mode
 	done.Err = errors.Join(errs...)
 	if !bytes.Equal(content, act.Content) {
-		done.Restated = true
 		done.Reason = act.Reason +
 			" (re-merged at write time: the live file changed after the plan was computed)"
 	}
@@ -221,7 +217,6 @@ func (e *Engine) writeRawLive(act FileAction) (FileAction, error) {
 		done.Kind = ActionSkip
 		done.Reason = "already converged at write time"
 		done.Content = nil
-		done.Restated = true
 		return done, nil
 	}
 
@@ -290,7 +285,7 @@ func (e *Engine) doSymlink(act FileAction) error {
 // opened, i.e. beside the symlink in the config dir. So that is where this
 // takes it too.
 func (e *Engine) writeRepo(act FileAction) error {
-	if linked, _ := e.isLinkedIntoRepo(act.DestAbs, act.SrcAbs); linked {
+	if e.isLinkedIntoRepo(act.DestAbs, act.SrcAbs) {
 		release, err := e.acquireLock(act.DestAbs)
 		if err != nil {
 			return err

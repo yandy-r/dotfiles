@@ -221,20 +221,6 @@ func (h Herdr) EnsureWorkspace(name, dir string) (ws Workspace, created bool, er
 	return ws, true, nil
 }
 
-// FindTab returns the tab labelled label in workspaceID.
-func (h Herdr) FindTab(workspaceID, label string) (Tab, bool, error) {
-	tabs, err := h.Tabs(workspaceID)
-	if err != nil {
-		return Tab{}, false, err
-	}
-	for _, t := range tabs {
-		if t.Label == label {
-			return t, true, nil
-		}
-	}
-	return Tab{}, false, nil
-}
-
 // RepoTab returns the rc tab dotf manages for the repo at dir: a tab labelled
 // DefaultTabLabel in workspaceID with a pane whose cwd (or foreground cwd) is
 // dir. Requiring the cwd keeps up's restart and down from closing a tab the

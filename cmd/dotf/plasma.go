@@ -165,7 +165,6 @@ func runPlasma(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 		popts: plasma.Options{
 			DryRun:       o.dryRun,
 			Backup:       o.backup,
-			Validate:     true,
 			Link:         o.link,
 			Unlink:       o.unlink,
 			Recommended:  o.recommended,

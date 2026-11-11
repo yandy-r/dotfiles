@@ -16,7 +16,6 @@ import (
 	"github.com/yandy-r/dotfiles/internal/manifest"
 	"github.com/yandy-r/dotfiles/internal/plasma"
 	"github.com/yandy-r/dotfiles/internal/platform"
-	"github.com/yandy-r/dotfiles/internal/privilege"
 	"github.com/yandy-r/dotfiles/internal/snapper"
 	"github.com/yandy-r/dotfiles/internal/symlink"
 	"github.com/yandy-r/dotfiles/internal/sysconfig"
@@ -269,7 +268,7 @@ func applyPlasma(pe *plasma.Engine, files []plasma.FileSpec, popts plasma.Option
 		coll.Record("plasma", err)
 		return report
 	}
-	_, verr := pe.Validate(files, popts)
+	_, verr := pe.Diff(files, popts)
 	coll.Record("plasma", verr)
 	return report
 }
@@ -282,11 +281,10 @@ func applyPlasma(pe *plasma.Engine, files []plasma.FileSpec, popts plasma.Option
 // headless apply must never tear down the running shell.
 func applyPlasmaOptions(opts applyOptions) plasma.Options {
 	return plasma.Options{
-		DryRun:   opts.DryRun,
-		Backup:   opts.Plasma,
-		Validate: true,
-		Reload:   false,
-		Session:  plasma.DetectSession(os.Getenv),
+		DryRun:  opts.DryRun,
+		Backup:  opts.Plasma,
+		Reload:  false,
+		Session: plasma.DetectSession(os.Getenv),
 	}
 }
 
@@ -423,7 +421,7 @@ func applyDryRun(stdout, stderr io.Writer, r exec.Runner, m *manifest.Manifest, 
 	// plan.apt-repo=docker-ce on a dnf host). Applicable is a pure read-only
 	// gate, so this engine never runs a command and never primes sudo —
 	// the same construction status.go uses for its probe engine.
-	engine := backend.Default(r, privilege.NewSudo(), privilege.NewFakeDropper(), repoRoot, nil)
+	engine := backend.Default(r, nil, repoRoot, nil)
 	pkgs, notApplicable := partitionApplicableForPreview(stderr, engine, pkgs, info)
 
 	eng := sysconfig.Default(r, "")

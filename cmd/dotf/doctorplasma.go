@@ -69,7 +69,7 @@ func checkPlasma(repoRoot, configDir, dataHome string, info platform.Info, r exe
 // unhealthy.
 func plasmaDriftCheck(eng *plasma.Engine) doctorCheck {
 	files := plasma.DefaultFiles()
-	diffs, err := eng.Diff(files, plasma.Options{Validate: true})
+	diffs, err := eng.Diff(files, plasma.Options{})
 
 	var drift *plasma.DriftError
 	if err != nil && !errors.As(err, &drift) {

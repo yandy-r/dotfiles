@@ -11,8 +11,7 @@ import (
 // lock is threaded into the download backends (github-release, script-url) for
 // pinned-artifact checksum verification; it is nil-tolerant, so read-only
 // commands pass nil to keep today's inline-sha256 behavior.
-func Default(r exec.Runner, sudo *privilege.Sudo, drop privilege.Dropper, repoRoot string, lock *lockfile.Lock) *Engine {
-	_ = sudo
+func Default(r exec.Runner, drop privilege.Dropper, repoRoot string, lock *lockfile.Lock) *Engine {
 	repo := newRepoBackend(r)
 	return NewEngine(map[manifest.Backend]Backend{
 		manifest.BackendPkg:           newPkgBackend(r),

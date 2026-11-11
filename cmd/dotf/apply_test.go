@@ -1148,7 +1148,7 @@ func TestApplyPlasma_RecordsOneStepOnSuccess(t *testing.T) {
 
 	var coll failure.Collector
 	var stderr bytes.Buffer
-	report := applyPlasma(eng, plasmaOnlyKiorc(t), plasma.Options{Validate: true}, &stderr, &coll)
+	report := applyPlasma(eng, plasmaOnlyKiorc(t), plasma.Options{}, &stderr, &coll)
 
 	if report == nil {
 		t.Fatal("report = nil, want a report")
@@ -1175,7 +1175,7 @@ func TestApplyPlasma_RecordsOneStepOnPlanError(t *testing.T) {
 
 	var coll failure.Collector
 	var stderr bytes.Buffer
-	if report := applyPlasma(eng, plasmaOnlyKiorc(t), plasma.Options{Validate: true}, &stderr, &coll); report != nil {
+	if report := applyPlasma(eng, plasmaOnlyKiorc(t), plasma.Options{}, &stderr, &coll); report != nil {
 		t.Errorf("report = %+v, want nil on a plan error", report)
 	}
 	if got := plasmaSteps(t, &coll); !strings.Contains(got, "steps=1 ok=0 failed=1") {
@@ -1195,7 +1195,7 @@ func TestApplyPlasma_RecordsOneStepOnExecuteError(t *testing.T) {
 
 	var coll failure.Collector
 	var stderr bytes.Buffer
-	applyPlasma(eng, plasmaOnlyKiorc(t), plasma.Options{Backup: true, Validate: true}, &stderr, &coll)
+	applyPlasma(eng, plasmaOnlyKiorc(t), plasma.Options{Backup: true}, &stderr, &coll)
 
 	if got := plasmaSteps(t, &coll); !strings.Contains(got, "steps=1 ok=0 failed=1") {
 		t.Errorf("summary = %q, want exactly one failed step", got)
@@ -1212,7 +1212,7 @@ func TestApplyPlasma_RecordsOneStepOnValidateError(t *testing.T) {
 
 	var coll failure.Collector
 	var stderr bytes.Buffer
-	applyPlasma(eng, plasmaOnlyKiorc(t), plasma.Options{DryRun: true, Validate: true}, &stderr, &coll)
+	applyPlasma(eng, plasmaOnlyKiorc(t), plasma.Options{DryRun: true}, &stderr, &coll)
 
 	if !coll.Failed() {
 		t.Fatal("collector recorded no failure, want the post-apply drift")
@@ -1229,7 +1229,7 @@ func TestApplyPlasma_MissingRepoTreeRecordsNothing(t *testing.T) {
 
 	var coll failure.Collector
 	var stderr bytes.Buffer
-	if report := applyPlasma(eng, plasmaOnlyKiorc(t), plasma.Options{Validate: true}, &stderr, &coll); report != nil {
+	if report := applyPlasma(eng, plasmaOnlyKiorc(t), plasma.Options{}, &stderr, &coll); report != nil {
 		t.Errorf("report = %+v, want nil", report)
 	}
 	if got := plasmaSteps(t, &coll); !strings.Contains(got, "steps=0") {
@@ -1272,8 +1272,8 @@ func TestApplyPlasmaOptions_BackupFollowsOptIn(t *testing.T) {
 	t.Setenv("XDG_CURRENT_DESKTOP", "")
 
 	got := applyPlasmaOptions(applyOptions{Plasma: true, DryRun: true})
-	if !got.Backup || !got.Validate || !got.DryRun {
-		t.Errorf("options = %+v, want Backup/Validate/DryRun all true", got)
+	if !got.Backup || !got.DryRun {
+		t.Errorf("options = %+v, want Backup/DryRun both true", got)
 	}
 	if got.Link || got.Recommended || got.Reload {
 		t.Errorf("options = %+v, want Link/Recommended/Reload all false", got)

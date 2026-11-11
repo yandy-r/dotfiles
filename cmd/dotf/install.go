@@ -148,7 +148,7 @@ func runInstall(args []string, stdout, stderr io.Writer, r exec.Runner) (code in
 	defer cancel()
 
 	drop := privilege.NewDropper()
-	engine := backend.Default(r, sudo, drop, resolveRepoRoot(), lock)
+	engine := backend.Default(r, drop, resolveRepoRoot(), lock)
 
 	results := make([]installResult, 0, len(pkgs))
 	statuses := make(map[string]string, len(pkgs))

@@ -172,7 +172,7 @@ func (e *LinkModeConflictError) Error() string {
 // exported snapshot — which the next `dotf plasma export` would strip straight
 // back out.
 //
-// Refusing up front is the honest option because Diff and Validate DO honour
+// Refusing up front is the honest option because Diff and the apply path DO honour
 // --recommended: silently dropping the overlay left every recommended key
 // reported as drift by the very validation the same command runs, on every
 // subsequent run, with no way to converge.
@@ -238,7 +238,7 @@ func (e *LockError) Error() string {
 }
 
 // DriftError is the many-item collector shape, mirroring
-// symlink.BrokenLinkError. Diff and Validate return it ALONGSIDE their full
+// symlink.BrokenLinkError. Diff returns it ALONGSIDE their full
 // results, never instead of them.
 type DriftError struct {
 	// Files lists the config-dir-relative paths that differ.

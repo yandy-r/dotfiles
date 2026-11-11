@@ -2,12 +2,12 @@ package backend
 
 import (
 	"errors"
+	"github.com/yandy-r/dotfiles/internal/privilege/privilegetest"
 	"testing"
 
 	"github.com/yandy-r/dotfiles/internal/exec"
 	"github.com/yandy-r/dotfiles/internal/manifest"
 	"github.com/yandy-r/dotfiles/internal/platform"
-	"github.com/yandy-r/dotfiles/internal/privilege"
 )
 
 func TestAction_String(t *testing.T) {
@@ -33,7 +33,7 @@ func TestAction_String(t *testing.T) {
 
 // testLifecycleEngine builds the full Default engine over a fake runner.
 func testLifecycleEngine(r exec.Runner) *Engine {
-	return Default(r, privilege.NewSudo(), privilege.NewFakeDropper(), "", nil)
+	return Default(r, privilegetest.NewFakeDropper(), "", nil)
 }
 
 // TestEngine_Update_UnsupportedBackend asserts backends without an Updater yield

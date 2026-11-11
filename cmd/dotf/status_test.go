@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/yandy-r/dotfiles/internal/privilege/privilegetest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	"github.com/yandy-r/dotfiles/internal/exec"
 	"github.com/yandy-r/dotfiles/internal/manifest"
 	"github.com/yandy-r/dotfiles/internal/platform"
-	"github.com/yandy-r/dotfiles/internal/privilege"
 )
 
 // findReport returns the packageReport for name in a decoded commandReport, or
@@ -75,7 +75,7 @@ func archPacmanFake(t *testing.T) *exec.Fake {
 func testDriftEngine(t *testing.T, fake *exec.Fake) *backend.Engine {
 	t.Helper()
 
-	return backend.Default(fake, privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+	return backend.Default(fake, privilegetest.NewFakeDropper(), t.TempDir(), nil)
 }
 
 func parseManifest(t *testing.T) *manifest.Manifest {

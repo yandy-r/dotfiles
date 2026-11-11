@@ -28,11 +28,11 @@ func TestOrder_GroupsAreUTF16_KeysAreUTF8(t *testing.T) {
 	}
 
 	doc := &Doc{Groups: []Group{
-		{Path: []string{replacement}, Entries: []Entry{{Key: "k", Value: []byte("v"), HasValue: true}}},
-		{Path: []string{emoji}, Entries: []Entry{{Key: "k", Value: []byte("v"), HasValue: true}}},
+		{Path: []string{replacement}, Entries: []Entry{{Key: "k", Value: []byte("v")}}},
+		{Path: []string{emoji}, Entries: []Entry{{Key: "k", Value: []byte("v")}}},
 		{Path: []string{"G"}, Entries: []Entry{
-			{Key: replacement, Value: []byte("v"), HasValue: true},
-			{Key: emoji, Value: []byte("v"), HasValue: true},
+			{Key: replacement, Value: []byte("v")},
+			{Key: emoji, Value: []byte("v")},
 		}},
 	}}
 
@@ -59,7 +59,7 @@ func TestOrder_Groups(t *testing.T) {
 		{Path: []string{"Alpha"}},
 	}}
 	for i := range doc.Groups {
-		doc.Groups[i].Entries = []Entry{{Key: "k", Value: []byte("v"), HasValue: true}}
+		doc.Groups[i].Entries = []Entry{{Key: "k", Value: []byte("v")}}
 	}
 
 	got := string(mustWrite(t, doc))
@@ -78,14 +78,14 @@ func TestOrder_Groups(t *testing.T) {
 // comparison of the decoded bare key, tie-broken by locale with "" first.
 func TestOrder_KeysAndLocales(t *testing.T) {
 	doc := &Doc{Groups: []Group{{Path: []string{"G"}, Entries: []Entry{
-		{Key: "Name", Locale: "fr", Value: []byte("francais"), HasValue: true},
-		{Key: "Name", Locale: "de_DE", Value: []byte("deutschland"), HasValue: true},
-		{Key: "Name", Value: []byte("base"), HasValue: true},
-		{Key: "Name", Locale: "de", Value: []byte("deutsch"), HasValue: true},
-		{Key: "trail ", Value: []byte("t"), HasValue: true},
-		{Key: "Tab\tKey", Value: []byte("t"), HasValue: true},
-		{Key: "   ", Value: []byte("s"), HasValue: true},
-		{Key: " lead", Value: []byte("l"), HasValue: true},
+		{Key: "Name", Locale: "fr", Value: []byte("francais")},
+		{Key: "Name", Locale: "de_DE", Value: []byte("deutschland")},
+		{Key: "Name", Value: []byte("base")},
+		{Key: "Name", Locale: "de", Value: []byte("deutsch")},
+		{Key: "trail ", Value: []byte("t")},
+		{Key: "Tab\tKey", Value: []byte("t")},
+		{Key: "   ", Value: []byte("s")},
+		{Key: " lead", Value: []byte("l")},
 	}}}}
 
 	got := string(mustWrite(t, doc))
@@ -120,17 +120,17 @@ func TestLayout_BlankLines(t *testing.T) {
 		{
 			name: "root group only, no header line",
 			doc: &Doc{Groups: []Group{{Entries: []Entry{
-				{Key: "rootkey", Value: []byte("rootvalue"), HasValue: true},
-				{Key: "another", Value: []byte("x"), HasValue: true},
+				{Key: "rootkey", Value: []byte("rootvalue")},
+				{Key: "another", Value: []byte("x")},
 			}}}},
 			want: "another=x\nrootkey=rootvalue\n",
 		},
 		{
 			name: "root group then groups",
 			doc: &Doc{Groups: []Group{
-				{Entries: []Entry{{Key: "rootkey", Value: []byte("v"), HasValue: true}}},
-				{Path: []string{"Zed"}, Entries: []Entry{{Key: "k", Value: []byte("v"), HasValue: true}}},
-				{Path: []string{"Alpha"}, Entries: []Entry{{Key: "k", Value: []byte("v"), HasValue: true}}},
+				{Entries: []Entry{{Key: "rootkey", Value: []byte("v")}}},
+				{Path: []string{"Zed"}, Entries: []Entry{{Key: "k", Value: []byte("v")}}},
+				{Path: []string{"Alpha"}, Entries: []Entry{{Key: "k", Value: []byte("v")}}},
 			}},
 			want: "rootkey=v\n\n[Alpha]\nk=v\n\n[Zed]\nk=v\n",
 		},
@@ -138,7 +138,7 @@ func TestLayout_BlankLines(t *testing.T) {
 			name: "empty root group contributes nothing",
 			doc: &Doc{Groups: []Group{
 				{},
-				{Path: []string{"Alpha"}, Entries: []Entry{{Key: "k", Value: []byte("v"), HasValue: true}}},
+				{Path: []string{"Alpha"}, Entries: []Entry{{Key: "k", Value: []byte("v")}}},
 			}},
 			want: "[Alpha]\nk=v\n",
 		},
@@ -146,7 +146,7 @@ func TestLayout_BlankLines(t *testing.T) {
 			name: "a group with no entries keeps its header",
 			doc: &Doc{Groups: []Group{
 				{Path: []string{"Empty"}},
-				{Path: []string{"Full"}, Entries: []Entry{{Key: "k", Value: []byte("v"), HasValue: true}}},
+				{Path: []string{"Full"}, Entries: []Entry{{Key: "k", Value: []byte("v")}}},
 			}},
 			want: "[Empty]\n\n[Full]\nk=v\n",
 		},
@@ -154,15 +154,15 @@ func TestLayout_BlankLines(t *testing.T) {
 			name: "tombstone omits the equals sign",
 			doc: &Doc{Groups: []Group{{Path: []string{"G"}, Entries: []Entry{
 				{Key: "Gone", RawFlags: "d", Deleted: true},
-				{Key: "Here", Value: []byte("1"), HasValue: true},
+				{Key: "Here", Value: []byte("1")},
 			}}}},
 			want: "[G]\nGone[$d]\nHere=1\n",
 		},
 		{
 			name: "group immutability propagates onto entries",
 			doc: &Doc{Groups: []Group{{Path: []string{"Immutable"}, Immutable: true, Entries: []Entry{
-				{Key: "a", Value: []byte("1"), HasValue: true},
-				{Key: "b", Value: []byte("2"), HasValue: true},
+				{Key: "a", Value: []byte("1")},
+				{Key: "b", Value: []byte("2")},
 			}}}},
 			want: "[Immutable][$i]\na[$i]=1\nb[$i]=2\n",
 		},

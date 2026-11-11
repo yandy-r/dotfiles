@@ -129,28 +129,9 @@ func TestDiff_RawUsesByteEquality(t *testing.T) {
 	}
 }
 
-// TestValidate_IsDiff proves the "one comparator" invariant: Validate cannot be
-// a second implementation free to disagree with the plan.
-func TestValidate_IsDiff(t *testing.T) {
-	e, repoRoot, configDir := testEngine(t)
-	seedRepo(t, repoRoot, "kwinrc", "[G]\nk=repo\n")
-	seedLive(t, configDir, "kwinrc", "[G]\nk=live\nextra=1\n")
-
-	files := []FileSpec{specFor(t, "kwinrc")}
-	wantDiffs, wantErr := e.Diff(files, Options{})
-	gotDiffs, gotErr := e.Validate(files, Options{})
-
-	if !reflect.DeepEqual(gotDiffs, wantDiffs) {
-		t.Errorf("Validate results differ from Diff:\n got %+v\nwant %+v", gotDiffs, wantDiffs)
-	}
-	if (gotErr == nil) != (wantErr == nil) || (gotErr != nil && gotErr.Error() != wantErr.Error()) {
-		t.Errorf("Validate error = %v, Diff error = %v", gotErr, wantErr)
-	}
-}
-
-// TestValidate_DetectsDriftAfterAFailedWrite: the post-apply audit is what
-// catches a live session racing the write.
-func TestValidate_DetectsDrift(t *testing.T) {
+// TestDiff_DetectsDriftAfterAFailedWrite: the post-apply audit (Diff) is
+// what catches a live session racing the write.
+func TestDiff_DetectsDrift(t *testing.T) {
 	e, repoRoot, configDir := testEngine(t)
 	seedRepo(t, repoRoot, "kwinrc", "[G]\nk=repo\n")
 	seedLive(t, configDir, "kwinrc", "[G]\nk=live\n")
@@ -163,15 +144,15 @@ func TestValidate_DetectsDrift(t *testing.T) {
 	if _, err := e.Execute(plan, Options{}); err != nil {
 		t.Fatalf("Execute error = %v", err)
 	}
-	if _, err := e.Validate(files, Options{}); err != nil {
-		t.Fatalf("Validate error = %v after a successful apply, want nil", err)
+	if _, err := e.Diff(files, Options{}); err != nil {
+		t.Fatalf("Diff error = %v after a successful apply, want nil", err)
 	}
 
 	// Simulate a running Plasma rewriting the file behind us.
 	seedLive(t, configDir, "kwinrc", "[G]\nk=clobbered\n")
 	var drift *DriftError
-	if _, err := e.Validate(files, Options{}); !errors.As(err, &drift) {
-		t.Fatalf("Validate error = %v, want *DriftError", err)
+	if _, err := e.Diff(files, Options{}); !errors.As(err, &drift) {
+		t.Fatalf("Diff error = %v, want *DriftError", err)
 	}
 }
 

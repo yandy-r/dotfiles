@@ -1,6 +1,7 @@
 package manifest_test
 
 import (
+	"github.com/yandy-r/dotfiles/internal/privilege/privilegetest"
 	"slices"
 	"testing"
 
@@ -8,7 +9,6 @@ import (
 	"github.com/yandy-r/dotfiles/internal/exec"
 	"github.com/yandy-r/dotfiles/internal/manifest"
 	"github.com/yandy-r/dotfiles/internal/platform"
-	"github.com/yandy-r/dotfiles/internal/privilege"
 )
 
 const t3Icon = "https://raw.githubusercontent.com/pingdotgg/t3code/v0.1.7/apps/marketing/public/apple-touch-icon.png"
@@ -113,7 +113,7 @@ func TestEmbeddedManifest_T3Code(t *testing.T) {
 	})
 
 	t.Run("one client route per host", func(t *testing.T) {
-		engine := backend.Default(exec.NewFake(), privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+		engine := backend.Default(exec.NewFake(), privilegetest.NewFakeDropper(), t.TempDir(), nil)
 		hosts := []struct {
 			name string
 			info platform.Info

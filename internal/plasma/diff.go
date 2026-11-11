@@ -14,7 +14,7 @@ import (
 // drift.
 //
 // The comparison itself is diffDocs, which is also what Converged is a
-// predicate over — so `dotf plasma diff`, Validate, Status, doctor, and the
+// predicate over — so `dotf plasma diff`, post-apply audit, Status, doctor, and the
 // convergence short-circuit PlanApply uses all resolve to one loop. Diff is the
 // reporting face of that loop, not a second source of truth.
 //

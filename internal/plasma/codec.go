@@ -76,9 +76,6 @@ type Entry struct {
 	// Deleted is true when RawFlags contains 'd' — a tombstone. Such an entry
 	// reads as absent but stays in the file, and the writer strips its '='.
 	Deleted bool
-	// HasValue records whether an '=' was present on the line. "Key=" with an
-	// empty value is a real entry, not an absent one.
-	HasValue bool
 }
 
 // ParseError reports a KConfig file this codec refuses to load. Line is
@@ -371,6 +368,5 @@ func parseEntry(path string, lineNo int, line []byte) (Entry, error) {
 		RawFlags: rawFlags,
 		Value:    value,
 		Deleted:  deleted,
-		HasValue: hasValue,
 	}, nil
 }

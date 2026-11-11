@@ -242,9 +242,6 @@ func TestParse_NotErrors(t *testing.T) {
 			verify: func(t *testing.T, doc *Doc) {
 				t.Helper()
 				e := doc.Groups[0].Entries[0]
-				if !e.HasValue {
-					t.Error("HasValue = false, want true")
-				}
 				if len(e.Value) != 0 {
 					t.Errorf("Value = %q, want empty", e.Value)
 				}

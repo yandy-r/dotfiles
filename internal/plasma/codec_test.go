@@ -341,21 +341,20 @@ func TestParse_EntryShapes(t *testing.T) {
 	}
 
 	checks := []struct {
-		id       string
-		value    string
-		flags    string
-		deleted  bool
-		hasValue bool
+		id      string
+		value   string
+		flags   string
+		deleted bool
 	}{
-		{id: "Plain|", value: "v", hasValue: true},
-		{id: "Empty|", value: "", hasValue: true},
-		{id: "Split|", value: "b=c=d", hasValue: true},
-		{id: "Name|de", value: "deutsch", hasValue: true},
-		{id: "Name|de_DE", value: "deutschland", hasValue: true},
-		{id: "Path|", value: "$HOME/x", flags: "e", hasValue: true},
-		{id: "Locked|", value: "1", flags: "i", hasValue: true},
-		{id: "Gone|", value: "", flags: "d", deleted: true, hasValue: false},
-		{id: "Odd|fr", value: "oui", flags: "ie", hasValue: true},
+		{id: "Plain|", value: "v"},
+		{id: "Empty|", value: ""},
+		{id: "Split|", value: "b=c=d"},
+		{id: "Name|de", value: "deutsch"},
+		{id: "Name|de_DE", value: "deutschland"},
+		{id: "Path|", value: "$HOME/x", flags: "e"},
+		{id: "Locked|", value: "1", flags: "i"},
+		{id: "Gone|", value: "", flags: "d", deleted: true},
+		{id: "Odd|fr", value: "oui", flags: "ie"},
 	}
 	for _, c := range checks {
 		e, ok := got[c.id]
@@ -371,9 +370,6 @@ func TestParse_EntryShapes(t *testing.T) {
 		}
 		if e.Deleted != c.deleted {
 			t.Errorf("entry %q Deleted = %v, want %v", c.id, e.Deleted, c.deleted)
-		}
-		if e.HasValue != c.hasValue {
-			t.Errorf("entry %q HasValue = %v, want %v", c.id, e.HasValue, c.hasValue)
 		}
 	}
 }
@@ -524,7 +520,7 @@ func TestGroupSegment_RoundTrip(t *testing.T) {
 		" spaced group ", "ab ", " ab", "a\tb", "a\tb ", " a\tb ", `a\b `, " a[b", "   ",
 	} {
 		t.Run(name, func(t *testing.T) {
-			doc := &Doc{Groups: []Group{{Path: []string{name}, Entries: []Entry{{Key: "k", Value: []byte("1"), HasValue: true}}}}}
+			doc := &Doc{Groups: []Group{{Path: []string{name}, Entries: []Entry{{Key: "k", Value: []byte("1")}}}}}
 			out := mustWrite(t, doc)
 			back := mustParse(t, "roundtrip", out)
 			if len(back.Groups) != 1 || len(back.Groups[0].Path) != 1 {
@@ -564,7 +560,7 @@ func TestEscape_LeadingBOMInKey(t *testing.T) {
 		t.Errorf("value context = %q, want %q", got, want)
 	}
 
-	doc := &Doc{Groups: []Group{{Entries: []Entry{{Key: bom, Value: []byte("v"), HasValue: true}}}}}
+	doc := &Doc{Groups: []Group{{Entries: []Entry{{Key: bom, Value: []byte("v")}}}}}
 	out := mustWrite(t, doc)
 	if bytes.HasPrefix(out, utf8BOM) {
 		t.Fatalf("Write() opened the file with a BOM: %q", out)
@@ -587,19 +583,19 @@ func TestWrite_RejectsUnrepresentableDocs(t *testing.T) {
 		{"duplicate group", &Doc{Groups: []Group{{Path: []string{"A"}}, {Path: []string{"A"}}}}},
 		{"empty key", &Doc{Groups: []Group{{Path: []string{"A"}, Entries: []Entry{{Key: ""}}}}}},
 		{"duplicate key identity", &Doc{Groups: []Group{{Path: []string{"A"}, Entries: []Entry{
-			{Key: "k", HasValue: true}, {Key: "k", HasValue: true},
+			{Key: "k"}, {Key: "k"},
 		}}}}},
-		{"immutable root group", &Doc{Groups: []Group{{Immutable: true, Entries: []Entry{{Key: "k", HasValue: true}}}}}},
+		{"immutable root group", &Doc{Groups: []Group{{Immutable: true, Entries: []Entry{{Key: "k"}}}}}},
 		// 0x1D is the joiner itself: "[a\x1db]" is the group [a][b] to KDE, so a
 		// segment holding one has no faithful spelling.
 		{"0x1D inside a group segment", &Doc{Groups: []Group{{Path: []string{"a\x1db"}}}}},
 		// KDE matches a locale tag as raw bytes, so a tag that needs escaping
 		// would serve a different locale once written.
 		{"locale tag that needs escaping", &Doc{Groups: []Group{{Path: []string{"A"}, Entries: []Entry{
-			{Key: "k", Locale: "d\te", HasValue: true},
+			{Key: "k", Locale: "d\te"},
 		}}}}},
 		{"locale tag with edge whitespace", &Doc{Groups: []Group{{Path: []string{"A"}, Entries: []Entry{
-			{Key: "k", Locale: " de ", HasValue: true},
+			{Key: "k", Locale: " de "},
 		}}}}},
 	}
 	for _, tc := range cases {

@@ -48,8 +48,8 @@ const systemColorSchemesDir = "/usr/share/color-schemes"
 
 // Options are the run switches. Like symlink.Options this is a flat value with
 // no baked-in defaults; the CLI layer constructs it explicitly and owns every
-// default. The same value is passed to PlanExport, PlanApply, Execute, Diff,
-// and Validate.
+// default. The same value is passed to PlanExport, PlanApply, Execute, and
+// Diff.
 type Options struct {
 	// DryRun disables every filesystem mutation. It is Execute's first
 	// statement short-circuit.
@@ -57,9 +57,6 @@ type Options struct {
 	// Backup copies each live file the run will modify into Plan.BackupDir
 	// before touching it.
 	Backup bool
-	// Validate is a CLI-layer switch only; the engine does not read it.
-	// Engine.Validate always validates when called.
-	Validate bool
 	// Link plans ActionSymlink instead of ActionMerge for every selected file.
 	Link bool
 	// Unlink is Link's inverse: it plans ActionUnlink for every selected file
@@ -213,13 +210,6 @@ type FileAction struct {
 	// file as read under the lock. Nil for every kind except ActionMerge and
 	// ActionCreateFile.
 	Source *Doc
-	// Restated is set by Execute, never by a planner: the write-time re-merge
-	// produced different bytes from the plan-time preview, because the live file
-	// changed in between. The write is still correct and still non-destructive —
-	// the merge is deterministic and never deletes a live key — but the user
-	// asked to apply one thing and a slightly different thing landed, so it is
-	// reported rather than absorbed.
-	Restated bool
 	// Mode is the file mode to write: the existing file's mode when it exists,
 	// else 0o600 (KDE's own mode for freshly created config files).
 	Mode os.FileMode
@@ -284,12 +274,6 @@ type Report struct {
 	Planned []FileAction
 	// DryRun records whether the run was a dry run.
 	DryRun bool
-	// Restated lists the config-dir-relative paths whose write-time re-merge
-	// differed from the plan-time preview — the live file changed between
-	// planning and writing, so the bytes that landed are derived from the newer
-	// live file rather than from the preview the user saw. Never a failure; the
-	// caller renders it as a notice.
-	Restated []string
 	// Reloaded lists the reload commands actually run (empty unless
 	// Options.Reload and a live session).
 	Reloaded []ReloadCommand

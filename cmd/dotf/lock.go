@@ -17,7 +17,6 @@ import (
 	"github.com/yandy-r/dotfiles/internal/lockfile"
 	"github.com/yandy-r/dotfiles/internal/manifest"
 	"github.com/yandy-r/dotfiles/internal/platform"
-	"github.com/yandy-r/dotfiles/internal/privilege"
 )
 
 // lockOpts holds the parsed flag values for `dotf lock`.
@@ -101,7 +100,7 @@ func runLock(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	}
 
 	// A nil lock: resolution downloads and hashes fresh, so no lock is consulted.
-	engine := backend.Default(r, privilege.NewSudo(), privilege.NewFakeDropper(), resolveRepoRoot(), nil)
+	engine := backend.Default(r, nil, resolveRepoRoot(), nil)
 
 	lock, failures := resolveLock(engine, pkgs, targets)
 	printLockSummary(stderr, lock, failures)

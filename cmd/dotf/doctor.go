@@ -14,7 +14,6 @@ import (
 	"github.com/yandy-r/dotfiles/internal/exec"
 	"github.com/yandy-r/dotfiles/internal/manifest"
 	"github.com/yandy-r/dotfiles/internal/platform"
-	"github.com/yandy-r/dotfiles/internal/privilege"
 	"github.com/yandy-r/dotfiles/internal/symlink"
 	"github.com/yandy-r/dotfiles/internal/sysconfig"
 )
@@ -53,7 +52,7 @@ func runDoctor(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	checks = append(checks, checkPlatform(info))
 	checks = append(checks, checkPrerequisites(r, info)...)
 	if m != nil {
-		engine := backend.Default(r, privilege.NewSudo(), privilege.NewFakeDropper(), os.Getenv("DOTFILES_ROOT"), nil)
+		engine := backend.Default(r, nil, os.Getenv("DOTFILES_ROOT"), nil)
 		checks = append(checks, checkPackages(m, engine, info))
 	}
 

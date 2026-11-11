@@ -233,8 +233,8 @@ func hasEntries(doc *Doc) bool {
 //     decided entirely by the canonical group sort, not by insertion order.
 //  3. A group L marks Immutable is skipped WHOLE, an *ImmutableError is
 //     recorded, and the merge continues. The run is not aborted.
-//  4. An entry R names is overwritten in M — Value, RawFlags, Deleted, and
-//     HasValue all come from R — or inserted when absent.
+//  4. An entry R names is overwritten in M — Value, RawFlags, and Deleted all
+//     come from R — or inserted when absent.
 //  5. Nothing is ever deleted. A repo tombstone ([$d]) is written through as a
 //     tombstone, which is the ONLY supported way to express "remove this live
 //     key": deleting a key the user set through System Settings after the last

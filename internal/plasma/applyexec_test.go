@@ -54,14 +54,8 @@ func TestExecute_ReMergesTheLiveFileAtWriteTime(t *testing.T) {
 	}
 
 	// The user is told that what landed is not what was previewed.
-	if len(report.Restated) != 1 || report.Restated[0] != "kwinrc" {
-		t.Errorf("Report.Restated = %v, want [kwinrc]", report.Restated)
-	}
 	if len(report.Applied) != 1 {
 		t.Fatalf("len(Applied) = %d, want 1", len(report.Applied))
-	}
-	if !report.Applied[0].Restated {
-		t.Error("the applied action does not record that it was re-merged")
 	}
 	if !strings.Contains(report.Applied[0].Reason, "re-merged at write time") {
 		t.Errorf("Reason = %q, want it to explain the re-merge", report.Applied[0].Reason)
@@ -88,8 +82,10 @@ func TestExecute_ReMergeIsSilentWhenNothingChanged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute error = %v", err)
 	}
-	if len(report.Restated) != 0 {
-		t.Errorf("Restated = %v, want none", report.Restated)
+	for _, a := range report.Applied {
+		if strings.Contains(a.Reason, "re-merged at write time") {
+			t.Errorf("unchanged live file was reported as re-merged: %+v", a)
+		}
 	}
 }
 
@@ -390,9 +386,6 @@ func TestExecute_RawRechecksConvergenceUnderTheLock(t *testing.T) {
 	}
 	if len(report.Applied) != 0 {
 		t.Errorf("Applied = %+v, want none: the file converged before the write", report.Applied)
-	}
-	if len(report.Restated) != 1 {
-		t.Errorf("Restated = %v, want [kdedefaults/package]", report.Restated)
 	}
 	if got := readFile(t, livePath); got != want {
 		t.Errorf("live package = %q, want %q", got, want)

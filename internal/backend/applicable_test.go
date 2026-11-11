@@ -2,19 +2,19 @@ package backend_test
 
 import (
 	"errors"
+	"github.com/yandy-r/dotfiles/internal/privilege/privilegetest"
 	"testing"
 
 	"github.com/yandy-r/dotfiles/internal/backend"
 	"github.com/yandy-r/dotfiles/internal/exec"
 	"github.com/yandy-r/dotfiles/internal/manifest"
 	"github.com/yandy-r/dotfiles/internal/platform"
-	"github.com/yandy-r/dotfiles/internal/privilege"
 )
 
 func TestEngine_Applicable(t *testing.T) {
 	t.Parallel()
 
-	engine := backend.Default(exec.NewFake(), privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+	engine := backend.Default(exec.NewFake(), privilegetest.NewFakeDropper(), t.TempDir(), nil)
 
 	archPacman := platform.Info{OS: platform.OSArch, PkgMgr: platform.PkgMgrPacman}
 	debianAPT := platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrAPT}
@@ -123,7 +123,7 @@ func TestHostAllows_ExcludeOS(t *testing.T) {
 		{"exclude_os keeps desktop gate", desktopOnly, platform.Info{OS: platform.OSRedHat, Arch: platform.ArchX86_64}, false},
 		{"all gates satisfied", desktopOnly, platform.Info{OS: platform.OSRedHat, Arch: platform.ArchX86_64, Desktop: true}, true},
 	}
-	engine := backend.Default(exec.NewFake(), privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+	engine := backend.Default(exec.NewFake(), privilegetest.NewFakeDropper(), t.TempDir(), nil)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -143,7 +143,7 @@ func TestEngine_ExcludeOSLifecycle(t *testing.T) {
 	t.Parallel()
 	fake := exec.NewFake()
 	fake.AddPath("tool", "/usr/bin/tool")
-	engine := backend.Default(fake, privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+	engine := backend.Default(fake, privilegetest.NewFakeDropper(), t.TempDir(), nil)
 	pkg := manifest.Package{Name: "tool", Backend: manifest.BackendCustomScript, Script: "bin/missing.sh", Provides: []string{"tool"}, OS: "linux", ExcludeOS: []string{"debian"}}
 	debian := platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrHomebrew}
 	fedora := platform.Info{OS: platform.OSRedHat, PkgMgr: platform.PkgMgrDNF}
@@ -176,7 +176,7 @@ func TestEngine_Installed_OSGate(t *testing.T) {
 
 	fake := exec.NewFake()
 	fake.AddPath("gsed", "/opt/homebrew/bin/gsed")
-	engine := backend.Default(fake, privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+	engine := backend.Default(fake, privilegetest.NewFakeDropper(), t.TempDir(), nil)
 
 	pkg := manifest.Package{
 		Name:     "gnu-utilities",
@@ -206,7 +206,7 @@ func TestEngine_Install_OSGate(t *testing.T) {
 	t.Parallel()
 
 	fake := exec.NewFake()
-	engine := backend.Default(fake, privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+	engine := backend.Default(fake, privilegetest.NewFakeDropper(), t.TempDir(), nil)
 
 	pkg := manifest.Package{
 		Name:    "gnu-utilities",
@@ -249,7 +249,7 @@ func TestEngine_DesktopGate(t *testing.T) {
 	t.Parallel()
 	fake := exec.NewFake()
 	fake.AddPath("espanso", "/usr/bin/espanso")
-	engine := backend.Default(fake, privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+	engine := backend.Default(fake, privilegetest.NewFakeDropper(), t.TempDir(), nil)
 	pkg := manifest.Package{Name: "espanso", Backend: manifest.BackendCustomScript, Script: "bin/missing.sh", Provides: []string{"espanso"}, RequiresDesktop: true}
 	headless := platform.Info{OS: platform.OSDebian, PkgMgr: platform.PkgMgrAPT}
 	desktop := headless

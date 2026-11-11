@@ -121,7 +121,7 @@ func runSetup(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	cancel := sudo.KeepAlive(context.Background(), r)
 	defer cancel()
 
-	engine := backend.Default(r, sudo, privilege.NewDropper(), resolveRepoRoot(), nil)
+	engine := backend.Default(r, privilege.NewDropper(), resolveRepoRoot(), nil)
 	eng := &realStepEngines{m: m, engine: engine, repoRoot: resolveRepoRoot(), home: setupHome(stderr), r: r}
 
 	results := runModuleSteps(mod, eng, info)

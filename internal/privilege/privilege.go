@@ -87,11 +87,6 @@ func (s *Sudo) storeKeepAliveErr(err error) {
 	s.keepAliveErr.Store(&errCopy)
 }
 
-// Prefix returns argv prefix for escalating a command through sudo.
-func (s *Sudo) Prefix() []string {
-	return []string{"sudo"}
-}
-
 // User holds the real (non-root) account identity used for privilege drops.
 type User struct {
 	Name string

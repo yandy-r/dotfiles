@@ -2,6 +2,7 @@ package backend
 
 import (
 	"errors"
+	"github.com/yandy-r/dotfiles/internal/privilege/privilegetest"
 	"os"
 	osexec "os/exec"
 	"path/filepath"
@@ -22,7 +23,7 @@ func archInfo() platform.Info {
 func TestAUR_UnsupportedOS_Install(t *testing.T) {
 	t.Parallel()
 
-	b := newAURBackend(exec.NewFake(), privilege.NewFakeDropper())
+	b := newAURBackend(exec.NewFake(), privilegetest.NewFakeDropper())
 	pkg := manifest.Package{Name: "yazi", Backend: manifest.BackendAUR}
 	info := platform.Info{OS: platform.OSDebian}
 
@@ -39,7 +40,7 @@ func TestAUR_UnsupportedOS_Install(t *testing.T) {
 func TestAUR_UnsupportedOS_Installed(t *testing.T) {
 	t.Parallel()
 
-	b := newAURBackend(exec.NewFake(), privilege.NewFakeDropper())
+	b := newAURBackend(exec.NewFake(), privilegetest.NewFakeDropper())
 	pkg := manifest.Package{Name: "yazi", Backend: manifest.BackendAUR}
 	info := platform.Info{OS: platform.OSMacOS}
 
@@ -64,7 +65,7 @@ func TestAUR_Install_yayPresent(t *testing.T) {
 	f := exec.NewFake()
 	f.AddPath("yay", "/usr/bin/yay")
 
-	b := newAURBackend(f, privilege.NewFakeDropper())
+	b := newAURBackend(f, privilegetest.NewFakeDropper())
 	pkg := manifest.Package{Name: "yazi", Backend: manifest.BackendAUR}
 
 	if err := b.Install(pkg, archInfo()); err != nil {
@@ -96,7 +97,7 @@ func TestAUR_Install_bootstrapYayWhenAbsent(t *testing.T) {
 	f := exec.NewFake()
 	// LookPath("yay") returns not found; Run succeeds for bootstrap + install.
 	f.AddPath("makepkg", "/usr/bin/makepkg")
-	b := newAURBackend(f, privilege.NewFakeDropper())
+	b := newAURBackend(f, privilegetest.NewFakeDropper())
 	pkg := manifest.Package{Name: "yazi", Backend: manifest.BackendAUR}
 
 	if err := b.Install(pkg, archInfo()); err != nil {
@@ -136,7 +137,7 @@ func TestAUR_Install_bootstrapMissingMakepkg(t *testing.T) {
 
 	f := exec.NewFake()
 	// Neither yay nor makepkg resolve on PATH.
-	b := newAURBackend(f, privilege.NewFakeDropper())
+	b := newAURBackend(f, privilegetest.NewFakeDropper())
 	pkg := manifest.Package{Name: "yazi", Backend: manifest.BackendAUR}
 
 	err := b.Install(pkg, archInfo())
@@ -171,7 +172,7 @@ func TestAUR_Install_bootstrapClearsStaleDir(t *testing.T) {
 
 	f := exec.NewFake()
 	f.AddPath("makepkg", "/usr/bin/makepkg")
-	b := newAURBackend(f, privilege.NewFakeDropper())
+	b := newAURBackend(f, privilegetest.NewFakeDropper())
 	pkg := manifest.Package{Name: "yazi", Backend: manifest.BackendAUR}
 
 	if err := b.Install(pkg, archInfo()); err != nil {
@@ -204,7 +205,7 @@ func TestAUR_Install_rerunnableAfterMakepkgFailure(t *testing.T) {
 	makepkgKey := exec.CommandKey("env", "--chdir="+dir, "makepkg", "-si", "--noconfirm")
 	f.RunErrors[makepkgKey] = &osexec.ExitError{}
 
-	b := newAURBackend(f, privilege.NewFakeDropper())
+	b := newAURBackend(f, privilegetest.NewFakeDropper())
 	pkg := manifest.Package{Name: "yazi", Backend: manifest.BackendAUR}
 
 	if err := b.Install(pkg, archInfo()); err == nil {
@@ -239,7 +240,7 @@ func TestAUR_Installed_viaPacmanQ(t *testing.T) {
 	f := exec.NewFake()
 	f.AddCommand("pacman", []string{"-Q", "yazi"}, []byte("yazi 0.1\n"), nil)
 
-	b := newAURBackend(f, privilege.NewFakeDropper())
+	b := newAURBackend(f, privilegetest.NewFakeDropper())
 	pkg := manifest.Package{Name: "yazi", Backend: manifest.BackendAUR}
 
 	installed, err := b.Installed(pkg, archInfo())
@@ -257,7 +258,7 @@ func TestAUR_Installed_notInstalled(t *testing.T) {
 	f := exec.NewFake()
 	f.AddCommand("pacman", []string{"-Q", "missing"}, nil, &osexec.ExitError{})
 
-	b := newAURBackend(f, privilege.NewFakeDropper())
+	b := newAURBackend(f, privilegetest.NewFakeDropper())
 	pkg := manifest.Package{Name: "missing", Backend: manifest.BackendAUR}
 
 	installed, err := b.Installed(pkg, archInfo())
@@ -280,7 +281,7 @@ func TestAUR_Install_rootMissingSudoUser(t *testing.T) {
 
 	f := exec.NewFake()
 	f.AddPath("yay", "/usr/bin/yay")
-	b := newAURBackend(f, privilege.NewFakeDropper())
+	b := newAURBackend(f, privilegetest.NewFakeDropper())
 	pkg := manifest.Package{Name: "yazi", Backend: manifest.BackendAUR}
 
 	err := b.Install(pkg, archInfo())
@@ -303,7 +304,7 @@ func TestAUR_Install_dropNeverUIDZero(t *testing.T) {
 
 	f := exec.NewFake()
 	f.AddPath("yay", "/usr/bin/yay")
-	drop := privilege.NewFakeDropper()
+	drop := privilegetest.NewFakeDropper()
 	b := newAURBackend(f, drop)
 	pkg := manifest.Package{Name: "yazi", Backend: manifest.BackendAUR}
 
@@ -327,7 +328,7 @@ func TestAUR_Install_dropNeverUIDZero(t *testing.T) {
 func TestAUR_UpdateRemove_OffArchUnsupported(t *testing.T) {
 	pkg := manifest.Package{Name: "yazi", Backend: manifest.BackendAUR}
 	info := platform.Info{OS: platform.OSDebian}
-	b := newAURBackend(exec.NewFake(), privilege.NewFakeDropper())
+	b := newAURBackend(exec.NewFake(), privilegetest.NewFakeDropper())
 	if err := b.(Updater).Update(pkg, info); !isAURUnsupported(err) {
 		t.Errorf("Update() = %v, want *AURUnsupportedOSError", err)
 	}
@@ -361,7 +362,7 @@ func TestAUR_UpdateRemove_Argv(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := exec.NewFake()
 			f.AddPath("yay", "/usr/bin/yay")
-			if err := tt.run(newAURBackend(f, privilege.NewFakeDropper())); err != nil {
+			if err := tt.run(newAURBackend(f, privilegetest.NewFakeDropper())); err != nil {
 				t.Fatalf("%s error = %v", tt.name, err)
 			}
 			calls := f.CallsSnapshot()

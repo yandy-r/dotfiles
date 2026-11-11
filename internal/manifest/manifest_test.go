@@ -2,6 +2,7 @@ package manifest_test
 
 import (
 	"errors"
+	"github.com/yandy-r/dotfiles/internal/privilege/privilegetest"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -17,7 +18,6 @@ import (
 	"github.com/yandy-r/dotfiles/internal/exec"
 	"github.com/yandy-r/dotfiles/internal/manifest"
 	"github.com/yandy-r/dotfiles/internal/platform"
-	"github.com/yandy-r/dotfiles/internal/privilege"
 )
 
 // mustReadFile reads path (relative to this test file's directory) and
@@ -499,7 +499,7 @@ func TestEmbeddedManifest_HerdrRelease(t *testing.T) {
 		}
 	}
 
-	engine := backend.Default(exec.NewFake(), privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+	engine := backend.Default(exec.NewFake(), privilegetest.NewFakeDropper(), t.TempDir(), nil)
 	targets := []struct {
 		name string
 		info platform.Info
@@ -592,7 +592,7 @@ func TestEmbeddedManifest_UbuntuMissingAptSiblings(t *testing.T) {
 		t.Error("ruff pkg still declares an apt name; Ubuntu archives have no installable candidate")
 	}
 
-	engine := backend.Default(exec.NewFake(), privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+	engine := backend.Default(exec.NewFake(), privilegetest.NewFakeDropper(), t.TempDir(), nil)
 	targets := []struct {
 		name string
 		info platform.Info
@@ -716,7 +716,7 @@ func TestEmbeddedManifest_ToolsReachableOnSupportedManagers(t *testing.T) {
 		}
 	}
 
-	engine := backend.Default(exec.NewFake(), privilege.NewSudo(), privilege.NewFakeDropper(), t.TempDir(), nil)
+	engine := backend.Default(exec.NewFake(), privilegetest.NewFakeDropper(), t.TempDir(), nil)
 
 	seen := make(map[string]bool)
 	for _, pkg := range m.Packages {
