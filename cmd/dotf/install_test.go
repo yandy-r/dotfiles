@@ -753,7 +753,7 @@ func TestPerformPackage_UnsupportedIsFailed(t *testing.T) {
 	fake.AddPath("starship", "/usr/local/bin/starship") // installed → Remove attempted
 	engine := testDriftEngine(t, fake)
 
-	// script-url implements neither Updater nor Remover → fail-fast.
+	// script-url does not implement Remover → fail-fast.
 	pkg := manifest.Package{Name: "starship", Backend: manifest.BackendScriptURL, URL: "https://example.com/i.sh"}
 
 	res := performPackage(engine, backend.ActionRemove, pkg, archInfo(), false)

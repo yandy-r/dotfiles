@@ -76,6 +76,16 @@ func (b *scriptURLBackend) Install(pkg manifest.Package, _ platform.Info) error 
 	return nil
 }
 
+// Update re-runs the installer. A script-url package is a vendor installer that
+// installs whatever is current (herdr's install.sh: "Running it again updates the
+// app"; starship's and t3's behave the same), so re-running it IS the update. It
+// goes through Install unchanged, keeping the verify-before-execute gate, the
+// lock/inline checksum precedence and the headless args. The cmd layer only
+// dispatches Update for an installed package, so this never installs fresh.
+func (b *scriptURLBackend) Update(pkg manifest.Package, info platform.Info) error {
+	return b.Install(pkg, info)
+}
+
 // Installed reports whether the package is present, honoring an explicit
 // Provides/InstalledWhen probe and falling back to a PATH lookup of pkg.Name.
 func (b *scriptURLBackend) Installed(pkg manifest.Package, _ platform.Info) (bool, error) {

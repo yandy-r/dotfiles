@@ -44,8 +44,9 @@ func TestEngine_Update_UnsupportedBackend(t *testing.T) {
 	eng := testLifecycleEngine(exec.NewFake())
 	info := platform.Info{OS: platform.OSArch, PkgMgr: platform.PkgMgrPacman}
 
+	// script-url is deliberately absent: re-running its vendor installer is the
+	// update (TestScriptURL_UpdateRerunsVerifiedInstaller).
 	backends := []manifest.Backend{
-		manifest.BackendScriptURL,
 		manifest.BackendGitClone,
 	}
 	for _, b := range backends {

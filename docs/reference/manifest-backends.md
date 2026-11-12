@@ -95,6 +95,9 @@ Try these in order; the first that fits is the right one:
    pinned only that way rather than letting it pass CI and hard-fail at install.
 7. **`script-url`** — a vendor HTTPS install script that cannot be pinned to a single
    artifact (a rolling installer). Verified against `sha256` when the vendor offers one.
+   `dotf install --update` re-fetches, re-verifies and re-runs the installer (a vendor
+   installer installs the current release, so re-running it is the update); `--remove`
+   is not supported.
 8. **`git-clone`** — the install _is_ a clone into `$HOME` (e.g. tpm), with optional
    typed `post_install` activation steps.
 9. **`custom-script`** — **last resort**: a hardened `bin/install-*.sh` for install logic

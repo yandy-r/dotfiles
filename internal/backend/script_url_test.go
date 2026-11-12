@@ -237,3 +237,76 @@ func TestFetchVerifyScript_MatchesFetchVerifyExtractGate(t *testing.T) {
 		t.Errorf("script content = %q, want %q", got, payload)
 	}
 }
+
+// TestScriptURL_UpdateRerunsVerifiedInstaller pins script-url's update contract:
+// a vendor installer that tracks latest IS its own updater, so Update re-fetches,
+// re-verifies and re-runs it (with the same headless args) through the Engine,
+// instead of failing with ActionUnsupportedError.
+func TestScriptURL_UpdateRerunsVerifiedInstaller(t *testing.T) {
+	script := []byte("#!/bin/sh\necho updated\n")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(script)
+	}))
+	defer srv.Close()
+
+	origHTTPGet := httpGet
+	httpGet = srv.Client().Get
+	t.Cleanup(func() { httpGet = origHTTPGet })
+
+	fake := exec.NewFake()
+	b := newScriptURLBackend(fake, nil)
+	e := &Engine{backends: map[manifest.Backend]Backend{manifest.BackendScriptURL: b}}
+
+	pkg := manifest.Package{
+		Name:    "herdr-app",
+		Backend: manifest.BackendScriptURL,
+		URL:     srv.URL + "/install.sh",
+		Args:    []string{"--yes"},
+	}
+
+	if err := e.Update(pkg, platform.Info{}); err != nil {
+		t.Fatalf("Engine.Update() error = %v, want nil", err)
+	}
+
+	calls := fake.CallsSnapshot()
+	if len(calls) != 1 {
+		t.Fatalf("Run calls = %d, want 1", len(calls))
+	}
+	if calls[0].Name != "sh" {
+		t.Errorf("Run command = %q, want sh", calls[0].Name)
+	}
+	if len(calls[0].Args) != 2 || calls[0].Args[1] != "--yes" {
+		t.Errorf("Run args = %v, want [<script> --yes]", calls[0].Args)
+	}
+}
+
+// TestScriptURL_UpdateChecksumMismatch_AbortsBeforeExecute proves Update keeps
+// Install's verify-before-execute gate.
+func TestScriptURL_UpdateChecksumMismatch_AbortsBeforeExecute(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("#!/bin/sh\necho tampered\n"))
+	}))
+	defer srv.Close()
+
+	origHTTPGet := httpGet
+	httpGet = srv.Client().Get
+	t.Cleanup(func() { httpGet = origHTTPGet })
+
+	fake := exec.NewFake()
+	b := newScriptURLBackend(fake, nil)
+
+	pkg := manifest.Package{
+		Name:    "starship",
+		Backend: manifest.BackendScriptURL,
+		URL:     srv.URL + "/install.sh",
+		SHA256:  strings.Repeat("0", 64),
+	}
+
+	if err := b.Update(pkg, platform.Info{}); err == nil {
+		t.Fatal("Update() error = nil, want checksum mismatch")
+	}
+	if n := len(fake.CallsSnapshot()); n != 0 {
+		t.Errorf("Run calls = %d, want 0 (mismatch must abort before execute)", n)
+	}
+}
