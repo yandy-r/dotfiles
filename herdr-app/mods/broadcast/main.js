@@ -12,7 +12,16 @@
 //
 // Keys while it's open: Enter sends, Esc closes, Up/Down step through history,
 // alt-1/2/3 pick the scope, alt-l/alt-r/alt-a pick local, remote or all machines,
-// alt-g toggles skipping agents, alt-i toggles including the focused terminal.
+// alt-g toggles skipping agents, alt-i toggles including the focused terminal,
+// alt-d toggles one terminal per git repo.
+//
+// One per repo: several panes in the same repo running the same command at
+// once can race (two `git pull`s interleave writes to FETCH_HEAD and fail with
+// "Cannot rebase onto multiple branches"). With it on, panes whose folders sit
+// in the same git working tree (by `git rev-parse --show-toplevel`, on the
+// pane's machine) get the command once, preferring the focused terminal.
+// Separate worktrees stay separate (each has its own FETCH_HEAD), and panes
+// outside any repo are never merged.
 
 import { View, div } from 'gpui-kit';
 import { v_flex, h_flex, InputState, Input } from 'gpui-base';
@@ -30,6 +39,7 @@ const SCOPES = [
 ];
 
 const machineKey = (m) => m ?? LOCAL;
+const rootKey = (machine, cwd) => `${machineKey(machine)}\u0000${cwd}`;
 const machineLabel = (k) => (k === LOCAL ? 'this computer' : k);
 
 // Types `text` into one terminal and presses Enter, as a person would.
@@ -92,6 +102,10 @@ export default class Broadcast extends View {
     this.machines = machineSet(p.machines ?? saved.machines ?? 'local');
     this.skipAgents = saved.skipAgents ?? true;
     this.includeSelf = saved.includeSelf ?? true;
+    this.onePerRepo = saved.onePerRepo ?? true;
+    this.roots = new Map(); // rootKey -> repo top level, or null outside a repo
+    this.pending = new Map(); // rootKey -> lookup in flight
+    this.acx = cx;
     this.history = Array.isArray(shared(HISTORY)) ? shared(HISTORY) : [];
     this.historyAt = -1; // -1: the line being typed, 0: the newest history entry
     this.draft = '';
@@ -109,6 +123,7 @@ export default class Broadcast extends View {
     this.input.focus();
     cx.timer.after(600, () => this.input.focus());
     this.handle = cx.focus_handle();
+    this.refreshRoots();
   }
 
   savePrefs() {
@@ -117,11 +132,73 @@ export default class Broadcast extends View {
       machines: [...this.machines],
       skipAgents: this.skipAgents,
       includeSelf: this.includeSelf,
+      onePerRepo: this.onePerRepo,
+    });
+    this.refreshRoots();
+  }
+
+  // Looks up the git top level of each candidate's folder, once per machine and
+  // folder. Resolves when every lookup the list needs has finished; `onEach`
+  // runs as each one lands. A folder outside any repo is cached as null. A
+  // lookup that couldn't run (machine unreachable, timeout) isn't cached, so
+  // the next call retries it; until then the pane counts as outside a repo.
+  resolveRoots(list, onEach = () => {}) {
+    const jobs = [];
+    for (const x of list) {
+      const cwd = x.pane.cwd;
+      if (!cwd) continue;
+      const k = rootKey(x.space.machine, cwd);
+      if (this.roots.has(k)) continue;
+      let job = this.pending.get(k);
+      if (!job) {
+        job = Promise.resolve()
+          .then(() => exec('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { on: x.space.machine, timeout: 5000 }))
+          .then(
+            (r) => this.roots.set(k, r.code === 0 && r.stdout.trim() ? r.stdout.trim() : null),
+            () => {}
+          )
+          .finally(() => this.pending.delete(k));
+        this.pending.set(k, job);
+      }
+      jobs.push(job.then(onEach));
+    }
+    return Promise.all(jobs);
+  }
+
+  // Starts the lookups the current choices need and redraws when they land, so
+  // the target list shows the deduplicated set before Enter.
+  refreshRoots() {
+    if (!this.onePerRepo) return;
+    const list = this.candidates();
+    if (list.every((x) => !x.pane.cwd || this.roots.has(rootKey(x.space.machine, x.pane.cwd)))) return;
+    this.acx.spawn(async (cx) => {
+      await this.resolveRoots(list, () => cx.notify());
     });
   }
 
-  // The terminals the text goes to, in space, tab, pane order.
+  // Keeps one terminal per git working tree: the focused one if it's there,
+  // else the first. A folder still being looked up, or outside any repo, keeps
+  // all its terminals. Returns the kept terminals and how many were dropped.
+  dedupe(list) {
+    const groups = new Map();
+    for (const x of list) {
+      const root = x.pane.cwd ? this.roots.get(rootKey(x.space.machine, x.pane.cwd)) : null;
+      const k = root ? `${machineKey(x.space.machine)}\u0000${root}` : `t\u0000${x.address}`;
+      const kept = groups.get(k);
+      if (!kept || x.address === this.origin.terminal) groups.set(k, x);
+    }
+    const out = [...groups.values()];
+    return { out, skipped: list.length - out.length };
+  }
+
+  // The terminals the text goes to, after one-per-repo, with how many it dropped.
   targets() {
+    const list = this.candidates();
+    return this.onePerRepo ? this.dedupe(list) : { out: list, skipped: 0 };
+  }
+
+  // Every terminal the choices match, in space, tab, pane order.
+  candidates() {
     const tabs = new Map(); // tab id -> { space, tab }
     for (const s of spaces()) for (const t of s.tabs) tabs.set(t.id, { space: s, tab: t });
     const seen = new Set();
@@ -146,8 +223,9 @@ export default class Broadcast extends View {
     if (this.sending) return;
     const text = this.input.value();
     if (!text.trim()) return;
-    const targets = this.targets();
-    if (targets.length === 0) {
+    const candidates = this.candidates();
+    const onePerRepo = this.onePerRepo; // as shown when Enter was pressed
+    if (candidates.length === 0) {
       notify({ title: 'Broadcast', body: 'No terminals match.', level: 'warning' });
       return;
     }
@@ -157,35 +235,48 @@ export default class Broadcast extends View {
     this.sending = true;
     cx.notify();
     cx.spawn(async (cx) => {
-      const results = await Promise.all(
-        targets.map((t) =>
-          sendAsPerson(t.address, text)
-            .then((r) => ({ t, ...r }))
-            .catch((e) => ({ t, ok: false, why: String(e) }))
-        )
-      );
-      const failed = results.filter((r) => !r.ok);
-      const sent = results.length - failed.length;
-      if (failed.length === 0) {
-        notify({
-          title: 'Broadcast',
-          body: `Sent to ${sent} terminal${sent === 1 ? '' : 's'}.`,
-          level: 'success',
-          timeout: 3000,
-        });
-      } else {
-        const lines = failed.slice(0, 5).map((r) => `${r.t.address}: ${r.why || 'failed'}`);
-        if (failed.length > 5) lines.push(`…and ${failed.length - 5} more`);
-        notify({
-          title: `Broadcast: ${failed.length} of ${results.length} failed`,
-          body: lines.join('\n'),
-          level: sent ? 'warning' : 'error',
-        });
+      try {
+        await this.broadcast(text, candidates, onePerRepo);
+      } catch (e) {
+        notify({ title: 'Broadcast failed', body: String(e), level: 'error' });
+      } finally {
+        this.sending = false;
+        closeOverlay(props().overlay);
+        cx.notify();
       }
-      this.sending = false;
-      closeOverlay(props().overlay);
-      cx.notify();
     });
+  }
+
+  async broadcast(text, candidates, onePerRepo) {
+    // Finish any repo lookups first, so a pane whose lookup was still in
+    // flight can't slip through as a second sender in the same repo.
+    if (onePerRepo) await this.resolveRoots(candidates);
+    const targets = onePerRepo ? this.dedupe(candidates).out : candidates;
+    const results = await Promise.all(
+      targets.map((t) =>
+        sendAsPerson(t.address, text)
+          .then((r) => ({ t, ...r }))
+          .catch((e) => ({ t, ok: false, why: String(e) }))
+      )
+    );
+    const failed = results.filter((r) => !r.ok);
+    const sent = results.length - failed.length;
+    if (failed.length === 0) {
+      notify({
+        title: 'Broadcast',
+        body: `Sent to ${sent} terminal${sent === 1 ? '' : 's'}.`,
+        level: 'success',
+        timeout: 3000,
+      });
+    } else {
+      const lines = failed.slice(0, 5).map((r) => `${r.t.address}: ${r.why || 'failed'}`);
+      if (failed.length > 5) lines.push(`…and ${failed.length - 5} more`);
+      notify({
+        title: `Broadcast: ${failed.length} of ${results.length} failed`,
+        body: lines.join('\n'),
+        level: sent ? 'warning' : 'error',
+      });
+    }
   }
 
   stepHistory(dir) {
@@ -237,6 +328,9 @@ export default class Broadcast extends View {
     } else if (ks === 'alt-i') {
       this.includeSelf = !this.includeSelf;
       this.savePrefs();
+    } else if (ks === 'alt-d') {
+      this.onePerRepo = !this.onePerRepo;
+      this.savePrefs();
     } else if (ks === 'up') handled = this.stepHistory(1);
     else if (ks === 'down') handled = this.stepHistory(-1);
     else handled = false;
@@ -248,7 +342,7 @@ export default class Broadcast extends View {
 
   render() {
     const t = theme();
-    const targets = this.targets();
+    const { out: targets, skipped } = this.targets();
     const all = knownMachines();
     const sameSet = (keys) => keys.length === this.machines.size && keys.every((k) => this.machines.has(k));
     const preset = sameSet([LOCAL])
@@ -439,8 +533,19 @@ export default class Broadcast extends View {
               this.savePrefs();
             })
           )
+          .child(
+            check('one-per-repo', 'One per repo (alt-d)', this.onePerRepo, () => {
+              this.onePerRepo = !this.onePerRepo;
+              this.savePrefs();
+            })
+          )
       )
-      .child(label(`${targets.length} terminal${targets.length === 1 ? '' : 's'}`))
+      .child(
+        label(
+          `${targets.length} terminal${targets.length === 1 ? '' : 's'}` +
+            (skipped ? ` · ${skipped} skipped (same repo)` : '')
+        )
+      )
       .child(
         v_flex()
           .id('targets')

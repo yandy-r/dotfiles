@@ -4,13 +4,13 @@ Config for the [Herdr](https://herdr.dev) desktop app (`herdr-app`). The app own
 `~/.config/herdr-app` and rewrites much of it (layouts, `.state/`, `AGENTS.md`, the `.d.ts`
 files, view and window state), so `dotf link` links only these files, one by one:
 
-| Source | Linked to `~/.config/herdr-app/` | What it holds |
-| --- | --- | --- |
-| `keys.json` | `keys.json` | Every shortcut, plus `ctrl-b` opening the prefix mod |
-| `settings.json` | `settings.json` | Theme, font, sounds, telemetry off |
-| `themes/catppuccin-mocha.json` | `themes/catppuccin-mocha.json` | Catppuccin Mocha, the same palette as `ghostty/config` |
-| `mods/prefix/` | `mods/prefix/` | tmux-style `ctrl+b` prefix, matching `herdr/config.toml` |
-| `mods/broadcast/` | `mods/broadcast/` | Send one command to many terminals (like tmux `synchronize-panes`) |
+| Source                         | Linked to `~/.config/herdr-app/` | What it holds                                                      |
+| ------------------------------ | -------------------------------- | ------------------------------------------------------------------ |
+| `keys.json`                    | `keys.json`                      | Every shortcut, plus `ctrl-b` opening the prefix mod               |
+| `settings.json`                | `settings.json`                  | Theme, font, sounds, telemetry off                                 |
+| `themes/catppuccin-mocha.json` | `themes/catppuccin-mocha.json`   | Catppuccin Mocha, the same palette as `ghostty/config`             |
+| `mods/prefix/`                 | `mods/prefix/`                   | tmux-style `ctrl+b` prefix, matching `herdr/config.toml`           |
+| `mods/broadcast/`              | `mods/broadcast/`                | Send one command to many terminals (like tmux `synchronize-panes`) |
 
 The app writes through the symlinks. Changes made in Settings or with the zoom keys land
 here and show up in `git status`.
@@ -32,15 +32,16 @@ through herdr-core's `terminal.send` API (via `hc connect`, as a person rather t
 so remote cores don't wrap it in `<hc from=…>` agent tags), which pastes the text and presses
 Enter. A toast reports how many sends
 succeeded and lists any that failed. Open it from the prefix with a preset, or with
-`herdr-app do mod.open --name broadcast`, which reuses your last choices:
+`herdr-app do mod.open --name broadcast`, which reuses your last choices. With **one per repo**
+(on by default, below), panes sharing a git repo count once:
 
-| Prefix key | Sends to |
-| --- | --- |
-| `ctrl-b a` | Every terminal in this tab |
-| `ctrl-b A` | Every terminal in this space |
+| Prefix key | Sends to                                  |
+| ---------- | ----------------------------------------- |
+| `ctrl-b a` | Every terminal in this tab                |
+| `ctrl-b A` | Every terminal in this space              |
 | `ctrl-b e` | Every space on this computer (local only) |
-| `ctrl-b R` | Every space on remote machines only |
-| `ctrl-b E` | Every space on every machine |
+| `ctrl-b R` | Every space on remote machines only       |
+| `ctrl-b E` | Every space on every machine              |
 
 In the dialog you can change any preset before sending. You can also turn individual machines
 on or off. A live list shows exactly which terminals the command will reach. Agents (Claude
@@ -50,6 +51,16 @@ Code and other terminals that report a status) are skipped by default. The dialo
 - `alt-1`/`alt-2`/`alt-3` pick this tab, this space or all spaces
 - `alt-l`/`alt-r`/`alt-a` pick local, remote or all machines
 - `alt-g` toggles skipping agents, `alt-i` toggles the focused terminal
+- `alt-d` toggles **one per repo** (on by default)
+
+With **one per repo** on, panes in the same git working tree on the same machine get the
+command once (the focused terminal if it's among them, else the first). Running a command
+such as `git pull` in several panes of one repo at the same time races: the fetches overwrite
+each other's `FETCH_HEAD`, and the pulls fail with `Cannot rebase onto multiple branches`.
+The dialog finds each pane's repo with `git rev-parse --show-toplevel` on that pane's machine
+and shows how many terminals it skipped. Separate worktrees count as separate repos, and
+panes outside a repo are never merged. Turn it off to reach every pane, for example to send
+`clear`.
 
 Your choices and history persist in Herdr's shared state (`broadcast.prefs`,
 `broadcast.history`). Remote terminals are addressed as `machine/tN`, the same way `hc ls`
