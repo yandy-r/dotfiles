@@ -58,130 +58,157 @@ mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_STATE_HOME"
 # ================================================================
 # FILE-BACKED EXPORTS
 # ================================================================
-# Machine-specific values can live in individual files under
-# $XDG_CONFIG_HOME/env so the repo stays portable across hosts.
+# Machine-specific values live in individual systemd environment.d files
+# under $XDG_CONFIG_HOME/environment.d (<name>.conf, one KEY=value line) so
+# the repo stays portable across hosts. read_env_file takes the path without
+# the extension, prefers <path>.conf, falls back to a bare <path>, and prints
+# only the value: blank/comment lines are skipped, a leading `export ` and
+# `KEY=` are stripped, as are matching surrounding quotes. A file holding a
+# bare value (no KEY=) is still accepted.
 
 read_env_file() {
     local env_file="$1"
-    local value
+    local line value=""
 
-    [[ -r "$env_file" ]] || return 1
-    IFS= read -r value < "$env_file" || [[ -n "$value" ]] || return 1
-    value="${value%$'\r'}"
+    if [[ -r "${env_file}.conf" ]]; then
+        env_file="${env_file}.conf"
+    elif [[ ! -r "$env_file" ]]; then
+        return 1
+    fi
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\r'}"
+        # Trim leading whitespace; skip blank lines and comments.
+        line="${line#"${line%%[![:space:]]*}"}"
+        [[ -z "$line" || "$line" == \#* ]] && continue
+        line="${line#export }"
+        if [[ "$line" =~ ^[A-Za-z0-9_.-]+= ]]; then
+            line="${line#*=}"
+        fi
+        value="$line"
+        break
+    done < "$env_file"
+
+    # Strip one pair of matching surrounding quotes.
+    if [[ ${#value} -ge 2 ]]; then
+        if [[ "$value" == \"*\" || "$value" == \'*\' ]]; then
+            value="${value:1:${#value}-2}"
+        fi
+    fi
+
     [[ -n "$value" ]] || return 1
-
     printf '%s' "$value"
 }
 
-if github_api_token="$(read_env_file "$XDG_CONFIG_HOME/env/github_api_token")"; then
-    export GITHUB_API_TOKEN="$github_api_token"
-    export GITHUB_TOKEN="$github_api_token"
-    export GITHUB_PERSONAL_ACCESS_TOKEN="$github_api_token"
-else
-    unset GITHUB_API_TOKEN
-    unset GITHUB_TOKEN
-    unset GITHUB_PERSONAL_ACCESS_TOKEN
-fi
+# if github_api_token="$(read_env_file "$XDG_CONFIG_HOME/environment.d/github_api_token")"; then
+#     export GITHUB_API_TOKEN="$github_api_token"
+#     export GITHUB_TOKEN="$github_api_token"
+#     export GITHUB_PERSONAL_ACCESS_TOKEN="$github_api_token"
+# else
+#     unset GITHUB_API_TOKEN
+#     unset GITHUB_TOKEN
+#     unset GITHUB_PERSONAL_ACCESS_TOKEN
+# fi
 
-if tea_api_token="$(read_env_file "$XDG_CONFIG_HOME/env/tea_api_token")"; then
+if tea_api_token="$(read_env_file "$XDG_CONFIG_HOME/environment.d/tea_api_token")"; then
     export TEA_API_TOKEN="$tea_api_token"
-    export TEA_TOKEN
+    export TEA_TOKEN="$tea_api_token"
 else
     unset TEA_API_TOKEN
     unset TEA_TOKEN
 fi
 
-if greptile_api_key="$(read_env_file "$XDG_CONFIG_HOME/env/greptile_api_key")"; then
+if greptile_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/greptile_api_key")"; then
     export GREPTILE_API_KEY="$greptile_api_key"
 else
     unset GREPTILE_API_KEY
 fi
 
-if postman_api_key="$(read_env_file "$XDG_CONFIG_HOME/env/postman_api_key")"; then
+if postman_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/postman_api_key")"; then
     export POSTMAN_API_KEY="$postman_api_key"
 else
     unset POSTMAN_API_KEY
 fi
 
-if context7_api_key="$(read_env_file "$XDG_CONFIG_HOME/env/context7_api_key")"; then
+if context7_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/context7_api_key")"; then
     export CONTEXT7_API_KEY="$context7_api_key"
 else
     unset CONTEXT7_API_KEY
 fi
 
-if dropbox_dir="$(read_env_file "$XDG_CONFIG_HOME/env/dropbox_dir")"; then
+if dropbox_dir="$(read_env_file "$XDG_CONFIG_HOME/environment.d/dropbox_dir")"; then
     export DROPBOX_DIR="$dropbox_dir"
 else
     unset DROPBOX_DIR
 fi
 
-if xero_client_id="$(read_env_file "$XDG_CONFIG_HOME/env/xero_client_id")"; then
+if xero_client_id="$(read_env_file "$XDG_CONFIG_HOME/environment.d/xero_client_id")"; then
     export XERO_CLIENT_ID="$xero_client_id"
 else
     unset XERO_CLIENT_ID
 fi
 
-if xero_client_secret="$(read_env_file "$XDG_CONFIG_HOME/env/xero_client_secret")"; then
+if xero_client_secret="$(read_env_file "$XDG_CONFIG_HOME/environment.d/xero_client_secret")"; then
     export XERO_CLIENT_SECRET="$xero_client_secret"
 else
     unset XERO_CLIENT_SECRET
 fi
 
-if nine_router_api_key="$(read_env_file "$XDG_CONFIG_HOME/env/9router_api_key")"; then
+if nine_router_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/9router_api_key")"; then
     export NINE_ROUTER_API_KEY="$nine_router_api_key"
 else
     unset NINE_ROUTER_API_KEY
 fi
 
-if tokenhop_opencode_api_key="$(read_env_file "$XDG_CONFIG_HOME/env/tokenhop_opencode_api_key")"; then
+if tokenhop_opencode_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/tokenhop_opencode_api_key")"; then
     export TOKENHOP_OPENCODE_API_KEY="$tokenhop_opencode_api_key"
 else
     unset TOKENHOP_OPENCODE_API_KEY
 fi
 
-if tokenhop_openai_api_key="$(read_env_file "$XDG_CONFIG_HOME/env/tokenhop_openai_api_key")"; then
+if tokenhop_openai_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/tokenhop_openai_api_key")"; then
     export TOKENHOP_OPENAI_API_KEY="$tokenhop_openai_api_key"
 else
     unset TOKENHOP_OPENAI_API_KEY
 fi
 
-if tokenhop_openai_base_url="$(read_env_file "$XDG_CONFIG_HOME/env/tokenhop_openai_base_url")"; then
+if tokenhop_openai_base_url="$(read_env_file "$XDG_CONFIG_HOME/environment.d/tokenhop_openai_base_url")"; then
     export TOKENHOP_OPENAI_BASE_URL="$tokenhop_openai_base_url"
 else
     unset TOKENHOP_OPENAI_BASE_URL
 fi
 
-if tokenhop_openai_model="$(read_env_file "$XDG_CONFIG_HOME/env/tokenhop_openai_model")"; then
+if tokenhop_openai_model="$(read_env_file "$XDG_CONFIG_HOME/environment.d/tokenhop_openai_model")"; then
     export TOKENHOP_OPENAI_MODEL="$tokenhop_openai_model"
 else
     unset TOKENHOP_OPENAI_MODEL
 fi
 
-if claude_code_oauth_token="$(read_env_file "$XDG_CONFIG_HOME/env/claude_code_oauth_token")"; then
+if claude_code_oauth_token="$(read_env_file "$XDG_CONFIG_HOME/environment.d/claude_code_oauth_token")"; then
     export CLAUDE_CODE_OAUTH_TOKEN="$claude_code_oauth_token"
 else
     unset CLAUDE_CODE_OAUTH_TOKEN
 fi
 
-if claude_code_tokenhop_api_key="$(read_env_file "$XDG_CONFIG_HOME/env/claude_code_tokenhop_api_key")"; then
+if claude_code_tokenhop_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/claude_code_tokenhop_api_key")"; then
     export CLAUDE_CODE_TOKENHOP_API_KEY="$claude_code_tokenhop_api_key"
 else
     unset CLAUDE_CODE_TOKENHOP_API_KEY
 fi
 
-if gemini_api_key="$(read_env_file "$XDG_CONFIG_HOME/env/gemini_api_key")"; then
+if gemini_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/gemini_api_key")"; then
     export GEMINI_API_KEY="$gemini_api_key"
 else
     unset GEMINI_API_KEY
 fi
 
-if op_service_account_token="$(read_env_file "$XDG_CONFIG_HOME/env/op_service_account_token")"; then
+if op_service_account_token="$(read_env_file "$XDG_CONFIG_HOME/environment.d/op_service_account_token")"; then
     export OP_SERVICE_ACCOUNT_TOKEN="$op_service_account_token"
 else
     unset OP_SERVICE_ACCOUNT_TOKEN
 fi
 
-if opencode_password="$(read_env_file "$XDG_CONFIG_HOME/env/opencode_password")"; then
+if opencode_password="$(read_env_file "$XDG_CONFIG_HOME/environment.d/opencode_password")"; then
     export OPENCODE_PASSWORD="$opencode_password"
 else
     unset OPENCODE_PASSWORD
