@@ -57,7 +57,7 @@ matches:
 
       ## Must Not Do
 
-      - Never cut, tag, or publish a release; release CI is generated or audited only
+      - Never cut, tag, or publish a release without my release approval; release CI is generated or audited only
       - Never edit RELEASING.md by hand, only via `/ycc:release-model`
       - Never delete or rename existing labels, workflows, branches, or tags
       - Never commit secrets; keep `.env*` out of git (encrypted dotenvx files excepted)
