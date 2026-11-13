@@ -112,18 +112,6 @@ path_prefix_for() {
   fi
 }
 
-project_has_paths() {
-  local base_dir="$1"
-  shift
-
-  local prefix
-  prefix="$(path_prefix_for "$base_dir")"
-
-  local first_path=''
-  first_path="$(list_repo_paths "$prefix" "$@" | head -n 1 || true)"
-  [[ -n "$first_path" ]]
-}
-
 directory_has_suffixes() {
   local target_dir="$1"
   shift

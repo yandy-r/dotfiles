@@ -117,22 +117,6 @@ contains_git_urls() {
     grep -qE '(git@[^:]+:|https?://[^/]+/)' "$file" 2>/dev/null
 }
 
-# Extract repository name from various URL formats
-extract_repo_name() {
-    local url="$1"
-    local repo_name
-    
-    # Remove .git suffix if present
-    url="${url%.git}"
-    
-    # Extract repo name from different formats:
-    # git@host:user/repo -> repo
-    # https://host/user/repo -> repo
-    repo_name="${url##*/}"
-    
-    echo "$repo_name"
-}
-
 # Replace git URLs in file
 replace_in_file() {
     local file="$1"

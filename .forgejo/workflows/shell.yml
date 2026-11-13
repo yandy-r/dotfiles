@@ -21,7 +21,7 @@ name: Shell
 #     cache, the platform predicates and the startup smoke driver) plus the
 #     bats-core suite in tests/shell, on Linux, with zsh installed so the zsh
 #     cases run too, plus the hermetic tool/installer tests
-#     (cursor-export-secrets, install-*, targeted-research, tea-tools). The GitHub
+#     (cursor-export-secrets, install-*, tea-tools). The GitHub
 #     twin also covers macOS (Homebrew bash 5 and
 #     the system /bin/bash 3.2), which this job cannot.
 
@@ -157,9 +157,6 @@ jobs:
 
       - name: Playwright CLI installer
         run: bash scripts/test-install-playwright-cli.sh
-
-      - name: Targeted-research call surface
-        run: bash scripts/test-targeted-research-call-surface.sh
 
       - name: tea-tools
         run: bash scripts/test-tea-tools.sh

@@ -102,63 +102,6 @@ prompt_confirmation() {
   esac
 }
 
-install_with_retry() {
-  local package="$1"
-  local package_type="${2:-formula}" # formula, cask, or mas
-  local max_attempts=3
-  local attempt=1
-
-  # Skip if already installed
-  case "$package_type" in
-  "cask")
-    if brew list --cask "$package" &>/dev/null; then
-      log "Cask $package already installed, skipping"
-      return 0
-    fi
-    ;;
-  "mas")
-    if mas list | grep -q "$package"; then
-      log "Mac App Store app $package already installed, skipping"
-      return 0
-    fi
-    ;;
-  *)
-    if brew list "$package" &>/dev/null; then
-      log "Formula $package already installed, skipping"
-      return 0
-    fi
-    ;;
-  esac
-
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY-RUN: Would install $package_type $package"
-    return 0
-  fi
-
-  while [[ $attempt -le $max_attempts ]]; do
-    log "Installing $package_type $package (attempt $attempt/$max_attempts)"
-
-    local install_cmd
-    case "$package_type" in
-    "cask") install_cmd="brew install --cask \"$package\"" ;;
-    "mas") install_cmd="mas install \"$package\"" ;;
-    *) install_cmd="brew install \"$package\"" ;;
-    esac
-
-    if eval "$install_cmd"; then
-      log "Successfully installed $package_type $package"
-      return 0
-    else
-      log "Failed to install $package_type $package on attempt $attempt"
-      ((attempt++))
-      [[ $attempt -le $max_attempts ]] && sleep 2
-    fi
-  done
-
-  log "Failed to install $package_type $package after $max_attempts attempts"
-  return 1
-}
-
 function brews() {
   log "Updating Homebrew..."
   brew update || error_exit "Failed to update Homebrew"

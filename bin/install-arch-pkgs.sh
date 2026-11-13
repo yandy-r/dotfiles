@@ -120,40 +120,6 @@ has_command() {
   command -v "$1" &>/dev/null
 }
 
-is_interactive() {
-  [[ -t 0 ]] && [[ -t 1 ]]
-}
-
-prompt_confirmation() {
-  local prompt_message="$1"
-  local response
-
-  # Auto-approve in non-interactive mode
-  if [[ "${NON_INTERACTIVE}" == "true" ]] || [[ "${FORCE_INSTALL}" == "true" ]] || [[ "${NONINTERACTIVE:-0}" == "1" ]]; then
-    log "Non-interactive mode: auto-approving prompt"
-    return 0
-  fi
-
-  if ! is_interactive; then
-    log_error "Non-interactive shell detected - cannot prompt for confirmation"
-    return 1
-  fi
-
-  echo -n "${LOG_PREFIX} ${prompt_message} [y/N]: " >&2
-  read -r response
-
-  response="${response:-n}"
-
-  case "$response" in
-  [yY] | [yY][eE][sS])
-    return 0
-    ;;
-  *)
-    return 1
-    ;;
-  esac
-}
-
 is_installed() {
   local package="$1"
   pacman -Qi "$package" &>/dev/null
@@ -239,16 +205,6 @@ install_package() {
 
 install_package_optional() {
   install_package_internal "$1" "${2:-false}" "false"
-}
-
-install_packages_batch() {
-  local -a packages=("$@")
-  local use_aur="${packages[-1]}"
-  unset 'packages[-1]'
-
-  for package in "${packages[@]}"; do
-    install_package "$package" "$use_aur" || true
-  done
 }
 
 # Adds packages to IgnorePkg in [options] so `pacman -Syu` leaves them alone.

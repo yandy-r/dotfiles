@@ -161,11 +161,6 @@ list_scoped_repo_files() {
   )
 }
 
-list_modified_repo_files() {
-  local root_dir="${1:-$(detect_project_root)}"
-  list_scoped_repo_files "$root_dir" all
-}
-
 list_repo_files() {
   local root_dir="${1:-$(detect_project_root)}"
 

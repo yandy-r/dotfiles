@@ -14,7 +14,7 @@ name: Shell
 #     (the prompt test needs bash >= 4.4), and the local-hook, parity and smoke
 #     tests run a second time with the shells under test pinned to the system
 #     /bin/bash 3.2. Linux additionally runs the hermetic tool/installer tests
-#     (cursor-export-secrets, install-*, targeted-research, tea-tools).
+#     (cursor-export-secrets, install-*, tea-tools).
 
 on:
   pull_request:
@@ -190,10 +190,6 @@ jobs:
       - name: Playwright CLI installer
         if: runner.os == 'Linux'
         run: bash scripts/test-install-playwright-cli.sh
-
-      - name: Targeted-research call surface
-        if: runner.os == 'Linux'
-        run: bash scripts/test-targeted-research-call-surface.sh
 
       - name: tea-tools
         if: runner.os == 'Linux'
