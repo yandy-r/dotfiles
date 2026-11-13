@@ -35,6 +35,7 @@ video/x-ogm=vlc.desktop;
 video/x-ogm+ogg=vlc.desktop;
 video/x-theora=vlc.desktop;
 video/x-theora+ogg=vlc.desktop;
+x-scheme-handler/telnet=securecrt-url.desktop;
 
 [Default Applications]
 application/pdf=FoxitReader.desktop
@@ -81,3 +82,7 @@ x-scheme-handler/codex=chatgpt.desktop
 x-scheme-handler/grokbot=grok-bot.desktop
 x-scheme-handler/sand=grok-bot.desktop
 x-scheme-handler/simplenote=simplenote.desktop
+x-scheme-handler/slack=slack.desktop
+x-scheme-handler/ssh=securecrt-url.desktop
+x-scheme-handler/t3code=com.t3tools.T3Code.desktop
+x-scheme-handler/telnet=securecrt-url.desktop
