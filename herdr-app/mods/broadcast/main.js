@@ -31,6 +31,9 @@ const PREFS = 'broadcast.prefs';
 const HISTORY = 'broadcast.history';
 const HISTORY_MAX = 30;
 const LOCAL = ''; // this computer's key in the machine set (its machine is null)
+// How long a send waits for repo lookups before sending anyway (and how old a
+// lookup must be before a new one replaces it). exec's own timeout is 5s.
+const LOOKUP_WAIT = 6000;
 
 const SCOPES = [
   ['tab', 'This tab', 'alt-1'],
@@ -149,18 +152,32 @@ export default class Broadcast extends View {
       if (!cwd) continue;
       const k = rootKey(x.space.machine, cwd);
       if (this.roots.has(k)) continue;
-      let job = this.pending.get(k);
-      if (!job) {
-        job = Promise.resolve()
-          .then(() => exec('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { on: x.space.machine, timeout: 5000 }))
-          .then(
-            (r) => this.roots.set(k, r.code === 0 && r.stdout.trim() ? r.stdout.trim() : null),
-            () => {}
-          )
-          .finally(() => this.pending.delete(k));
-        this.pending.set(k, job);
+      let entry = this.pending.get(k);
+      if (!entry || Date.now() - entry.at > LOOKUP_WAIT) {
+        // Call exec right here, not from a deferred microtask: when another
+        // mod opened this dialog (the prefix mod's openOverlay), an exec
+        // started from a microtask after init never settles.
+        let run;
+        try {
+          run = exec('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { on: x.space.machine, timeout: 5000 });
+        } catch (e) {
+          run = Promise.reject(e);
+        }
+        const fresh = {
+          at: Date.now(),
+          done: run
+            .then(
+              (r) => this.roots.set(k, r.code === 0 && r.stdout.trim() ? r.stdout.trim() : null),
+              () => {}
+            )
+            .finally(() => {
+              if (this.pending.get(k) === fresh) this.pending.delete(k);
+            }),
+        };
+        entry = fresh;
+        this.pending.set(k, entry);
       }
-      jobs.push(job.then(onEach));
+      jobs.push(entry.done.then(onEach));
     }
     return Promise.all(jobs);
   }
@@ -236,7 +253,7 @@ export default class Broadcast extends View {
     cx.notify();
     cx.spawn(async (cx) => {
       try {
-        await this.broadcast(text, candidates, onePerRepo);
+        await this.broadcast(text, candidates, onePerRepo, cx);
       } catch (e) {
         notify({ title: 'Broadcast failed', body: String(e), level: 'error' });
       } finally {
@@ -247,10 +264,12 @@ export default class Broadcast extends View {
     });
   }
 
-  async broadcast(text, candidates, onePerRepo) {
+  async broadcast(text, candidates, onePerRepo, cx) {
     // Finish any repo lookups first, so a pane whose lookup was still in
-    // flight can't slip through as a second sender in the same repo.
-    if (onePerRepo) await this.resolveRoots(candidates);
+    // flight can't slip through as a second sender in the same repo. A lookup
+    // that never answers can't hold the send: after LOOKUP_WAIT it goes out,
+    // with unresolved panes counted as outside a repo.
+    if (onePerRepo) await Promise.race([this.resolveRoots(candidates), cx.sleep(LOOKUP_WAIT)]);
     const targets = onePerRepo ? this.dedupe(candidates).out : candidates;
     const results = await Promise.all(
       targets.map((t) =>
