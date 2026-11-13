@@ -87,17 +87,6 @@ if [[ "${BASH_VERSION%%.*}" -ge 4 ]] 2>/dev/null || [[ -n "$ZSH_VERSION" ]]; the
 		["fabric"]="AI prompt pattern CLI"
 		["tea"]="Gitea/Forgejo CLI"
 	)
-    # Cloud and DevOps tools
-    declare -A CLOUD_TOOLS=(
-        ["docker"]="Container platform"
-        ["kubectl"]="Kubernetes client"
-        ["helm"]="Kubernetes package manager"
-        ["terraform"]="Infrastructure as code"
-        ["ansible"]="Configuration management"
-        ["aws"]="AWS CLI"
-        ["gcloud"]="Google Cloud CLI"
-        ["az"]="Azure CLI"
-    )
 
     # Language tools
     declare -A LANG_TOOLS=(
@@ -110,11 +99,6 @@ if [[ "${BASH_VERSION%%.*}" -ge 4 ]] 2>/dev/null || [[ -n "$ZSH_VERSION" ]]; the
         ["rust"]="Rust language"
         ["cargo"]="Rust package manager"
     )
-    else
-		MODERN_TOOLS_LIST="eza bat rg fd fzf zoxide delta tldr htop ncdu direnv atuin"
-		DEV_TOOLS_LIST="git nvim tmux jq yq curl wget tree opencode fabric"
-		CLOUD_TOOLS_LIST="docker kubectl helm terraform ansible aws gcloud az"
-        LANG_TOOLS_LIST="node npm yarn python3 pip3 go rust cargo"
     fi
 
 # ================================================================

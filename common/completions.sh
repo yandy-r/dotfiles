@@ -69,12 +69,6 @@ CURRENT_SHELL="$(detect_current_shell)"
 # Utility functions for checking and loading completions safely.
 # Uses eval instead of process substitution to avoid FD exhaustion.
 
-# Check if a command exists (completion support checked in load_completion)
-has_completion() {
-    local cmd="$1"
-    command -v "$cmd" >/dev/null 2>&1
-}
-
 # Load completion script for a tool safely
 # Uses eval instead of process substitution to avoid FD exhaustion (segfault fix)
 # Tries multiple completion generation patterns (cmd completion, --completion, etc.)
@@ -122,110 +116,8 @@ load_completion() {
 }
 
 # ================================================================
-# KUBERNETES COMPLETIONS
-# ================================================================
-# Kubernetes ecosystem tools: kubectl, helm, k9s, istioctl, linkerd.
-# Also sets up completions for kubectl aliases (k, kc).
-
-setup_kubernetes_completions() {
-    # kubectl
-    if command -v kubectl >/dev/null 2>&1; then
-        load_completion kubectl
-        
-        # Common kubectl aliases
-        if [[ "$CURRENT_SHELL" == "zsh" ]]; then
-            compdef k=kubectl
-            compdef kc=kubectl
-        elif [[ "$CURRENT_SHELL" == "bash" ]]; then
-            complete -o default -F __start_kubectl k
-            complete -o default -F __start_kubectl kc
-        fi
-    fi
-    
-    # helm
-    load_completion helm
-    
-    # kubens and kubectx
-    if command -v kubens >/dev/null 2>&1; then
-        load_completion kubens
-    fi
-    
-    if command -v kubectx >/dev/null 2>&1; then
-        load_completion kubectx
-    fi
-    
-    # k9s
-    if command -v k9s >/dev/null 2>&1; then
-        load_completion k9s
-    fi
-    
-    # istioctl
-    if command -v istioctl >/dev/null 2>&1; then
-        load_completion istioctl
-    fi
-    
-    # linkerd
-    if command -v linkerd >/dev/null 2>&1; then
-        load_completion linkerd
-    fi
-}
-
-# ================================================================
 # CLOUD PROVIDER COMPLETIONS
 # ================================================================
-# AWS, GCP, and Azure CLI completions.
-
-# AWS CLI v2 and related tools (CDK, SAM, eksctl, Copilot)
-setup_aws_completions() {
-    # AWS CLI v2
-    if command -v aws >/dev/null 2>&1; then
-        if [[ "$CURRENT_SHELL" == "zsh" ]]; then
-            # Use aws_completer if available
-            if command -v aws_completer >/dev/null 2>&1; then
-                complete -C aws_completer aws
-            fi
-        elif [[ "$CURRENT_SHELL" == "bash" ]]; then
-            # Bash completion for AWS CLI
-            if command -v aws_completer >/dev/null 2>&1; then
-                complete -C aws_completer aws
-            fi
-        fi
-    fi
-    
-    # AWS CDK
-    load_completion cdk
-    
-    # AWS SAM
-    if command -v sam >/dev/null 2>&1; then
-        load_completion sam
-    fi
-    
-    # eksctl
-    load_completion eksctl
-    
-    # AWS Copilot
-    if command -v copilot >/dev/null 2>&1; then
-        load_completion copilot
-    fi
-}
-
-# Google Cloud SDK completions (gcloud, gsutil, bq)
-setup_gcp_completions() {
-    # Google Cloud SDK
-    if command -v gcloud >/dev/null 2>&1; then
-        # Load gcloud completion
-        if [[ -n "$DOTFILES_HOMEBREW_PATH" ]]; then
-            local gcloud_completion="$DOTFILES_HOMEBREW_PATH/share/google-cloud-sdk"
-            if [[ -d "$gcloud_completion" ]]; then
-                if [[ "$CURRENT_SHELL" == "zsh" ]]; then
-                    source "$gcloud_completion/completion.zsh.inc"
-                elif [[ "$CURRENT_SHELL" == "bash" ]]; then
-                    source "$gcloud_completion/completion.bash.inc"
-                fi
-            fi
-        fi
-    fi
-}
 
 # Azure CLI completions
 setup_azure_completions() {
@@ -240,64 +132,9 @@ setup_azure_completions() {
 # ================================================================
 # TERRAFORM AND IaC COMPLETIONS
 # ================================================================
-# Infrastructure as Code tools: Terraform, Terragrunt, Packer,
-# Vault, Consul, Nomad, CDKTF, Pulumi, Ansible.
+# Infrastructure as Code tools: Vault and CDKTF.
 
-# HashiCorp tools and IaC completions
-setup_terraform_completions() {
-    # Terraform
-    if command -v terraform >/dev/null 2>&1; then
-        if [[ "$CURRENT_SHELL" == "zsh" ]]; then
-            autoload -U +X bashcompinit && bashcompinit
-        fi
-        complete -C terraform terraform
-        
-        # tf alias
-        complete -C terraform tf
-    fi
-    
-    # Terragrunt
-    load_completion terragrunt
-    
-    # Packer
-    if command -v packer >/dev/null 2>&1; then
-        if [[ "$CURRENT_SHELL" == "bash" ]]; then
-            complete -C packer packer
-        fi
-    fi
-    
-    # Vault (also called eagerly by setup_all_completions)
-    setup_vault_completions
-
-    # Consul
-    if command -v consul >/dev/null 2>&1; then
-        if [[ "$CURRENT_SHELL" == "bash" ]]; then
-            complete -C consul consul
-        fi
-    fi
-
-    # Nomad
-    if command -v nomad >/dev/null 2>&1; then
-        if [[ "$CURRENT_SHELL" == "bash" ]]; then
-            complete -C nomad nomad
-        fi
-    fi
-    # CDKTF (also called eagerly by setup_all_completions)
-    setup_cdktf_completions
-    
-    # Pulumi
-    load_completion pulumi
-    
-    # Ansible
-    if command -v ansible >/dev/null 2>&1; then
-        load_completion ansible
-        load_completion ansible-playbook
-        load_completion ansible-vault
-    fi
-}
-
-# Vault completion, split out of setup_terraform_completions so it can be
-# registered eagerly (a single `complete -C` is cheap in both shells).
+# Vault completion, registered eagerly (a single `complete -C` is cheap in both shells).
 setup_vault_completions() {
     command -v vault >/dev/null 2>&1 || return 0
 
@@ -308,9 +145,8 @@ setup_vault_completions() {
     fi
 }
 
-# CDKTF completion, split out of setup_terraform_completions so it can be
-# registered eagerly (defining the zsh function is cheap; the command probe
-# only runs on first <TAB>).
+# CDKTF completion, registered eagerly (defining the zsh function is cheap;
+# the command probe only runs on first <TAB>).
 setup_cdktf_completions() {
     command -v cdktf >/dev/null 2>&1 || return 0
     [[ "$CURRENT_SHELL" == "zsh" ]] || return 0
@@ -325,38 +161,6 @@ setup_cdktf_completions() {
         _describe 'values' reply
     }
     compdef _cdktf_yargs_completions cdktf
-}
-
-# ================================================================
-# CONTAINER COMPLETIONS
-# ================================================================
-# Container tools: Docker, Docker Compose, Podman, Buildah, Skopeo.
-
-# Docker and alternative container tools
-setup_container_completions() {
-    # Docker
-    if command -v docker >/dev/null 2>&1; then
-        load_completion docker
-        
-        # Docker Compose
-        if command -v docker-compose >/dev/null 2>&1; then
-            load_completion docker-compose
-        fi
-        
-        # Docker Machine
-        if command -v docker-machine >/dev/null 2>&1; then
-            load_completion docker-machine
-        fi
-    fi
-    
-    # Podman
-    load_completion podman
-    
-    # Buildah
-    load_completion buildah
-    
-    # Skopeo
-    load_completion skopeo
 }
 
 # ================================================================
@@ -452,142 +256,6 @@ setup_fabric_completions() {
 			done
 			;;
 	esac
-}
-
-# Language-specific tools: Node.js (npm, yarn, pnpm, bun, deno),
-# Python (pip, pipenv, poetry), Rust (cargo), Go tools
-setup_language_completions() {
-    # Node.js tools
-    if command -v npm >/dev/null 2>&1; then
-        load_completion npm
-    fi
-    
-    if command -v yarn >/dev/null 2>&1; then
-        load_completion yarn
-    fi
-    
-    if command -v pnpm >/dev/null 2>&1; then
-        load_completion pnpm
-    fi
-    
-    # Deno
-    if command -v deno >/dev/null 2>&1; then
-        load_completion deno
-    fi
-    
-    # Bun
-    if command -v bun >/dev/null 2>&1; then
-        load_completion bun
-    fi
-    
-    # Python tools
-    if command -v pip >/dev/null 2>&1; then
-        load_completion pip
-    fi
-    
-    if command -v pipenv >/dev/null 2>&1; then
-        load_completion pipenv
-    fi
-    
-    if command -v poetry >/dev/null 2>&1; then
-        load_completion poetry
-    fi
-    
-    # Rust/Cargo
-    if command -v cargo >/dev/null 2>&1; then
-        if [[ -f "$HOME/.cargo/env" ]]; then
-            source "$HOME/.cargo/env"
-        fi
-        
-        # Cargo completions
-        if [[ "$CURRENT_SHELL" == "zsh" ]]; then
-            if [[ -f "$HOME/.cargo/completions/_cargo" ]]; then
-                fpath+=("$HOME/.cargo/completions")
-            fi
-        elif [[ "$CURRENT_SHELL" == "bash" ]]; then
-            if [[ -f "$HOME/.cargo/completions/cargo.bash" ]]; then
-                source "$HOME/.cargo/completions/cargo.bash"
-            fi
-        fi
-    fi
-    
-    # Go tools
-    if command -v go >/dev/null 2>&1; then
-        # Go doesn't have built-in completion, but some tools do
-        load_completion gofmt
-        load_completion goimports
-    fi
-}
-
-# ================================================================
-# MODERN CLI TOOLS COMPLETIONS
-# ================================================================
-# Modern Rust-based CLI tools: ripgrep, fd, bat, eza, starship, delta.
-# Note: Some tools have limited completion support.
-
-setup_modern_tools_completions() {
-    # ripgrep (rg)
-    if command -v rg >/dev/null 2>&1; then
-        load_completion rg
-    fi
-    
-    # fd
-    if command -v fd >/dev/null 2>&1; then
-        load_completion fd
-    fi
-    
-    # bat
-    if command -v bat >/dev/null 2>&1; then
-        load_completion bat
-    fi
-    
-    # eza
-    if command -v eza >/dev/null 2>&1; then
-        load_completion eza
-    fi
-    
-    # autojump
-    if command -v autojump >/dev/null 2>&1; then
-        # autojump completion is handled by its initialization script
-        # No additional completion setup needed
-        :
-    fi
-    
-    # starship
-    if command -v starship >/dev/null 2>&1; then
-        load_completion starship
-    fi
-    
-    # delta
-    if command -v delta >/dev/null 2>&1; then
-        load_completion delta
-    fi
-    
-    # tldr
-    if command -v tldr >/dev/null 2>&1; then
-        load_completion tldr
-    fi
-}
-
-# ================================================================
-# 1PASSWORD COMPLETIONS
-# ================================================================
-# Password manager CLIs: 1Password (op), Bitwarden (bw, bws).
-
-setup_1password_completions() {
-    if command -v op >/dev/null 2>&1; then
-        load_completion op
-    fi
-    
-    # Bitwarden CLI
-    if command -v bw >/dev/null 2>&1; then
-        load_completion bw
-    fi
-    
-    # Bitwarden Secrets CLI
-    if command -v bws >/dev/null 2>&1; then
-        load_completion bws
-    fi
 }
 
 # ================================================================

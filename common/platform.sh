@@ -338,25 +338,6 @@ has_command() {
     command -v "$1" &> /dev/null
 }
 
-# Check if file exists
-has_file() {
-    [[ -f "$1" ]]
-}
-
-# Check if directory exists
-has_dir() {
-    [[ -d "$1" ]]
-}
-
-# Get command path
-get_command_path() {
-    if has_command "$1"; then
-        command -v "$1"
-    else
-        echo ""
-    fi
-}
-
 # ================================================================
 # PATH HELPERS
 # ================================================================

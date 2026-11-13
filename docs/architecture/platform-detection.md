@@ -362,9 +362,6 @@ The shell fallback probes `command -v` in the same host-dependent order as [`det
 | Function                 | Purpose                   | Usage                                  |
 | ------------------------ | ------------------------- | -------------------------------------- |
 | `has_command <cmd>`      | Check if command exists   | `if has_command nvim; then ...`        |
-| `has_file <path>`        | Check if file exists      | `if has_file ~/.config/tool; then ...` |
-| `has_dir <path>`         | Check if directory exists | `if has_dir ~/projects; then ...`      |
-| `get_command_path <cmd>` | Get full path to command  | `path=$(get_command_path nvim)`        |
 
 ### Platform check functions
 

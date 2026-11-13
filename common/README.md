@@ -421,9 +421,7 @@ Edit `common/completions.sh`:
 
 ```bash
 # Add completion loading
-if has_completion mytool; then
-    load_completion mytool
-fi
+load_completion mytool
 ```
 
 ## Testing Changes

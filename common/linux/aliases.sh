@@ -269,7 +269,6 @@ alias sce="sudo systemctl enable"
 alias scd="sudo systemctl disable"
 
 # Journal logs
-alias journalctl="journalctl"
 alias logs="sudo journalctl -f"
 alias syslog="sudo journalctl -u"
 alias bootlog="sudo journalctl -b"
@@ -282,7 +281,6 @@ alias kerror="sudo journalctl -p err"
 # Process management
 alias psg="ps aux | grep -v grep | grep -i"
 alias pstree="pstree -p"
-alias killall="killall"
 
 # System information (sysinfo function is defined in common/functions.sh)
 alias cpuinfo="lscpu"
@@ -293,9 +291,6 @@ alias uptime="uptime -p"
 # Hardware information
 alias lshw="sudo lshw -short"
 alias lsblk="lsblk -f"
-alias lsusb="lsusb"
-alias lspci="lspci"
-alias lsmod="lsmod"
 
 # ================================================================
 # NETWORK MANAGEMENT
@@ -345,7 +340,6 @@ alias umount="sudo umount"
 
 # File permissions
 alias chown="sudo chown"
-alias chmod="chmod"
 alias chgrp="sudo chgrp"
 
 # ================================================================
@@ -517,7 +511,6 @@ fi
 # ================================================================
 
 # Crontab management
-alias crontab="crontab"
 alias cronjobs="crontab -l"
 alias cronjobsedit="crontab -e"
 
@@ -537,9 +530,6 @@ alias unloadmodule="sudo modprobe -r"
 # ================================================================
 
 # User information
-alias whoami="whoami"
-alias groups="groups"
-alias id="id"
 alias lastlogin="last"
 alias currentusers="who"
 

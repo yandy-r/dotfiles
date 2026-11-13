@@ -70,8 +70,6 @@ alias ~="cd ~"
 alias -- -="cd -"
 
 # Directory shortcuts
-alias h="cd ~"
-alias d="cd ~/Desktop"
 alias dl="cd ~/Downloads"
 alias doc="cd ~/Documents"
 alias dev="cd ~/dev"
@@ -135,8 +133,6 @@ alias dus="du -sh"
 if has_command rg; then
 	alias rg="rg --hidden --smart-case"
 	alias rgr="rg --hidden --smart-case"  # explicit ripgrep alias
-else
-	alias grep="grep --color=auto"
 fi
 
 # Always use colored grep variants
@@ -151,9 +147,6 @@ if [[ -n "${DOTFILES_BAT_CMD:-}" ]]; then
 	alias bat="$DOTFILES_BAT_CMD --paging=never"
 	# shellcheck disable=SC2139 # resolved command name is baked in at definition
 	alias less="$DOTFILES_BAT_CMD --paging=always"
-else
-	# Keep original cat
-	alias cat="cat"
 fi
 
 # fd is fdfind on Debian/Ubuntu; alias only when the resolved name differs
@@ -426,7 +419,6 @@ done
 # Process monitoring and system information. htop replaces top when available.
 
 # Process management
-alias psg="ps aux | grep -v grep | grep -i"
 alias topc="top -o cpu"
 alias topm="top -o mem"
 
@@ -452,31 +444,19 @@ alias free="free -h" 2>/dev/null || alias free="vm_stat"
 # ================================================================
 # OS-specific commands. These only load on the appropriate platform.
 
-# macOS specific aliases - Finder, Dock, system preferences
+# macOS specific aliases
 if is_macos; then
     # DNS and system
-    alias cleardns="sudo killall -HUP mDNSResponder"
     alias flush="dscacheutil -flushcache && sudo killall -HUP mDNSResponder"
 
     # Applications
     alias slt='open -a "Sublime Text"'
+    # Kept here: `has_command code` below (before the macos overlay) gates the `c` alias
     alias code="open -a 'Visual Studio Code'"
-    alias finder="open ."
-
-    # System preferences
-    alias hidedesktop="defaults write com.apple.finder CreateDesktop -bool false && killall Finder"
-    alias showdesktop="defaults write com.apple.finder CreateDesktop -bool true && killall Finder"
-
-    # Sound
-    alias stfu="osascript -e 'set volume output muted true'"
-    alias pumpitup="osascript -e 'set volume 10'"
 
     # Clipboard ($ expand at use time)
     alias copy='$DOTFILES_COPY_CMD'
     alias paste='$DOTFILES_PASTE_CMD'
-
-    # PlistBuddy
-    alias plistbuddy="/usr/libexec/PlistBuddy"
 
     # Trash (safer than rm)
     if has_command trash; then
@@ -484,46 +464,13 @@ if is_macos; then
     fi
 fi
 
-# Linux specific aliases - systemd services, package managers
+# Linux specific aliases - systemd services
 if is_linux; then
     # DNS
     alias cleardns="sudo systemctl restart systemd-resolved"
     alias flush="sudo systemctl flush-dns"
 
-    # Package management
-    case "$DOTFILES_PKG_MGR" in
-        apt)
-            alias install="sudo apt install"
-            alias update="sudo apt update && sudo apt upgrade"
-            alias search="apt search"
-            alias show="apt show"
-            alias remove="sudo apt remove"
-            alias purge="sudo apt purge"
-            alias autoremove="sudo apt autoremove"
-            alias autoclean="sudo apt autoclean"
-            ;;
-        dnf)
-            alias install="sudo dnf install"
-            alias update="sudo dnf upgrade"
-            alias search="dnf search"
-            alias show="dnf info"
-            alias remove="sudo dnf remove"
-            ;;
-        pacman)
-            alias install="sudo pacman -S"
-            alias update="sudo pacman -Syu"
-            alias search="pacman -Ss"
-            alias show="pacman -Si"
-            alias remove="sudo pacman -R"
-            ;;
-    esac
-
     # System services
-    alias services="systemctl list-units --type=service"
-    alias start="sudo systemctl start"
-    alias stop="sudo systemctl stop"
-    alias restart="sudo systemctl restart"
-    alias status="systemctl status"
     alias enable="sudo systemctl enable"
     alias disable="sudo systemctl disable"
 
@@ -537,15 +484,6 @@ fi
 
 # WSL specific aliases - Windows integration
 if is_wsl; then
-    # Windows integration
-    alias explorer="explorer.exe"
-    alias notepad="notepad.exe"
-    alias winget="winget.exe"
-
-    # Path conversion
-    alias wslpath="wslpath"
-    alias winpath="wslpath -w"
-
     # Clipboard integration
     alias copy="clip.exe"
     alias paste="powershell.exe Get-Clipboard"

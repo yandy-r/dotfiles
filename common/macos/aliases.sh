@@ -141,7 +141,6 @@ alias showpath="echo \$PATH | tr ':' '\n' | nl"
 alias fspath="stat -f '%N -> %Y' *"
 
 # Disk utility (eject function is in macos/functions.sh)
-alias diskutil="diskutil"
 alias drives="diskutil list"
 
 # ================================================================

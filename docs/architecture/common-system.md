@@ -282,7 +282,6 @@ extract() {
 ```bash
 MODERN_TOOLS   # eza, bat, rg, fd, fzf, zoxide, delta, tldr, htop, ncdu, direnv, atuin
 DEV_TOOLS      # git, nvim, tmux, jq, yq, curl, wget, tree, branchlet, opencode
-CLOUD_TOOLS    # docker, kubectl, helm, terraform, ansible, aws, gcloud, az
 LANG_TOOLS     # node, npm, yarn, python3, pip3, go, rust, cargo
 ```
 
