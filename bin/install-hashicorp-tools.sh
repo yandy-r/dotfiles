@@ -168,26 +168,102 @@ add_hashicorp_repo_debian() {
     sudo apt-get update
 }
 
+HASHICORP_RPM_BASE="https://rpm.releases.hashicorp.com"
+HASHICORP_REPO_FILE="/etc/yum.repos.d/hashicorp.repo"
+
+# hashicorp_repo_published <distro> <release> <arch> — true when HashiCorp
+# serves repodata for that release (HTTP 200 on repomd.xml).
+hashicorp_repo_published() {
+    curl -fsSLI -o /dev/null --max-time 15 \
+        "${HASHICORP_RPM_BASE}/$1/$2/$3/stable/repodata/repomd.xml" 2>/dev/null
+}
+
+# hashicorp_rpm_release <distro> <release> <arch> — print the release to pin:
+# the host release when published, else the newest older published release
+# (HashiCorp lags new Fedora releases; its packages are static Go binaries, so
+# the previous release's builds run fine). Prints nothing when none is found.
+hashicorp_rpm_release() {
+    local distro="$1" release="$2" arch="$3" candidate
+    [[ "$release" =~ ^[0-9]+$ ]] || return 0
+    for ((candidate = release; candidate > release - 4 && candidate > 0; candidate--)); do
+        if hashicorp_repo_published "$distro" "$candidate" "$arch"; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 0
+}
+
 add_hashicorp_repo_rpm() {
     if [[ "$DRY_RUN" == "true" ]]; then
         print_status "Would add HashiCorp repository"
         return 0
     fi
-    
-    # Check if repository already exists
-    if [[ -f /etc/yum.repos.d/hashicorp.repo ]]; then
+
+    local distro="fedora" release arch pinned baseurl
+    # RHEL-family (Rocky/Alma/CentOS) hosts use HashiCorp's RHEL tree.
+    if ! grep -qiE '^ID=("?)fedora' /etc/os-release 2>/dev/null &&
+        ! grep -qiE '^ID_LIKE=.*fedora' /etc/os-release 2>/dev/null; then
+        distro="RHEL"
+    fi
+    if [[ "$distro" == "fedora" ]]; then
+        release="$(rpm -E %fedora 2>/dev/null)"
+    else
+        release="$(rpm -E %rhel 2>/dev/null)"
+    fi
+    arch="$(uname -m)"
+
+    # Already configured and the host release is served: nothing to do. A repo
+    # file whose $releasever 404s (new Fedora before HashiCorp publishes it)
+    # makes every dnf call print a block of 404s, so it is rewritten below.
+    # shellcheck disable=SC2016 # literal $releasever in the repo file
+    if [[ -f "$HASHICORP_REPO_FILE" ]] && ! grep -q '/\$releasever/' "$HASHICORP_REPO_FILE"; then
+        print_status "HashiCorp repository already configured (pinned)"
+        return 0
+    fi
+    if [[ -f "$HASHICORP_REPO_FILE" ]] && hashicorp_repo_published "$distro" "$release" "$arch"; then
         print_status "HashiCorp repository already configured"
         return 0
     fi
-    
+
+    pinned="$(hashicorp_rpm_release "$distro" "$release" "$arch")"
+    if [[ -z "$pinned" ]]; then
+        print_warning "HashiCorp publishes no ${distro} ${release} ${arch} repo; skipping repository setup"
+        # Disable a stale file rather than leave every dnf run hitting 404s.
+        [[ -f "$HASHICORP_REPO_FILE" ]] && sudo sed -i 's/^enabled=1/enabled=0/' "$HASHICORP_REPO_FILE"
+        return 1
+    fi
+    if [[ "$pinned" == "$release" ]]; then
+        baseurl="${HASHICORP_RPM_BASE}/${distro}/\$releasever/\$basearch"
+    else
+        print_warning "HashiCorp has no ${distro} ${release} repo yet; pinning to ${distro} ${pinned}"
+        baseurl="${HASHICORP_RPM_BASE}/${distro}/${pinned}/\$basearch"
+    fi
+
     print_status "Adding HashiCorp repository..."
 
     # Write the .repo file directly rather than calling `yum-config-manager`
     # (dnf4-only; dnf5 renamed the verb to `dnf config-manager addrepo` and drops
     # the yum-utils shim), mirroring how manifest/packages.toml provisions the
-    # docker-ce dnf repo.
-    curl -fsSL https://rpm.releases.hashicorp.com/fedora/hashicorp.repo |
-        sudo tee /etc/yum.repos.d/hashicorp.repo > /dev/null
+    # docker-ce dnf repo. skip_if_unavailable keeps a future outage from
+    # failing unrelated dnf transactions.
+    sudo tee "$HASHICORP_REPO_FILE" > /dev/null <<REPO
+[hashicorp]
+name=Hashicorp Stable - \$basearch
+baseurl=${baseurl}/stable
+enabled=1
+gpgcheck=1
+gpgkey=${HASHICORP_RPM_BASE}/gpg
+skip_if_unavailable=1
+
+[hashicorp-test]
+name=Hashicorp Test - \$basearch
+baseurl=${baseurl}/test
+enabled=0
+gpgcheck=1
+gpgkey=${HASHICORP_RPM_BASE}/gpg
+skip_if_unavailable=1
+REPO
 }
 
 install_terraform() {
@@ -227,8 +303,9 @@ install_terraform() {
                 fi
                 ;;
             redhat)
-                add_hashicorp_repo_rpm
-                if [[ "$DRY_RUN" == "true" ]]; then
+                if ! add_hashicorp_repo_rpm; then
+                    install_terraform_binary
+                elif [[ "$DRY_RUN" == "true" ]]; then
                     print_status "Would run: sudo dnf install terraform"
                 elif ! sudo "$(rpm_pkg_mgr)" install -y terraform; then
                     # HashiCorp's RPM repo does not publish every arch (notably
