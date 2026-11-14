@@ -6,8 +6,10 @@
 # machines during testing; skills, agents, commands, plugins and MCP servers
 # live in their own repo and are deliberately not synced.
 #
-# Usage: sync-configs.sh [-n] [-d] [-g group]... [-a agent[,agent]...]... [-l] [host ...]
+# Usage: sync-configs.sh [-n] [-d] [-k] [-g group]... [-a agent[,agent]...]... [-l] [host ...]
 #   -n        dry run (rsync --dry-run)
+#   -k        accept host keys of hosts not yet in known_hosts
+#             (StrictHostKeyChecking=accept-new; changed keys still fail)
 #   -d        delete remote files missing locally (rsync --delete; only
 #             affects synced directories, i.e. the env group)
 #   -g group  sync only this group (repeatable): env, agents
@@ -57,16 +59,18 @@ declare -A agent_paths=(
   [zed]=".config/zed/settings.json"
 )
 
-usage() { sed -n '9,18s/^# \{0,1\}//p' "$0"; }
+usage() { sed -n '9,20s/^# \{0,1\}//p' "$0"; }
 
-rsync_opts=(-azR --no-implied-dirs -e "ssh -o BatchMode=yes -o ConnectTimeout=5")
+rsync_opts=(-azR --no-implied-dirs)
+ssh_cmd="ssh -o BatchMode=yes -o ConnectTimeout=5"
 groups=()
 agents=()
 list=0
-while getopts ndg:a:lh opt; do
+while getopts ndkg:a:lh opt; do
   case "$opt" in
   n) rsync_opts+=(--dry-run) ;;
   d) rsync_opts+=(--delete) ;;
+  k) ssh_cmd+=" -o StrictHostKeyChecking=accept-new" ;;
   g)
     case "$OPTARG" in
     env | agents) groups+=("$OPTARG") ;;
@@ -98,6 +102,7 @@ while getopts ndg:a:lh opt; do
   esac
 done
 shift $((OPTIND - 1))
+rsync_opts+=(-e "$ssh_cmd")
 (($#)) && hosts=("$@")
 if ((${#agents[@]})); then
   ((${#groups[@]})) || groups=(agents)
