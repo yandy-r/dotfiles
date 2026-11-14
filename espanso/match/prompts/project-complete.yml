@@ -28,7 +28,7 @@ matches:
 
       ## Before Starting
 
-      - RELEASING.md ("Where does my change go?") sets base branch, PR target, backport. Absent? Run `/ycc:release-model --yes`; land it via its own branch + PR first
+      - RELEASING.md ("Where does my change go?") sets base branch, PR target, backport. Absent? On its own branch: `/ycc:release-model --yes`, then PR it first
       - Follow CLAUDE.md/AGENTS.md (commits, PR template, labels, verification)
       - Move the project to In Progress
 
@@ -61,7 +61,7 @@ matches:
       ## Must Not Do
 
       - No sync PRs between long-lived branches, tags, releases, or CHANGELOG.md edits
-      - No direct commits or force pushes to the default branch, release, or other long-lived branches: every change, docs included, ships via branch + PR
+      - No direct commits or pushes to the default branch, release, or other long-lived branches: every change, docs included, ships via branch + PR
       - Never bypass checks (`--no-verify`, skipped tests, admin merges on red CI)
       - Security fixes: exploit details in Linear only
       - Never touch changes, worktrees, or branches you didn't make

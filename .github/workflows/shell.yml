@@ -26,6 +26,7 @@ on:
       - 'zsh/**'
       - 'shellcheck/**'
       - 'tests/**'
+      - 'espanso/**'
       - '.github/workflows/shell.yml'
   push:
     branches:
@@ -38,6 +39,7 @@ on:
       - 'zsh/**'
       - 'shellcheck/**'
       - 'tests/**'
+      - 'espanso/**'
       - '.github/workflows/shell.yml'
 
 permissions:
@@ -82,6 +84,22 @@ jobs:
         run: |
           shellcheck --version
           bin/lint.sh --shell
+
+  espanso:
+    # Agent prompts must render for every profile and fit the 4000-character
+    # /goal paste limit; also shellchecks the extensionless render script,
+    # which bin/lint.sh --shell does not pick up.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Prompt length
+        run: espanso/scripts/check-prompt-length
+
+      - name: Shellcheck prompt scripts
+        run: shellcheck --severity=warning espanso/scripts/agent-prompt espanso/scripts/check-prompt-length
 
   regression:
     runs-on: ${{ matrix.os }}

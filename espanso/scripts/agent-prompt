@@ -181,7 +181,7 @@ render_issue_scope() {
     which="any"
   fi
   printf -- '- %s: %s%s\n' "$label" "$TARGET" "$(linear_location)"
-  printf -- '- If %s is already done or has an open PR/branch, resume that work\n' "$which"
+  printf -- '- If %s is already done or has an open PR/branch, resume that work (yours; else skip)\n' "$which"
 }
 
 # The Linear source of the work, most specific first: a Target project, the
@@ -252,7 +252,7 @@ render_before() {
 
 ## Before Starting
 
-- RELEASING.md ("Where does my change go?") sets base branch, PR target, backport. Absent? Run `/ycc:release-model --yes`; land it (with pointers) via its own branch + PR first
+- RELEASING.md ("Where does my change go?") sets base branch, PR target, backport. Absent? On its own branch: `/ycc:release-model --yes`, then PR it (with pointers) first
 - Follow CLAUDE.md/AGENTS.md (commits, PR template, labels, verification)
 - Read each issue fully (comments, links, sub-issues); its acceptance criteria are the spec (none? add them first)
 EOF
@@ -275,7 +275,7 @@ render_must_not() {
 
 - No full test suites for non-app changes (scripts, CI)
 - No sync PRs between long-lived branches, tags, releases, or CHANGELOG.md edits; change RELEASING.md only via `/ycc:release-model`
-- No direct commits or force pushes to default, release, or long-lived branches; all changes, docs too, go via branch + PR
+- No direct commits or pushes to default, release, or long-lived branches; all changes, docs too, go via branch + PR
 - Never bypass checks (`--no-verify`, skipped/deleted tests, admin merges on red CI)
 - Security fixes: exploit details in Linear only, never in GitHub issues, PRs, or commits
 - Blocked (no access, contradictory spec)? Stop and report what you need

@@ -33,5 +33,5 @@ matches:
 
       ## Boundaries
 
-      - Don't deploy, push, or open a PR; leave only the setup changes the repo needs
+      - Don't commit to the default branch, deploy, push, or open a PR; leave only the setup changes the repo needs
       - Finish with a short report: setup commands, run commands and URLs, verification results, required and optional secret names, and open limitations
