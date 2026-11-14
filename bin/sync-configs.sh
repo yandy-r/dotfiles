@@ -31,6 +31,7 @@ hosts=(
   m1plasma
   yrpls-mbp16
   hstr-bosub
+  hstr-bosub2
   eve # use -a omp (to only sync omp configs)
 )
 
