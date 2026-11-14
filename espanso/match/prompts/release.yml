@@ -31,6 +31,7 @@ matches:
 
       - Use `/ycc:releaser <version> --publish --confirm --ci --ci-yes`
       - Release notes come from the merged changes; call out breaking changes with migration steps (required for a major release)
+      - Any commit the release needs (version, changelog, docs) lands via branch + PR; the tag is the only direct ref write
       - Never move, delete, or recreate an existing tag, never force-push, and never edit RELEASING.md by hand (only through the release tooling or `/ycc:release-model`)
 
       ## Done When

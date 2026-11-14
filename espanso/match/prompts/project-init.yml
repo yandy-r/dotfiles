@@ -41,7 +41,7 @@ matches:
 
       ## Steps
 
-      1. Survey, then post a short plan: what exists, what's missing, what each step will create or update
+      1. Survey, then post a short plan: what exists, what's missing, what each step will create or update. Then make a worktree/branch `chore/project-init` off the default branch; every commit goes there
       2. Agent docs, git conventions, GitHub templates: `/ycc:init --templates --git` (existing: add `--update`). Yields CLAUDE.md, AGENTS.md, .cursor/rules, .gitignore, .gitmessage, Conventional Commits (commitlint where applicable), lefthook, issue forms, PR template, PR-title workflow, `.github/labels.md`
       3. Labels: `gh label create` each label in `.github/labels.md` that's missing; never delete or rename labels
       4. Lint/format with CI and hooks: `/ycc:formatters --ci --hooks --yes` (existing: add `--sync`). Then run lint and format once and fix findings in a separate commit
@@ -52,7 +52,7 @@ matches:
       7. Agent hooks, if the language has rule-based hooks: `/ycc:hooks-workflow <language> --target=claude --dry-run`, then apply what fits
       8. Hygiene, where missing: README (setup, test, lint, release commands), LICENSE (ask me which), Dependabot or Renovate for the project's ecosystems
       9. Verify: lint, format check, type-check, build, tests; generated workflows are valid YAML and reference real jobs and scripts
-      10. Commit (Conventional Commits, grouped by concern) and open a PR with `/ycc:git-workflow --pr --ci --ci-yes`. Brand-new repo with no commits or remote: commit to the default branch
+      10. Commit (Conventional Commits, grouped by concern) and open a PR with `/ycc:git-workflow --pr --ci --ci-yes`. Brand-new repo with no commits: the one exception is an empty initial commit (`git commit --allow-empty`) on the default branch so a PR base exists
       11. Squash merge on green CI, then clean up the branch
 
       ## Must Not Do
@@ -60,6 +60,7 @@ matches:
       - Never cut, tag, or publish a release without my release approval; release CI is generated or audited only
       - Never edit RELEASING.md by hand, only via `/ycc:release-model`
       - Never delete or rename existing labels, workflows, branches, or tags
+      - No direct commits or force pushes to the default branch, release, or other long-lived branches: every change, docs included, ships via branch + PR
       - Never commit secrets; keep `.env*` out of git (encrypted dotenvx files excepted)
 
       ## Manual Follow-Ups

@@ -28,7 +28,7 @@ matches:
 
       ## Before Starting
 
-      - RELEASING.md ("Where does my change go?") sets base branch, PR target, backport. Absent? Run `/ycc:release-model --yes`; commit it to the default branch first
+      - RELEASING.md ("Where does my change go?") sets base branch, PR target, backport. Absent? Run `/ycc:release-model --yes`; land it via its own branch + PR first
       - Follow CLAUDE.md/AGENTS.md (commits, PR template, labels, verification)
       - Move the project to In Progress
 
@@ -37,7 +37,7 @@ matches:
       Repeat until no workable issue remains. Orchestrate with sub-agents; skills are hints.
 
       1. Pick the next issue; read it fully (comments, links, sub-issues). Acceptance criteria are the spec (none? add them). Set a target release (RELEASING.md rule 1) and link a GitHub issue (create if missing). Move it to In Progress
-      2. Worktree `<area-or-type>/<issue-id>-<slug>` off the freshly pulled RELEASING.md base; docs-only: commit to the default branch instead
+      2. Worktree `<area-or-type>/<issue-id>-<slug>` off the freshly pulled RELEASING.md base
       3. Research and plan, scaled to size: `/ycc:feature-research`, `/ycc:prp-plan --parallel --enhanced --no-worktree`. Favor security, data integrity, stability; log decisions in the PR
       4. Implement: `/ycc:prp-implement --parallel --no-worktree`. A bug fix starts with a failing regression test; unfinished user-reachable work stays behind a RELEASING.md switch (off)
       5. Verify (lint, type-check, build, tests for the change); adversarial review, fix findings: `/ycc:code-review --parallel`
@@ -55,13 +55,13 @@ matches:
       ## Blockers
 
       - One blocked issue never ends the run: comment the blocker on it, mark it blocked, continue
-      - Stop the run only for repo-wide problems (no access, trunk CI red and not a small fix, contradictory project goal); report what you need
+      - Stop the run only for repo-wide problems (no access, trunk CI red and not a small fix via PR, contradictory project goal); report what you need
       - Ask only on irreversible or regressing choices (destructive migration, data loss, security, API break)
 
       ## Must Not Do
 
       - No sync PRs between long-lived branches, tags, releases, or CHANGELOG.md edits
-      - No direct or force pushes to trunk or release branches
+      - No direct commits or force pushes to the default branch, release, or other long-lived branches: every change, docs included, ships via branch + PR
       - Never bypass checks (`--no-verify`, skipped tests, admin merges on red CI)
       - Security fixes: exploit details in Linear only
       - Never touch changes, worktrees, or branches you didn't make

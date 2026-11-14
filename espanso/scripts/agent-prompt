@@ -252,7 +252,7 @@ render_before() {
 
 ## Before Starting
 
-- RELEASING.md ("Where does my change go?") sets base branch, PR target, backport. Absent? Run `/ycc:release-model --yes`; commit it (with pointers) to the default branch first
+- RELEASING.md ("Where does my change go?") sets base branch, PR target, backport. Absent? Run `/ycc:release-model --yes`; land it (with pointers) via its own branch + PR first
 - Follow CLAUDE.md/AGENTS.md (commits, PR template, labels, verification)
 - Read each issue fully (comments, links, sub-issues); its acceptance criteria are the spec (none? add them first)
 EOF
@@ -273,10 +273,9 @@ render_must_not() {
 
 ## Must Not Do
 
-- Docs-only: no worktree/branch; commit to the default branch
 - No full test suites for non-app changes (scripts, CI)
 - No sync PRs between long-lived branches, tags, releases, or CHANGELOG.md edits; change RELEASING.md only via `/ycc:release-model`
-- No direct or force pushes to trunk or release branches
+- No direct commits or force pushes to default, release, or long-lived branches; all changes, docs too, go via branch + PR
 - Never bypass checks (`--no-verify`, skipped/deleted tests, admin merges on red CI)
 - Security fixes: exploit details in Linear only, never in GitHub issues, PRs, or commits
 - Blocked (no access, contradictory spec)? Stop and report what you need
