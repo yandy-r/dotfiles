@@ -1,0 +1,7 @@
+# Hosts for bin/sync-configs.sh, one ssh host (or ssh config alias) per line.
+# Copy to ~/.config/sync-configs/hosts (or point SYNC_CONFIGS_HOSTS at it).
+# Blank lines and # comments are ignored.
+
+workstation
+laptop
+buildbox # trailing comments are fine

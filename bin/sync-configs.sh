@@ -2,22 +2,32 @@
 #
 # Push live core configs to the other hosts in parallel: private env dirs and
 # the core config files of each agent harness (claude, codex, opencode,
-# antigravity, omp, cursor) and zed. Meant for carrying in-flight changes across
+# antigravity, omp, cursor) and zed, plus (opt-in) the private ssh host list.
+# Meant for carrying in-flight changes across
 # machines during testing; skills, agents, commands, plugins and MCP servers
 # live in their own repo and are deliberately not synced.
 #
 # Usage: sync-configs.sh [-n] [-d] [-k] [-g group]... [-a agent[,agent]...]... [-l] [host ...]
+#        sync-configs.sh -e | --edit
 #   -n        dry run (rsync --dry-run)
 #   -k        accept host keys of hosts not yet in known_hosts
 #             (StrictHostKeyChecking=accept-new; changed keys still fail)
 #   -d        delete remote files missing locally (rsync --delete; only
 #             affects synced directories, i.e. the env group)
-#   -g group  sync only this group (repeatable): env, agents
+#   -g group  sync only this group (repeatable): env, agents, ssh, hosts.
+#             ssh (~/.ssh/config.local) and hosts (the hosts file below)
+#             are opt-in: never part of the default
 #   -a list   sync only these agents (comma-separated, repeatable): claude,
 #             codex, opencode, antigravity, omp, cursor, zed; default all.
 #             Without -g, implies -g agents
 #   -l        list the paths that would be sent, then exit
-#   host      override the default host list
+#   -e, --edit  open the hosts file in ${VISUAL:-${EDITOR:-vi}} to add, remove
+#             or change hosts (created from a template if missing), then exit
+#   host      override the host list from the hosts file
+#
+# Hosts come from ${SYNC_CONFIGS_HOSTS:-${XDG_CONFIG_HOME:-~/.config}/sync-configs/hosts}:
+# one ssh host per line, blank lines and # comments ignored. See
+# bin/sync-configs.hosts.example.
 #
 # Paths are relative to $HOME and sent with `rsync --relative`, so a single
 # rsync (one ssh connection) per host carries everything and recreates the
@@ -26,20 +36,18 @@
 
 set -uo pipefail
 
-hosts=(
-  ubsrv
-  g7
-  xps
-  m1plasma
-  yrpls-mbp16
-  hstr-bosub
-  hstr-bosub2
-  eve # use -a omp (to only sync omp configs)
-)
+hosts_file="${SYNC_CONFIGS_HOSTS:-${XDG_CONFIG_HOME:-$HOME/.config}/sync-configs/hosts}"
+hosts=()
 
 env_paths=(
   .config/env
   .config/environment.d
+)
+
+# Personal Host blocks, kept out of the tracked ssh/config (which Includes
+# this file). Opt-in via -g ssh: it replaces the remote copy wholesale.
+ssh_paths=(
+  .ssh/config.local
 )
 
 # Per-host state (sessions, history, *.db, caches, logs, auth/credentials,
@@ -59,23 +67,39 @@ declare -A agent_paths=(
   [zed]=".config/zed/settings.json"
 )
 
-usage() { sed -n '9,20s/^# \{0,1\}//p' "$0"; }
+usage() { sed -n '10,30s/^# \{0,1\}//p' "$0"; }
 
 rsync_opts=(-azR --no-implied-dirs)
 ssh_cmd="ssh -o BatchMode=yes -o ConnectTimeout=5"
 groups=()
 agents=()
 list=0
-while getopts ndkg:a:lh opt; do
+edit=0
+while getopts ndkg:a:leh-: opt; do
   case "$opt" in
+  -)
+    case "$OPTARG" in
+    edit) edit=1 ;;
+    help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "unknown option: --$OPTARG" >&2
+      usage >&2
+      exit 2
+      ;;
+    esac
+    ;;
+  e) edit=1 ;;
   n) rsync_opts+=(--dry-run) ;;
   d) rsync_opts+=(--delete) ;;
   k) ssh_cmd+=" -o StrictHostKeyChecking=accept-new" ;;
   g)
     case "$OPTARG" in
-    env | agents) groups+=("$OPTARG") ;;
+    env | agents | ssh | hosts) groups+=("$OPTARG") ;;
     *)
-      echo "unknown group: $OPTARG (expected env or agents)" >&2
+      echo "unknown group: $OPTARG (expected env, agents, ssh or hosts)" >&2
       exit 2
       ;;
     esac
@@ -102,8 +126,39 @@ while getopts ndkg:a:lh opt; do
   esac
 done
 shift $((OPTIND - 1))
+
+read_hosts() {
+  local line words
+  hosts=()
+  [[ -r "$hosts_file" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%%#*}"
+    read -ra words <<<"$line"
+    ((${#words[@]})) && hosts+=("${words[@]}")
+  done <"$hosts_file"
+}
+
+if ((edit)); then
+  if [[ ! -e "$hosts_file" ]]; then
+    mkdir -p "$(dirname "$hosts_file")" || exit 1
+    cat >"$hosts_file" <<'TEMPLATE' || exit 1
+# Hosts for sync-configs.sh, one ssh host (or ssh config alias) per line.
+# Blank lines and # comments are ignored; trailing comments are fine.
+
+TEMPLATE
+  fi
+  read -ra editor <<<"${VISUAL:-${EDITOR:-vi}}"
+  "${editor[@]}" "$hosts_file" || exit $?
+  read_hosts
+  echo "$hosts_file: ${#hosts[@]} host(s)${hosts[*]:+: ${hosts[*]}}"
+  exit 0
+fi
 rsync_opts+=(-e "$ssh_cmd")
-(($#)) && hosts=("$@")
+if (($#)); then
+  hosts=("$@")
+else
+  read_hosts
+fi
 if ((${#agents[@]})); then
   ((${#groups[@]})) || groups=(agents)
 else
@@ -115,6 +170,15 @@ paths=()
 for g in "${groups[@]}"; do
   case "$g" in
   env) paths+=("${env_paths[@]}") ;;
+  ssh) paths+=("${ssh_paths[@]}") ;;
+  hosts)
+    # rsync --relative needs a path under $HOME to recreate remotely
+    if [[ "$hosts_file" == "$HOME"/* ]]; then
+      paths+=("${hosts_file#"$HOME"/}")
+    else
+      echo "skipping hosts group: $hosts_file is outside \$HOME" >&2
+    fi
+    ;;
   agents)
     for a in "${agents[@]}"; do
       read -ra ap <<<"${agent_paths[$a]//$'\n'/ }"
@@ -138,6 +202,11 @@ if ((list)); then
   printf '%s\n' "${src[@]}"
   exit 0
 fi
+
+((${#hosts[@]})) || {
+  echo "no hosts: pass them as arguments or list them in $hosts_file" >&2
+  exit 2
+}
 
 self="$(hostname -s)"
 tmp="$(mktemp -d)"
