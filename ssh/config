@@ -1,0 +1,67 @@
+Include ~/.ssh/config.local
+
+# contents of $HOME/.ssh/config
+
+# ----------------------------
+
+# COMMON
+ServerAliveInterval 15
+ServerAliveCountMax 3
+
+## DISABLE HOSTKEY CHECKIN FOR LOCALHOST
+Host 127.0.0.*
+  StrictHostKeyChecking no
+  UserKnownHostsFile=/dev/null
+
+Host localhost
+  StrictHostKeyChecking no
+  UserKnownHostsFile=/dev/null
+
+## DISABLE HOSTKEY CHECKIN EC2 TEST INSTANCES
+Host 10.20*.*.*
+  StrictHostKeyChecking no
+  UserKnownHostsFile=/dev/null
+  IdentityFile ~/.aws-keys/aws-test-key
+  User cloud-user
+
+Host 10.22*.*.*
+  StrictHostKeyChecking no
+  UserKnownHostsFile=/dev/null
+  IdentityFile ~/.aws-keys/aws-test-key
+  User cloud-user
+
+
+# END SEEDBOX
+#
+## SSH-KEY ADD
+Host github.com
+  HostName ssh.github.com
+  PreferredAuthentications publickey
+  IdentityFile ~/.ssh/id_ed25519
+  AddKeysToAgent yes
+  IdentitiesOnly yes
+  Port 443
+
+Host gh-personal
+  HostName ssh.github.com
+  PreferredAuthentications publickey
+  IdentityFile ~/.ssh/id_ed25519
+  AddKeysToAgent yes
+  Port 443
+
+# ----------------------------
+
+Host gitlab.com
+  HostName gitlab.com
+  PreferredAuthentications publickey
+  IdentityFile ~/.ssh/git_rsa
+  AddKeysToAgent yes
+# ----------------------------
+
+Host bitbucket.org
+  HostName bitbucket.org
+  PreferredAuthentications publickey
+  IdentityFile ~/.ssh/git_rsa
+  AddKeysToAgent yes
+# ----------------------------
+

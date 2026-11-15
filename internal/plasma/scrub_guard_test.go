@@ -167,8 +167,8 @@ func isReservedDomain(domain string) bool {
 // stripping machine identifiers out of KDE config.
 //
 // Widening it to the whole repository is the wrong correction. main already
-// carries absolute /home paths in eighteen files, a NAS host name in four and a
-// private address in scripts/createDnsRecords.ps1 — pre-existing, intentional,
+// carries absolute /home paths in eighteen files and a NAS host name in four —
+// pre-existing, intentional,
 // already-published content that this branch neither introduced nor is entitled
 // to rewrite. A repository-wide scan would fail on all of it on day one and be
 // silenced within the week, which is worse than no guard. The boundary is
