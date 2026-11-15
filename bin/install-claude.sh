@@ -9,7 +9,17 @@ set -euo pipefail
 SCRIPT_NAME="$(basename "${0}")"
 readonly SCRIPT_NAME
 readonly LOG_PREFIX="[CLAUDE-INSTALL]"
-readonly CLAUDE_INSTALL_PATH="/usr/local/bin/claude"
+# System-wide binary written by the manual (curl) fallback. Overridable so the
+# test suite can point it at a throwaway path.
+CLAUDE_INSTALL_PATH="${CLAUDE_INSTALL_PATH:-/usr/local/bin/claude}"
+readonly CLAUDE_INSTALL_PATH
+# Native install layout of the official installer (https://claude.ai/install.sh):
+# a launcher symlink in ~/.local/bin pointing into versioned data under
+# ~/.local/share/claude. Configuration (~/.claude, ~/.claude.json) lives elsewhere
+# and is never touched by --uninstall.
+readonly CLAUDE_NATIVE_BIN="${HOME}/.local/bin/claude"
+readonly CLAUDE_NATIVE_DATA="${HOME}/.local/share/claude"
+readonly NPM_PACKAGE="@anthropic-ai/claude-code"
 
 # Configuration
 ACTION="${ACTION:-install}"
@@ -26,21 +36,30 @@ Install, update, or uninstall Claude Code CLI.
 OPTIONS:
     --install           Install Claude Code (default)
     --uninstall         Uninstall Claude Code
-    --update            Update Claude Code to latest version
-    --version VERSION   Install specific version (default: latest)
+    --update            Update Claude Code (to VERSION when --version is given)
+    --version VERSION   Install VERSION: latest (default), stable, or an exact
+                        release such as 1.0.58 (install/update only)
     --force             Force installation even if already installed
     -h, --help          Show this help message
 
 ENVIRONMENT VARIABLES:
     ACTION             Action to perform (install, uninstall, update)
-    CLAUDE_VERSION     Version to install (default: latest)
+    CLAUDE_VERSION     Version to install: latest, stable, or X.Y.Z (default: latest)
     FORCE_INSTALL      Force installation (true/false)
 
 EXAMPLES:
     $SCRIPT_NAME --install
     $SCRIPT_NAME --uninstall
     $SCRIPT_NAME --update
+    $SCRIPT_NAME --install --version 1.0.58
     $SCRIPT_NAME --force
+
+UNINSTALL:
+    Removes every install this script can create: the npm global package, the
+    native install (~/.local/bin/claude and ~/.local/share/claude), and the
+    manual binary at /usr/local/bin/claude (via sudo). ~/.claude and
+    ~/.claude.json are preserved. Exits non-zero if claude is still on PATH
+    afterwards.
 
 INSTALLATION METHODS (tried in order):
     1. Official script: curl -fsSL https://claude.ai/install.sh | bash
@@ -172,16 +191,22 @@ check_claude_installed() {
 	fi
 }
 
-# Uninstall Claude
-uninstall_claude() {
-	log "Uninstalling Claude Code..."
+# True when the npm global Claude Code package is installed.
+npm_claude_installed() {
+	command -v npm &>/dev/null || return 1
+	npm ls -g --depth=0 "$NPM_PACKAGE" &>/dev/null
+}
 
-	if [[ ! -f "$CLAUDE_INSTALL_PATH" ]]; then
-		log "Claude Code is not installed at $CLAUDE_INSTALL_PATH"
-		return 0
-	fi
+# True when symlink $1 points into directory $2 (the native install's data).
+link_points_under() {
+	local target
+	target="$(readlink "$1")" || return 1
+	[[ "$target" == /* ]] || target="$(dirname "$1")/$target"
+	[[ "$target" == "$2"/* ]]
+}
 
-	# Create backup before uninstall
+# Remove the manual-fallback binary at CLAUDE_INSTALL_PATH (needs sudo).
+uninstall_system_binary() {
 	local backup_path
 	backup_path="${HOME}/.claude_backup_$(date +%Y%m%d_%H%M%S)"
 	log "Creating backup at $backup_path"
@@ -189,27 +214,85 @@ uninstall_claude() {
 		log "Warning: Failed to create backup"
 	fi
 
-	# Remove Claude binary with user consent
 	log "The following command will be executed:"
 	log "    sudo rm -f $CLAUDE_INSTALL_PATH"
-	echo
-
-	if ! prompt_confirmation "Do you want to proceed with sudo to remove Claude Code?"; then
-		log "Uninstallation cancelled by user"
+	if ! prompt_confirmation "Do you want to proceed with sudo to remove $CLAUDE_INSTALL_PATH?"; then
+		log "Removal of $CLAUDE_INSTALL_PATH cancelled by user"
 		return 1
 	fi
-
-	if sudo rm -f "$CLAUDE_INSTALL_PATH"; then
-		log "Claude Code uninstalled successfully"
-		[[ -f "$backup_path" ]] && log "Backup available at: $backup_path"
-	else
-		error_exit "Failed to uninstall Claude Code"
+	if ! sudo rm -f "$CLAUDE_INSTALL_PATH"; then
+		log "ERROR: Failed to remove $CLAUDE_INSTALL_PATH"
+		return 1
 	fi
+	log "Removed $CLAUDE_INSTALL_PATH"
+	[[ -f "$backup_path" ]] && log "Backup available at: $backup_path"
+	return 0
+}
+
+# Uninstall Claude from every location this script's install methods use:
+# npm global, the native install (official script), and the manual binary.
+# Reports "not installed" only when none of them exists, and fails when claude
+# is still on PATH afterwards, so callers (dotf install --remove) never report
+# a removal that did not happen.
+uninstall_claude() {
+	local found=false failed=false remaining
+
+	log "Uninstalling Claude Code..."
+
+	if npm_claude_installed; then
+		found=true
+		log "Removing npm global package $NPM_PACKAGE..."
+		if ! npm uninstall -g "$NPM_PACKAGE"; then
+			log "ERROR: npm uninstall -g $NPM_PACKAGE failed"
+			failed=true
+		fi
+	fi
+
+	if [[ -L "$CLAUDE_NATIVE_BIN" || -e "$CLAUDE_NATIVE_BIN" ]]; then
+		found=true
+		if [[ -L "$CLAUDE_NATIVE_BIN" ]] && link_points_under "$CLAUDE_NATIVE_BIN" "$CLAUDE_NATIVE_DATA"; then
+			log "Removing native launcher $CLAUDE_NATIVE_BIN"
+			rm -f -- "$CLAUDE_NATIVE_BIN"
+		else
+			log "ERROR: Refusing to remove $CLAUDE_NATIVE_BIN; it is not a symlink into $CLAUDE_NATIVE_DATA (not created by the official installer)"
+			failed=true
+		fi
+	fi
+
+	if [[ -d "$CLAUDE_NATIVE_DATA" ]]; then
+		found=true
+		log "Removing native install data $CLAUDE_NATIVE_DATA"
+		rm -rf -- "$CLAUDE_NATIVE_DATA"
+	fi
+
+	if [[ -e "$CLAUDE_INSTALL_PATH" || -L "$CLAUDE_INSTALL_PATH" ]]; then
+		found=true
+		uninstall_system_binary || failed=true
+	fi
+
+	hash -r
+	remaining="$(command -v claude 2>/dev/null || true)"
+
+	if [[ "$found" == false ]]; then
+		if [[ -n "$remaining" ]]; then
+			error_exit "claude is on PATH at $remaining, but not from an install this script manages (npm, $CLAUDE_NATIVE_BIN, $CLAUDE_INSTALL_PATH); remove it with the tool that installed it"
+		fi
+		log "Claude Code is not installed (checked npm global, $CLAUDE_NATIVE_BIN, $CLAUDE_NATIVE_DATA, $CLAUDE_INSTALL_PATH)"
+		return 0
+	fi
+
+	if [[ -n "$remaining" ]]; then
+		error_exit "claude is still on PATH at $remaining after uninstall"
+	fi
+	if [[ "$failed" == true ]]; then
+		error_exit "Claude Code was only partially uninstalled; see the errors above"
+	fi
+	log "Claude Code uninstalled; configuration in ~/.claude and ~/.claude.json preserved"
 }
 
 # Update Claude
 update_claude() {
-	log "Updating Claude Code to latest version..."
+	log "Updating Claude Code to version: ${CLAUDE_VERSION}..."
 
 	if ! check_claude_installed; then
 		log "Claude Code is not installed. Use --install instead."
@@ -292,8 +375,11 @@ install_claude_npm() {
 		return 1
 	fi
 
-	# Install Claude Code globally via npm (without sudo)
-	if ! npm install -g @anthropic-ai/claude-code; then
+	# Install Claude Code globally via npm (without sudo); "latest" is npm's
+	# default dist-tag, anything else is passed through as a version/tag.
+	local spec="$NPM_PACKAGE"
+	[[ "$CLAUDE_VERSION" == "latest" ]] || spec="${NPM_PACKAGE}@${CLAUDE_VERSION}"
+	if ! npm install -g "$spec"; then
 		log "Failed to install Claude via npm"
 		return 1
 	fi
@@ -324,10 +410,10 @@ install_claude_official_script() {
 	fi
 
 	# Download and run the official install script with environment variables
-	# to prevent shell config modification
-	if ! SKIP_SHELL_INTEGRATION=1 \
-		NO_UPDATE_PROFILE=1 \
-		curl -fsSL https://claude.ai/install.sh | bash; then
+	# to prevent shell config modification. The script takes the target
+	# (latest, stable, or X.Y.Z) as its first argument: `bash -s <target>`.
+	if ! curl -fsSL https://claude.ai/install.sh |
+		SKIP_SHELL_INTEGRATION=1 NO_UPDATE_PROFILE=1 bash -s "$CLAUDE_VERSION"; then
 		log "Failed to install Claude via official script"
 		return 1
 	fi
@@ -348,10 +434,15 @@ install_claude_curl() {
 	log "Warning: Using fallback installation method - this may not work reliably"
 	log "Consider installing Node.js and using 'npm install -g @anthropic-ai/claude-code' instead"
 
-	# Try to get latest version from GitHub API (may fail due to rate limits)
+	# Use the pinned version when one was given; otherwise ask the GitHub API
+	# for the latest release (may fail due to rate limits)
 	local download_url
-	local latest_version
-	latest_version=$(curl -s --connect-timeout 10 https://api.github.com/repos/anthropics/claude-code/releases/latest 2>/dev/null | grep '"tag_name"' | cut -d'"' -f4)
+	local latest_version=""
+	if [[ "$CLAUDE_VERSION" =~ ^[0-9] ]]; then
+		latest_version="v${CLAUDE_VERSION}"
+	else
+		latest_version=$(curl -s --connect-timeout 10 https://api.github.com/repos/anthropics/claude-code/releases/latest 2>/dev/null | grep '"tag_name"' | cut -d'"' -f4)
+	fi
 
 	if [[ -z "$latest_version" ]]; then
 		log "Warning: Could not fetch latest version from GitHub API"
@@ -469,6 +560,11 @@ verify_installation() {
 
 	local version
 	version="$(claude --version 2>/dev/null || echo "unknown")"
+	if [[ "$CLAUDE_VERSION" =~ ^[0-9] ]] && [[ "$version" != *"$CLAUDE_VERSION"* ]]; then
+		log "ERROR: requested version $CLAUDE_VERSION but claude reports: ${version}"
+		log "Location: $(command -v claude)"
+		return 1
+	fi
 	log "Installation verified: ${version}"
 	log ""
 	log "✓ Installation successful!"
@@ -531,8 +627,14 @@ parse_args() {
 			shift
 			;;
 		--version)
+			[[ $# -ge 2 && -n "$2" && "$2" != -* ]] ||
+				error_exit "--version requires a value: latest, stable, or X.Y.Z"
 			CLAUDE_VERSION="$2"
 			shift 2
+			;;
+		--version=*)
+			CLAUDE_VERSION="${1#--version=}"
+			shift
 			;;
 		--force)
 			FORCE_INSTALL="true"
@@ -548,9 +650,21 @@ parse_args() {
 	done
 }
 
+# Normalize and validate CLAUDE_VERSION; reject it where it cannot apply.
+validate_version() {
+	CLAUDE_VERSION="${CLAUDE_VERSION#v}"
+	if [[ ! "$CLAUDE_VERSION" =~ ^(latest|stable|[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?)$ ]]; then
+		error_exit "Invalid version '${CLAUDE_VERSION}': expected latest, stable, or X.Y.Z (e.g. 1.0.58)"
+	fi
+	if [[ "$ACTION" == "uninstall" && "$CLAUDE_VERSION" != "latest" ]]; then
+		error_exit "--version applies only to --install and --update, not --uninstall"
+	fi
+}
+
 # Main function
 main() {
 	parse_args "$@"
+	validate_version
 
 	case "$ACTION" in
 	"install")
