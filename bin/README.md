@@ -244,13 +244,19 @@ Install mise (polyglot runtime manager).
 
 #### install-claude.sh
 
-Install Claude Code CLI.
+Install, update, or uninstall Claude Code CLI (official installer first, then npm, then a
+manual binary).
 
 ```bash
 ./bin/install-claude.sh
 
-# Check version
-./bin/install-claude.sh --check
+# Install or update to a specific release (latest, stable, or X.Y.Z)
+./bin/install-claude.sh --install --version 1.0.58
+
+# Remove the native (~/.local/bin/claude, ~/.local/share/claude), npm, and
+# /usr/local/bin installs; ~/.claude config is kept. Fails if claude is
+# still on PATH afterwards.
+./bin/install-claude.sh --uninstall
 ```
 
 #### install-opencode.sh
