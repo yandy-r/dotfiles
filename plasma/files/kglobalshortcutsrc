@@ -3,11 +3,6 @@ Switch to Last-Used Keyboard Layout=Meta+Alt+L,Meta+Alt+L,Switch to Last-Used Ke
 Switch to Next Keyboard Layout=Meta+Alt+K,Meta+Alt+K,Switch to Next Keyboard Layout
 _k_friendly_name=Keyboard Layout Switcher
 
-[com.notion.app.desktop.notion]
-339FAEBA8FA732E3879D97EB38E37FB8-Ctrl+Shift+J=Ctrl+Shift+J,Ctrl+Shift+J,Notion shortcut: Ctrl+Shift+J
-FAC38043415FCF68155127AF843A990B-Ctrl+Shift+K=Ctrl+Shift+K,Ctrl+Shift+K,Notion shortcut: Ctrl+Shift+K
-_k_friendly_name=Notion
-
 [kmix]
 _k_friendly_name=Audio Volume
 decrease_microphone_volume=Microphone Volume Down,Microphone Volume Down,Decrease Microphone Volume

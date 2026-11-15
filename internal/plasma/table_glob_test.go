@@ -196,6 +196,8 @@ func TestStripTable_Kglobalshortcutsrc(t *testing.T) {
 			why: "the group's only real content is an activity-UUID binding"},
 		{group: []string{"com.anthropic.Claude"}, key: "_k_friendly_name", strip: true,
 			why: "a per-install minted token group; a transplanted entry is a dead binding"},
+		{group: []string{"com.notion.app.desktop.notion"}, key: syntheticToken + "-Ctrl+Shift+J", strip: true,
+			why: "Notion mints a per-install token into every key name; a transplanted entry is a dead binding"},
 		{group: []string{"khotkeys"}, key: "_k_friendly_name", strip: true, why: "khotkeys state is installation-local"},
 		{group: []string{"kwin"}, key: "switch-to-activity-" + syntheticUUIDPrefix + "000000000003", strip: true,
 			why: "activity UUIDs are generated per installation"},

@@ -160,6 +160,9 @@ func DefaultFiles() []FileSpec {
 				// Same: 1Password mints a token per install, baked into
 				// every key name in the group.
 				"[com.onepassword.OnePassword]",
+				// Same: the Notion desktop app mints a token per install,
+				// baked into every key name in the group.
+				"[com.notion.app.desktop.notion]",
 				"[khotkeys]",
 			},
 			VolatileKeys: []string{
