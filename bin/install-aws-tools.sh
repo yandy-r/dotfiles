@@ -134,76 +134,96 @@ check_tools() {
 
 install_aws_cli() {
     print_status "Installing AWS CLI v2..."
-    
+
     if command_exists aws; then
         print_warning "AWS CLI is already installed: $(get_version aws)"
         return 0
     fi
-    
-    local os arch temp_dir
-    temp_dir=$(mktemp -d)
-    
+
+    # main() calls this as `if ! install_tool ...`, which disables errexit
+    # inside the function, so every step must check its own status (YAN-1388).
+    local arch url temp_dir
+    arch=$(detect_arch)
+
     if is_macos; then
-        os="macos"
-        arch=$(detect_arch)
-        
         if [[ "$arch" == "arm64" ]]; then
-            print_status "Downloading AWS CLI v2 for macOS (arm64)..."
-            if [[ "$DRY_RUN" == "true" ]]; then
-                print_status "Would download: https://awscli.amazonaws.com/AWSCLIV2-arm64.pkg"
-            else
-                curl -fsSL "https://awscli.amazonaws.com/AWSCLIV2-arm64.pkg" -o "$temp_dir/AWSCLIV2.pkg"
-                print_status "Installing AWS CLI v2..."
-                sudo installer -pkg "$temp_dir/AWSCLIV2.pkg" -target /
-            fi
+            url="https://awscli.amazonaws.com/AWSCLIV2-arm64.pkg"
         else
-            print_status "Downloading AWS CLI v2 for macOS (x86_64)..."
-            if [[ "$DRY_RUN" == "true" ]]; then
-                print_status "Would download: https://awscli.amazonaws.com/AWSCLIV2.pkg"
-            else
-                curl -fsSL "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "$temp_dir/AWSCLIV2.pkg"
-                print_status "Installing AWS CLI v2..."
-                sudo installer -pkg "$temp_dir/AWSCLIV2.pkg" -target /
-            fi
+            url="https://awscli.amazonaws.com/AWSCLIV2.pkg"
         fi
     elif is_linux; then
-        arch=$(detect_arch)
-        
-        if [[ "$arch" == "x86_64" ]]; then
-            print_status "Downloading AWS CLI v2 for Linux (x86_64)..."
-            if [[ "$DRY_RUN" == "true" ]]; then
-                print_status "Would download: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
-            else
-                curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "$temp_dir/awscliv2.zip"
-                cd "$temp_dir"
-                unzip -q awscliv2.zip
-                print_status "Installing AWS CLI v2..."
-                sudo ./aws/install --bin-dir "$INSTALL_DIR" --install-dir /usr/local/aws-cli --update
-                cd - > /dev/null
-            fi
-        elif [[ "$arch" == "arm64" ]] || [[ "$arch" == "aarch64" ]]; then
-            # detect_arch canonicalizes uname -m to "arm64"; accept the raw
-            # "aarch64" too so this arm matches regardless of which spelling a
-            # caller supplies.
-            print_status "Downloading AWS CLI v2 for Linux (aarch64)..."
-            if [[ "$DRY_RUN" == "true" ]]; then
-                print_status "Would download: https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip"
-            else
-                curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "$temp_dir/awscliv2.zip"
-                cd "$temp_dir"
-                unzip -q awscliv2.zip
-                print_status "Installing AWS CLI v2..."
-                sudo ./aws/install --bin-dir "$INSTALL_DIR" --install-dir /usr/local/aws-cli --update
-                cd - > /dev/null
-            fi
-        else
-            print_error "Unsupported architecture: $arch"
+        # detect_arch canonicalizes uname -m to "arm64"; accept the raw
+        # "aarch64" too so this arm matches regardless of which spelling a
+        # caller supplies.
+        case "$arch" in
+            x86_64) url="https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" ;;
+            arm64|aarch64) url="https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" ;;
+            *)
+                print_error "Unsupported architecture: $arch"
+                return 1
+                ;;
+        esac
+    else
+        print_error "Unsupported platform for AWS CLI v2: $DOTFILES_OS"
+        return 1
+    fi
+
+    print_status "Downloading AWS CLI v2 for $DOTFILES_OS ($arch)..."
+    if [[ "$DRY_RUN" == "true" ]]; then
+        print_status "Would download: $url"
+        return 0
+    fi
+
+    if ! require_command curl "Please install curl first"; then
+        return 1
+    fi
+
+    temp_dir=$(mktemp -d)
+
+    if is_macos; then
+        if ! curl -fsSL "$url" -o "$temp_dir/AWSCLIV2.pkg"; then
+            print_error "Failed to download AWS CLI v2 from $url"
+            rm -rf "$temp_dir"
+            return 1
+        fi
+        print_status "Installing AWS CLI v2..."
+        if ! sudo installer -pkg "$temp_dir/AWSCLIV2.pkg" -target /; then
+            print_error "AWS CLI v2 installer failed"
+            rm -rf "$temp_dir"
+            return 1
+        fi
+    else
+        if ! require_command unzip "Please install unzip first"; then
+            rm -rf "$temp_dir"
+            return 1
+        fi
+        if ! curl -fsSL "$url" -o "$temp_dir/awscliv2.zip"; then
+            print_error "Failed to download AWS CLI v2 from $url"
+            rm -rf "$temp_dir"
+            return 1
+        fi
+        if ! unzip -q "$temp_dir/awscliv2.zip" -d "$temp_dir"; then
+            print_error "Failed to extract AWS CLI v2 installer"
+            rm -rf "$temp_dir"
+            return 1
+        fi
+        print_status "Installing AWS CLI v2..."
+        if ! sudo "$temp_dir/aws/install" --bin-dir "$INSTALL_DIR" --install-dir /usr/local/aws-cli --update; then
+            print_error "AWS CLI v2 installer failed"
             rm -rf "$temp_dir"
             return 1
         fi
     fi
-    
+
     rm -rf "$temp_dir"
+    hash -r
+
+    if ! command_exists aws; then
+        print_error "AWS CLI v2 installer completed, but aws is not on PATH"
+        print_error "Ensure $INSTALL_DIR is on PATH, then rerun this installer"
+        return 1
+    fi
+
     print_success "AWS CLI v2 installed"
 }
 
@@ -394,10 +414,12 @@ install_ecs_cli() {
         fi
         
         print_status "Installing to $INSTALL_DIR/ecs-cli..."
-        if [[ -w "$INSTALL_DIR" ]]; then
-            mv "$temp_file" "$INSTALL_DIR/ecs-cli"
-        else
-            sudo mv "$temp_file" "$INSTALL_DIR/ecs-cli"
+        local mv_cmd=(mv)
+        [[ -w "$INSTALL_DIR" ]] || mv_cmd=(sudo mv)
+        if ! "${mv_cmd[@]}" "$temp_file" "$INSTALL_DIR/ecs-cli"; then
+            print_error "Failed to install ECS CLI to $INSTALL_DIR/ecs-cli"
+            rm -f "$temp_file"
+            return 1
         fi
     fi
     

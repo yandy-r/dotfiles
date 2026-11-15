@@ -209,6 +209,10 @@ jobs:
         if: runner.os == 'Linux'
         run: bash scripts/test-install-playwright-cli.sh
 
+      - name: AWS tools installer failure propagation
+        if: runner.os == 'Linux'
+        run: bash scripts/test-install-aws-tools.sh
+
       - name: tea-tools
         if: runner.os == 'Linux'
         run: bash scripts/test-tea-tools.sh
