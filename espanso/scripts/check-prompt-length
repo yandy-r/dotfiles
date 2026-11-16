@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Check that every agent prompt fits the paste limit of agent CLIs
-# (Claude Code's /goal accepts at most 4000 characters).
+# (Claude Code's /goal accepts at most 4000 characters) with room to spare:
+# prompts must stay within a 3000-character budget so at least 1000
+# characters remain for context the user appends before sending.
 #
 # Renders agent-prompt for every profile (plus auto), task, target kind, and
 # skills combination, and measures the static `replace: |` body of each
@@ -16,7 +18,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROMPTS_DIR="$SCRIPT_DIR/../match/prompts"
 E2E_MATCH="$PROMPTS_DIR/agent-e2e.yml"
 RENDER="$SCRIPT_DIR/agent-prompt"
-MAX_CHARS=4000
+LIMIT=4000           # hard paste limit (Claude Code /goal)
+RESERVE=1000         # kept free for the user's own context
+MAX_CHARS=$((LIMIT - RESERVE))
 # Long enough to stand in for a real issue list or project name.
 SAMPLE_ISSUES="YAN-723, YAN-724 and YAN-725"
 SAMPLE_PROJECT="Website and commerce -- Bugs"
@@ -28,7 +32,8 @@ check() {
   local name="$1" chars="$2"
   ((chars > worst)) && worst=$chars
   if ((chars > MAX_CHARS)); then
-    printf 'FAIL %s: %d characters (limit %d)\n' "$name" "$chars" "$MAX_CHARS" >&2
+    printf 'FAIL %s: %d characters (budget %d = %d limit - %d reserved for user context)\n' \
+      "$name" "$chars" "$MAX_CHARS" "$LIMIT" "$RESERVE" >&2
     failures=$((failures + 1))
   fi
 }
@@ -102,7 +107,8 @@ check_renders
 check_static
 check_form_profiles
 if ((failures > 0)); then
-  printf '%d check(s) failed (prompt limit: %d characters)\n' "$failures" "$MAX_CHARS" >&2
+  printf '%d check(s) failed (prompt budget: %d characters)\n' "$failures" "$MAX_CHARS" >&2
   exit 1
 fi
-printf 'ok: every prompt fits in %d characters (longest: %d)\n' "$MAX_CHARS" "$worst"
+printf 'ok: every prompt fits the %d-character budget (longest: %d; >= %d free of %d)\n' \
+  "$MAX_CHARS" "$worst" "$((LIMIT - worst))" "$LIMIT"

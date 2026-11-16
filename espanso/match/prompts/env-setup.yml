@@ -6,32 +6,32 @@
 matches:
   - trigger: ':envsetup'
     replace: |
-      /env-setup Set up the development environment for this codebase, run its apps to demonstrate the environment works, and report every secret I must add before saving.
+      /env-setup Set up this codebase's dev environment, run its apps to prove it works, and report every secret I must add before saving.
 
       ## Discover
 
-      - Read the repo rules and docs first (AGENTS.md, CLAUDE.md, README, CONTRIBUTING, docs/), then package scripts, lockfiles, version pins (.nvmrc, .tool-versions, go.mod, pyproject.toml, rust-toolchain), Docker/compose files, and CI workflows
-      - Follow existing repo conventions; CI shows the canonical install, lint, test, and build commands
+      - Read repo rules + docs first (AGENTS.md, CLAUDE.md, README, CONTRIBUTING, docs/), then package scripts, lockfiles, version pins (.nvmrc, .tool-versions, go.mod, pyproject.toml, rust-toolchain), Docker/compose, CI workflows
+      - Follow repo conventions; CI shows canonical install, lint, test, build commands
 
       ## Set Up
 
-      - Install the correct pinned runtimes, tools, and dependencies from the lockfiles (frozen installs); don't upgrade or rewrite lockfiles
-      - Separate persistent setup (install and start scripts that belong in the cloud environment config, per repo convention) from app runtime (dev servers, workers, databases you start only to run the apps)
-      - Start the required local services and apps in safe local mode (local database, emulator, mock, or seeded fixture); keep each running where I can reach it
+      - Install pinned runtimes, tools, deps from lockfiles (frozen installs); don't upgrade/rewrite lockfiles
+      - Separate persistent setup (install/start scripts for the cloud env config, per repo convention) from app runtime (dev servers, workers, DBs started only to run apps)
+      - Start required services + apps in safe local mode (local DB, emulator, mock, seeded fixture); keep each running where I can reach it
 
       ## Verify
 
-      - Run the available lint, test, and build commands
-      - Prove the apps work: hit a running app with a real smoke request or open it in a browser, and capture what you saw
-      - Report each command, URL, and result, plus anything you could not verify and why
+      - Run available lint, test, build commands
+      - Prove apps work: real smoke request to a running app or open it in a browser; capture what you saw
+      - Report each command, URL, result, plus anything unverified + why
 
       ## Secrets
 
-      - List every required and optional secret as an environment variable NAME only, with its purpose and where it is sourced (for example .env.example, config code, CI)
-      - Never print, guess, or commit secret values, and never read real production services or secret stores; use placeholders or local fakes
-      - If a required secret is missing, don't call the setup complete. Stop and ask me to add it to the cloud environment secrets before the final live checks and before saving
+      - List every required/optional secret as env var NAME only, w/ purpose + source (e.g. .env.example, config code, CI)
+      - Never print, guess, or commit secret values; never read real production services or secret stores; use placeholders/local fakes
+      - Required secret missing? Setup not complete: stop, ask me to add it to cloud env secrets before final live checks + saving
 
       ## Boundaries
 
-      - Don't commit to the default branch, deploy, push, or open a PR; leave only the setup changes the repo needs
-      - Finish with a short report: setup commands, run commands and URLs, verification results, required and optional secret names, and open limitations
+      - No commits to default branch, deploys, pushes, or PRs; leave only setup changes the repo needs
+      - Final short report: setup commands, run commands + URLs, verification results, required/optional secret names, open limitations

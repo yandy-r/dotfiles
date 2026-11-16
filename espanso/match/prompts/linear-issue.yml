@@ -21,7 +21,7 @@ matches:
             topic:
               multiline: true
     replace: |
-      /goal Create one detailed, agent-ready Linear issue in the {{form.team}} team of the itcn workspace to track the topic below for later implementation.
+      /goal Create one detailed, agent-ready Linear issue in the {{form.team}} team (itcn workspace) tracking the topic below for later implementation.
 
       ## Topic
 
@@ -29,42 +29,42 @@ matches:
 
       ## Guardrails
 
-      - Before any write, confirm the connected Linear workspace is itcn and the team is {{form.team}}; if not, or Linear is unavailable, stop
-      - No code changes, commits, or branches; leave the working tree untouched
-      - Read the current repo only to ground the issue; if it is unrelated to the topic, say so
-      - Ask first if the topic is too vague to ground
-      - Never put secrets, tokens, or `.env` values in the issue
+      - Before any write: confirm workspace itcn + team {{form.team}}; mismatch or Linear unavailable? stop
+      - No code changes, commits, branches; working tree untouched
+      - Read repo only to ground the issue; unrelated to topic? say so
+      - Topic too vague to ground? ask first
+      - No secrets, tokens, `.env` values in the issue
 
       ## Duplicates
 
-      - Search open, completed, and archived issues and projects
-      - If a likely duplicate exists, change nothing; report its ID and ask how to proceed
+      - Search open, completed, archived issues + projects
+      - Likely duplicate? Change nothing; report its ID, ask how to proceed
 
       ## Project
 
-      - Use the best-fit existing project
-      - If none fits, study current projects (team, naming, description, lead, status, milestones) and create one that matches them; if team or fit is ambiguous, ask
-      - Create at most one project; never modify or archive others
-      - Use existing labels; only set priority or estimate when the team uses them and evidence supports a value
-      - Don't assign anyone; leave the default status
+      - Use best-fit existing project
+      - None fits? Study current projects (team, naming, description, lead, status, milestones), create one matching them; team/fit ambiguous? ask
+      - Create ≤1 project; never modify/archive others
+      - Existing labels only; set priority/estimate only if team uses them and evidence supports a value
+      - No assignee; default status
 
       ## Issue Body
 
-      Write it so an agent with no prior context can implement it:
+      Implementable by an agent w/ no prior context:
 
-      - **Summary**: problem or goal and why it matters
+      - **Summary**: problem/goal + why it matters
       - **Context**: current behavior, relevant files/symbols/paths, related issues, docs, links
-      - **Requirements**: numbered and testable
+      - **Requirements**: numbered, testable
       - **Out of scope**: what not to touch
       - **Approach**: suggested plan, key decisions, alternatives
       - **Risks**: edge cases, migrations, security, compatibility
       - **Acceptance criteria**: checklist of observable outcomes
-      - **Verification**: commands from the repo (package.json, Makefile, CI) and expected results; never guess
+      - **Verification**: commands from repo (package.json, Makefile, CI) + expected results; never guess
       - **Agent notes**: suggested skills/agents, conventions, open questions
 
-      Cite real paths and symbols only; mark guesses as assumptions.
+      Real paths/symbols only; mark guesses as assumptions.
 
       ## Done When
 
-      - The issue exists in the correct project with a clear title and only supported metadata
-      - Report the issue ID/URL, team, project and whether it was created, metadata left unset, and open questions
+      - Issue exists in correct project, clear title, only supported metadata
+      - Report: issue ID/URL, team, project (+ created?), metadata left unset, open questions

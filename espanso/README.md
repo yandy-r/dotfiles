@@ -71,13 +71,19 @@ The renderer also works outside espanso:
 ## Prompt length limit
 
 Agent CLIs cap pasted goals; Claude Code's `/goal` accepts at most 4000
-characters. Every prompt here stays under that, so it works pasted into any
-tool. `agent-prompt` refuses to render anything longer, and
+characters. Every prompt here stays within a **3000-character budget**, leaving
+at least 1000 characters for context you append before sending.
+`agent-prompt` refuses to render anything over 4000, and
 `npm run test:espanso` (`scripts/check-prompt-length`) renders every profile
 (plus `auto`), task, target, and skills combination, measures each
 `match/prompts/*.yml` body, and checks that the `:e2e` profile choices match
-`scripts/profiles/`. Run it after editing a prompt or profile; keep new prompts terse (one rule per bullet, no
-repeated context).
+`scripts/profiles/` (it fails over the 3000 budget). Run it after editing a
+prompt or profile.
+
+Prompts use a terse "caveman-lite" style: imperative fragments, no articles or
+filler, `→` for "becomes/goes to", `X? do Y` for conditionals, `w/` for "with",
+one rule per bullet, and a `## Never` list of bare forbidden actions. Skill
+commands, paths, and flags stay verbatim.
 
 ## Extending
 

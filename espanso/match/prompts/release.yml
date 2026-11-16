@@ -18,24 +18,24 @@ matches:
                 - major
               default: patch
     replace: |
-      /goal Cut the next {{form.level}} release, end-to-end. You have approval to confirm and publish.
+      /goal Cut the next {{form.level}} release end to end. You have approval to confirm and publish.
 
-      ## Before Releasing
+      ## Before
 
-      - Read RELEASING.md first: it decides which branch a {{form.level}} release comes from, the version, and any follow-up branches it creates
-      - On the release-branches model, run `/ycc:backport --audit` for the line so every labelled fix has a merged backport
-      - Make sure CI is green on the branch being released
-      - Note any open PRs or Linear issues still targeting this release for the final report; don't hold the release for them unless RELEASING.md requires it
+      - Read RELEASING.md first: it sets the source branch for a {{form.level}} release, the version, and any follow-up branches created
+      - release-branches model? `/ycc:backport --audit` for the line so every labelled fix has a merged backport
+      - CI green on the release branch
+      - Note open PRs/Linear issues still targeting this release for the report; don't hold for them unless RELEASING.md requires
 
       ## Release
 
-      - First land any commit the release needs (version, changelog, docs) via branch + PR into the release branch and merge on green CI; never commit or push to default, release, or long-lived branches directly
-      - Then use `/ycc:releaser <version> --publish --confirm --ci --ci-yes`
-      - Release notes come from the merged changes; call out breaking changes with migration steps (required for a major release)
-      - The only direct ref writes are the release tag and any branch RELEASING.md says the release creates
-      - Never move, delete, or recreate an existing tag, never force-push, and never edit RELEASING.md by hand (only through the release tooling or `/ycc:release-model`)
+      - Land needed commits (version, changelog, docs) via branch + PR into release branch, merge on green CI; never commit/push directly to default/release/long-lived branches
+      - Then `/ycc:releaser <version> --publish --confirm --ci --ci-yes`
+      - Notes from merged changes; call out breaking changes w/ migration steps (required for major)
+      - Only direct ref writes: the release tag + branches RELEASING.md says the release creates
+      - Never move/delete/recreate an existing tag, force-push, or hand-edit RELEASING.md (only release tooling or `/ycc:release-model`)
 
       ## Done When
 
-      - The release is published, its CI is green, and every expected artifact and checksum is attached
-      - You finish with a short report: version, tag, release URL, follow-up branches created, and anything left open for this release
+      - Release published, its CI green, every expected artifact + checksum attached
+      - Report: version, tag, release URL, follow-up branches created, anything left open

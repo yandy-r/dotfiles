@@ -28,45 +28,43 @@ matches:
                 - none
               default: Linear
     replace: |
-      /goal Initialize this project end-to-end with my standard tooling: agent docs, git conventions, GitHub templates and labels, lint/format, CI, a release model, and release CI.
+      /goal Init this project end to end w/ my standard tooling (steps below).
 
-      ## New or Existing
+      ## New or Existing (only add/update what's missing or stale)
 
-      The project may already be partly or fully set up. Detect that first; only add or update what is missing or stale:
-
-      - Survey before changing anything: toolchain, package manager, CLAUDE.md/AGENTS.md/.cursor/rules, .github/ (workflows, issue forms, PR template, labels), lint/format configs, git hooks, RELEASING.md, release workflows, tags, branches
-      - Prefer each skill's update/sync/audit mode; never clobber customized files (issue forms, PR template, .gitignore, workflows, commitlint). Merge in what's missing; show me the diff before overwriting
-      - Keep the existing language, framework, package manager, and conventions; migrate a tool only if it's broken or unsupported
+      - Survey first: toolchain, package manager, agent docs (CLAUDE.md/AGENTS.md/.cursor/rules), .github/, lint/format, git hooks, RELEASING.md, release workflows, tags, branches
+      - Prefer skills' update/sync/audit modes; never clobber customized files: merge gaps, show diff before overwriting
+      - Keep existing language, framework, package manager, conventions; migrate a tool only if broken/unsupported
 
       ## Steps
 
-      1. Survey, then post a short plan: what exists, what's missing, what each step will create or update. No commits yet? Push one `git commit --allow-empty` to the default branch as PR base. Then worktree/branch `chore/project-init` off it; every other commit goes there
-      2. Agent docs, git conventions, GitHub templates: `/ycc:init --templates --git` (existing: add `--update`). Yields CLAUDE.md, AGENTS.md, .cursor/rules, .gitignore, .gitmessage, Conventional Commits (commitlint where applicable), lefthook, issue forms, PR template, PR-title workflow, `.github/labels.md`
-      3. Labels: `gh label create` each label in `.github/labels.md` that's missing; never delete or rename labels
-      4. Lint/format with CI and hooks: `/ycc:formatters --ci --hooks --yes` (existing: add `--sync`). Then run lint and format once and fix findings in a separate commit
-      5. Release model: no RELEASING.md, run `/ycc:release-model` with model {{form.model}} ("auto": accept its recommendation); otherwise `/ycc:release-model --audit`, then `--upgrade` only if it finds gaps
-         - Tracker: {{form.tracker}}. With Linear, use the release-label tracker so issues carry a target release
-         - Under release-branches, create a `backport:X.Y` label per maintenance branch
-      6. Release CI: no release workflow, `/ycc:releaser --ci-config=generate --dry-run` (workflow only, no release); otherwise `/ycc:releaser --ci-config=audit` and fix what it reports
-      7. Agent hooks, if the language has rule-based hooks: `/ycc:hooks-workflow <language> --target=claude --dry-run`, then apply what fits
-      8. Hygiene, where missing: README (setup, test, lint, release commands), LICENSE (ask me which), Dependabot or Renovate for the project's ecosystems
-      9. Verify: lint, format check, type-check, build, tests; generated workflows are valid YAML and reference real jobs and scripts
-      10. Commit (Conventional Commits, grouped by concern) and open a PR with `/ycc:git-workflow --pr --ci --ci-yes`.
-      11. Squash merge on green CI, then clean up the branch
+      1. Post short plan from survey (exists/missing/per-step changes). No commits yet? Push one `git commit --allow-empty` to default branch as PR base. Then worktree/branch `chore/project-init` off it; all other commits go there
+      2. Agent docs, git, GitHub templates: `/ycc:init --templates --git` (existing: `--update`) → agent docs, .gitmessage, commitlint, lefthook, issue forms, PR template, PR-title workflow, `.github/labels.md`
+      3. Labels: `gh label create` each missing one in `.github/labels.md`
+      4. Lint/format w/ CI + hooks: `/ycc:formatters --ci --hooks --yes` (existing: `--sync`). Run lint + format once; fix findings in separate commit
+      5. Release model: no RELEASING.md? `/ycc:release-model` w/ model {{form.model}} ("auto": take recommendation); else `/ycc:release-model --audit`, `--upgrade` only on gaps
+         - Tracker: {{form.tracker}}. Linear → release-label tracker so issues carry target release
+         - release-branches → `backport:X.Y` label per maintenance branch
+      6. Release CI: no release workflow? `/ycc:releaser --ci-config=generate --dry-run` (workflow only); else `/ycc:releaser --ci-config=audit`, fix findings
+      7. Agent hooks (if language has rule-based hooks): `/ycc:hooks-workflow <language> --target=claude --dry-run`, apply what fits
+      8. Hygiene, where missing: README (setup, test, lint, release cmds), LICENSE (ask me which), Dependabot/Renovate for project ecosystems
+      9. Verify: lint, format check, type-check, build, tests; generated workflows valid YAML, reference real jobs/scripts
+      10. Commit (Conventional Commits, grouped by concern), PR: `/ycc:git-workflow --pr --ci --ci-yes`
+      11. Squash merge on green CI, clean up branch
 
-      ## Must Not Do
+      ## Never
 
-      - Never cut, tag, or publish a release without my release approval; release CI is generated or audited only
-      - Never edit RELEASING.md by hand, only via `/ycc:release-model`
-      - Never delete or rename existing labels, workflows, branches (except your own), or tags
-      - No direct commits or pushes to the default branch, release, or other long-lived branches (sole exception: step 1's empty commit); every change ships via branch + PR
-      - Never commit secrets; keep `.env*` out of git (encrypted dotenvx files excepted)
+      - Cut/tag/publish a release w/o my approval (release CI: generate/audit only)
+      - Edit RELEASING.md by hand (only `/ycc:release-model`)
+      - Delete/rename existing labels, workflows, branches (except yours), tags
+      - Direct commit/push to default/release/long-lived branches (except step 1's empty commit)
+      - Commit secrets; `.env*` stays out of git (encrypted dotenvx files excepted)
 
       ## Manual Follow-Ups
 
-      List what needs repo admin instead of doing it: branch protection/rulesets (required checks: lint, tests, PR title), secret scanning and push protection, enabling Codex code review for the repo, and secrets the release workflow needs.
+      List (don't do) what needs repo admin: branch protection/rulesets (required checks: lint, tests, PR title), secret scanning + push protection, Codex code review for repo, secrets release workflow needs.
 
       ## Done When
 
-      - Every step is created, updated, or confirmed current; lint, tests, and CI are green; the setup PR is merged
-      - Final report: per step, created / updated / current / skipped (and why), plus the manual follow-ups
+      - Every step created/updated/confirmed current; lint, tests, CI green; setup PR merged
+      - Report per step: created/updated/current/skipped (+ why), plus manual follow-ups
