@@ -30,6 +30,7 @@ Use repeated `--only` flags for multiple apps. Bare app names select their exact
 | Obsidian | Official rolling AppImage | Homebrew cask | Official rolling AppImage |
 | LocalSend | Upstream rolling AppImage | Homebrew cask | Upstream rolling AppImage |
 | T3 Code client | Official rolling AppImage | Official `t3-code` cask | Official rolling AppImage |
+| Orca | Official rolling AppImage (RPM skipped: Electron build-id conflicts) | Official `stablyai/orca/orca` tap cask | AUR `stably-orca-bin` (named by upstream) |
 | Discord | Official rolling tarball | Homebrew cask | Official rolling tarball |
 | Google Chrome | Google repo | Homebrew cask | AUR |
 | VS Code Insiders (`code-insiders`) | Microsoft repo | Homebrew cask | AUR |
@@ -41,7 +42,7 @@ Use repeated `--only` flags for multiple apps. Bare app names select their exact
 | WinBoat | Upstream rolling RPM (unsigned) | Not supported | AUR |
 | WhatsApp | Excluded | Official cask (`whatsapp-macos`) | Excluded |
 
-On Linux arm64 (for example Fedora Asahi Remix), ChatGPT and Google Chrome use the same vendor repos (arch-templated), and Zed Preview, LM Studio, Obsidian, non-Debian T3 Code, Beekeeper Studio and Teams for Linux use `-arm64` sibling entries pointing at upstream's arm64/aarch64 build (Debian-family T3 Code uses the shared `.deb` route, which picks the host-arch package). The remaining apt/dnf and artifact routes are gated to `x86_64` and are not-applicable there: 1Password (the arm64 vendor repos carry only the CLI), LocalSend (upstream ships an arm64 `.tar.gz` and `.deb` but no arm64 AppImage, and the manifest has no arm64 entry), Discord, Slack, Zoom and WinBoat.
+On Linux arm64 (for example Fedora Asahi Remix), ChatGPT and Google Chrome use the same vendor repos (arch-templated), and Zed Preview, LM Studio, Obsidian, non-Debian T3 Code, Beekeeper Studio and Teams for Linux use `-arm64` sibling entries pointing at upstream's arm64/aarch64 build (Debian-family T3 Code uses the shared `.deb` route, which picks the host-arch package). Orca's Debian-family `.deb` route uses one glob that picks the host-arch package; its AppImage route needs the `orca-arm64` sibling. The remaining apt/dnf and artifact routes are gated to `x86_64` and are not-applicable there: 1Password (the arm64 vendor repos carry only the CLI), LocalSend (upstream ships an arm64 `.tar.gz` and `.deb` but no arm64 AppImage, and the manifest has no arm64 entry), Discord, Slack, Zoom and WinBoat.
 
 Obsidian's arm64 AppImage runtime links the unversioned `libz.so`, which Fedora and Debian ship only in their zlib development package (Arch's `zlib` includes it). `obsidian-arm64` therefore requires `appimage-libz` (`zlib-ng-compat-devel` on Fedora, `zlib1g-dev` on Debian, `zlib` on Arch). Without it the AppImage exits with `libz.so: cannot open shared object file` before Electron starts.
 
@@ -136,11 +137,83 @@ and the checksums come from the same release origin. dotf does not enable a serv
 does not support dotf's `--update`/`--remove`, so use `t3 update --yes` or
 `--force` as above. Keep `~/.local/bin` on `PATH` so dotf can detect `t3`.
 
+## Orca
+
+[Orca](https://github.com/stablyai/orca) (parallel coding-agent IDE) follows the
+T3 Code split: the desktop client is in both the `desktop` and `ai` intents, and
+the headless server is a separate `ai`-only package.
+
+```bash
+dotf install --only orca                 # desktop client, one route per host
+dotf install --only orca-server          # headless server (Linux only)
+dotf install --update --only orca --only orca-server
+dotf install --remove --only orca --only orca-server
+```
+
+`orca` selects exactly one route per host (stable releases, Linux `x86_64` and
+`arm64`):
+
+- **Debian family:** the official rolling `.deb` (`orca-debian`, package
+  `orca-ide`), which ships its own launcher. One `orca-ide_*.deb` glob picks the
+  host-arch asset, verified against GitHub's SHA256 digest.
+- **Arch:** the AUR `stably-orca-bin` package (`orca-arch`), the route upstream's
+  README names.
+- **Other Linux (Fedora, openSUSE, ...):** the official rolling AppImage (`orca` /
+  `orca-arm64`; upstream's x64 AppImage name has no arch token, so arm64 needs
+  its own sibling) with a dotf-generated launcher. It uses the official icon,
+  `Exec ... %U`, registers the `orca` URL scheme (`x-scheme-handler/orca`) and
+  sets `StartupWMClass=orca`. It does not take over Markdown/CSV files the way the
+  vendor `.desktop` does. It requires `appimage-runtime`.
+
+  Upstream also publishes an `.rpm`, but dotf deliberately does not use it.
+  electron-builder RPMs built on the same Electron release ship a byte-identical
+  `chrome-sandbox`, so each RPM's `/usr/lib/.build-id/...` link claims the same
+  path, and rpm aborts the transaction. On Fedora that happened with `grok-bot`
+  installed (`file /usr/lib/.build-id/5c/... conflicts with file from package
+  grok-bot`). Only `--replacefiles` would get past it, and that breaks file
+  ownership.
+- **macOS:** the official `stablyai/orca/orca` tap cask. Homebrew taps it
+  automatically. The bare `orca` cask is Plotly's and is unrelated.
+
+On Linux the CLI is `orca-ide`, not `orca`, because GNOME's screen reader owns
+`/usr/bin/orca`. The `.deb` (and AUR) builds do not update themselves
+(Orca offers a copy-paste install command), so update them with
+`dotf install --update --only orca`. The AppImage updates itself in place. dotf
+stores it as `orca.AppImage`, so the launcher stays valid either way.
+
+`orca-server` (opt-in `ai` intent; no desktop session needed; Linux `x86_64` and
+`arm64`) is the official server-only build: orcad, its bundled Node runtime and
+the `orca-ide` CLI, without GTK/X11 dependencies. `bin/install-orca-server.sh`
+(a `custom-script`, because the tarball is a full runtime tree that no native
+backend installs) does the following:
+
+- Downloads `orca-server-linux-<x64|arm64>.tar.gz` and
+  `orca-server-sha256sums.txt` from the latest release. Set
+  `ORCA_SERVER_VERSION=<x.y.z>` to pin a release.
+- Verifies the tarball against that sidecar and fails closed. It also
+  cross-checks GitHub's asset digest when it can read it.
+- Installs into `$XDG_DATA_HOME/orca-server` (default
+  `~/.local/share/orca-server`), staging the new tree before swapping it in.
+- Links `~/.local/bin/orca-server` to it. It deliberately does **not** create an
+  `orca-ide` link, so the server never shadows a desktop install's
+  `/usr/bin/orca-ide`.
+
+`--update` installs the latest release only when it is newer than the installed
+one. Restart a running server afterwards. `--remove` deletes the install and the
+symlink and leaves Orca settings/data alone. dotf does not enable a service. To
+start the server:
+
+```bash
+orca-server serve --pairing-address <tailscale-ip-or-hostname>
+# Optional: let Orca install its own service unit
+orca-server serve service install --command ~/.local/share/orca-server/bin/orca-ide
+```
+
 ## Native artifact installs
 
 `app-artifact` installs Linux AppImages/tarballs under `$XDG_DATA_HOME/dotf/apps/<name>` (default `~/.local/share/dotf/apps`) and writes a dotf-owned desktop entry. No root is needed. Updates download and verify a new copy before replacing the old one. Removal touches dotf-owned paths only. AppImage entries require `appimage-runtime`, so `--only` also installs FUSE 2 support. Do not assume every app's internal updater replaces its full runtime: use `dotf install --update --only <app>`. Zed's own updater remains enabled; a later `dotf install --update --only zed-preview` replaces it with the latest upstream preview release.
 
-The GitHub-hosted artifacts (Zed Preview, Obsidian, LocalSend, T3 Code, Teams for Linux, Beekeeper Studio and WinBoat) are `class = "rolling"` with no `tag`: every install or update resolves the latest GitHub release (the newest prerelease for Zed Preview) and verifies the download against the SHA256 digest GitHub reports for that asset. That digest provides integrity, not a vendor signing identity, and no version is pinned in the manifest. Rolling LM Studio and Discord downloads trust vendor HTTPS and have no published SHA256.
+The GitHub-hosted artifacts (Zed Preview, Obsidian, LocalSend, T3 Code, Orca, Teams for Linux, Beekeeper Studio and WinBoat) are `class = "rolling"` with no `tag`: every install or update resolves the latest GitHub release (the newest prerelease for Zed Preview) and verifies the download against the SHA256 digest GitHub reports for that asset. That digest provides integrity, not a vendor signing identity, and no version is pinned in the manifest. Rolling LM Studio and Discord downloads trust vendor HTTPS and have no published SHA256.
 
 `pkg-url` verifies RPM/DEB magic, package name and architecture before invoking the host package manager. Signed RPMs require a verified key fingerprint and a valid RPM signature. Upstream unsigned RPMs require explicit `allow_unsigned` metadata plus a checksum (a manifest `sha256`, or the GitHub asset digest on the rolling route); this exception is documented per package. Imported signing keys remain after uninstall because other packages may share them.
 
