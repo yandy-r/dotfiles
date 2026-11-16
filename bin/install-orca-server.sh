@@ -132,6 +132,39 @@ link_is_ours() {
     [[ -L "$LINK_PATH" ]] && [[ "$(readlink "$LINK_PATH")" == "$INSTALL_DIR/"* ]]
 }
 
+# ensure_link (re)creates the managed launcher. dotf probes it to decide whether
+# the package is installed, so an intact runtime with a missing link must be
+# repaired rather than reported as a no-op. A file this installer does not own
+# is left alone (warning only).
+ensure_link() {
+    [[ -x "$INSTALL_DIR/bin/orca-ide" ]] || return 0
+    if link_is_ours && [[ "$(readlink "$LINK_PATH")" == "$INSTALL_DIR/bin/orca-ide" ]]; then
+        return 0
+    fi
+    if [[ -e "$LINK_PATH" || -L "$LINK_PATH" ]] && ! link_is_ours; then
+        log_warning "$LINK_PATH exists and is not managed by this installer; leaving it alone"
+        return 0
+    fi
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log "DRY-RUN: Would link $LINK_PATH -> $INSTALL_DIR/bin/orca-ide"
+        return 0
+    fi
+    mkdir -p "$BIN_DIR" || error_exit "failed to create $BIN_DIR"
+    ln -sfn "$INSTALL_DIR/bin/orca-ide" "$LINK_PATH" || error_exit "failed to link $LINK_PATH"
+    log "Linked $LINK_PATH -> $INSTALL_DIR/bin/orca-ide"
+}
+
+# acquire_lock serializes install/update/uninstall for one INSTALL_DIR: they
+# share the .orca-server.new/.old staging paths. The lock fd is released when
+# the process exits.
+acquire_lock() {
+    [[ "$DRY_RUN" == "true" ]] && return 0
+    mkdir -p "$DATA_HOME" || error_exit "failed to create $DATA_HOME"
+    command -v flock >/dev/null 2>&1 || error_exit "required command not found: flock (util-linux)"
+    exec 9>"$DATA_HOME/.orca-server.lock" || error_exit "failed to open the install lock"
+    flock -w 600 9 || error_exit "another orca-server install is still running (lock: $DATA_HOME/.orca-server.lock)"
+}
+
 install_server() {
     local version="$1"
     local arch asset base
@@ -198,11 +231,7 @@ install_server() {
     fi
     rm -rf -- "$old"
 
-    if [[ -e "$LINK_PATH" || -L "$LINK_PATH" ]] && ! link_is_ours; then
-        log_warning "$LINK_PATH exists and is not managed by this installer; leaving it alone"
-    else
-        ln -sfn "$INSTALL_DIR/bin/orca-ide" "$LINK_PATH"
-    fi
+    ensure_link
 
     log_success "Orca server v${version} installed to $INSTALL_DIR"
     log "Start it with: orca-server serve --pairing-address <tailscale-ip-or-hostname>"
@@ -261,11 +290,14 @@ main() {
         error_exit "the Orca server-only build is Linux-only; on macOS run 'orca serve' from the desktop app"
     fi
 
+    acquire_lock
+
     local current target
     case "$action" in
         install)
             current="$(installed_version)"
             if [[ -n "$current" && -x "$INSTALL_DIR/bin/orca-ide" ]]; then
+                ensure_link
                 log "Orca server v${current} already installed at $INSTALL_DIR (use --update to refresh)"
                 return 0
             fi
@@ -275,6 +307,7 @@ main() {
             current="$(installed_version)"
             target="$(resolve_version)"
             if [[ -n "$current" && "$current" == "$target" && -x "$INSTALL_DIR/bin/orca-ide" ]]; then
+                ensure_link
                 log_success "Orca server v${current} is already the requested release"
                 return 0
             fi
