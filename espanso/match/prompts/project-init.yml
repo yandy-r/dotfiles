@@ -64,7 +64,7 @@ matches:
 
       ## Manual Follow-Ups
 
-      List what needs repo admin instead of doing it: branch protection/rulesets (required checks: lint, tests, PR title), secret scanning and push protection, the CodeRabbit app, and secrets the release workflow needs.
+      List what needs repo admin instead of doing it: branch protection/rulesets (required checks: lint, tests, PR title), secret scanning and push protection, enabling Codex code review for the repo, and secrets the release workflow needs.
 
       ## Done When
 

@@ -41,7 +41,7 @@ Canceled with a reason.
 - `auto` (default) works in any repo with nothing to maintain: the agent uses
   the `itcn` workspace and finds the team (`itcn` or `yandy-r`) and projects
   from `RELEASING.md`/`AGENTS.md` or the repo name, and reports which ones it
-  used. Secrets and CodeRabbit rules are phrased conditionally ("if present").
+  used. Secrets and Codex review rules are phrased conditionally ("if present").
 - A named profile (`scripts/profiles/<name>.conf`) pins those names for repos
   where they can't be inferred (shared teams, pooled projects). Profile
   values are hints: if a project or label was renamed, the agent uses the

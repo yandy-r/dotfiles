@@ -23,7 +23,7 @@ the repo can't say for itself.
 | `POOL`             | Pool for "any open X project" (all tasks)                    |
 | `BUGS_PROJECT`     | Linear project for task `bugs`                               |
 | `FEATURES_PROJECT` | Linear project for task `features`                           |
-| `CODERABBIT`       | `yes`, `no`, or `auto` (rules apply "if present")            |
+| `CODEX`            | `yes`, `no`, or `auto` (Codex review rules "if present")     |
 | `SECRETS`          | `op`, `dotenvx`, `none`, or `auto` (detect from repo files)  |
 | `SECRETS_FILES`    | dotenvx files to use (`.env.encrypted.*`)                    |
 

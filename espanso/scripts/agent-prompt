@@ -40,7 +40,7 @@ RELEASE_LABEL=""
 POOL=""
 BUGS_PROJECT=""
 FEATURES_PROJECT=""
-CODERABBIT="auto"
+CODEX="auto"
 SECRETS="auto"
 SECRETS_FILES=""
 
@@ -89,10 +89,11 @@ load_profile() {
     value="${value#\"}"
     value="${value%\"}"
     case "$key" in
-    NAME | WORKSPACE | TEAM | ISSUE_PREFIX | RELEASE_LABEL | POOL | BUGS_PROJECT | FEATURES_PROJECT | CODERABBIT | SECRETS | SECRETS_FILES)
+    NAME | WORKSPACE | TEAM | ISSUE_PREFIX | RELEASE_LABEL | POOL | BUGS_PROJECT | FEATURES_PROJECT | CODEX | SECRETS | SECRETS_FILES)
       printf -v "$key" '%s' "$value"
       ;;
     PROJECT) die "$file: PROJECT was renamed to POOL" ;;
+    CODERABBIT) die "$file: CODERABBIT was replaced by CODEX" ;;
     *) die "$file: unknown key '$key'" ;;
     esac
   done <"$file"
@@ -308,11 +309,11 @@ EOF
     "${ISSUE_PREFIX:-<TEAM>}" "$(hint "/ycc:git-workflow --pr --ci --ci-yes")"
   printf '8. Review the PR, fix all findings%s\n' \
     "$(hint "/ycc:code-review --parallel <pr#>" "/ycc:pr-autofix <pr#> --parallel --severity low --yes --ci --ci-yes")"
-  case "$CODERABBIT" in
-  yes) printf '   - CodeRabbit: first turn only; ignore later turns once CI is green; skip if rate limited\n' ;;
-  auto | "") printf '   - CodeRabbit (if present): first turn only; ignore later turns once CI is green; skip if rate limited\n' ;;
+  case "$CODEX" in
+  yes) printf '   - Codex review: fix valid comments, reply to the rest, then one `@codex review`; skip if usage limited\n' ;;
+  auto | "") printf '   - Codex review (if present): fix valid comments, reply to the rest, then one `@codex review`; skip if usage limited\n' ;;
   no) ;;
-  *) die "profile '$PROFILE': invalid CODERABBIT '$CODERABBIT' (expected yes, no, or auto)" ;;
+  *) die "profile '$PROFILE': invalid CODEX '$CODEX' (expected yes, no, or auto)" ;;
   esac
   cat <<'EOF'
 9. Squash merge on green CI. Unrelated CI failure: rerun once, fix if small, else stop and report; never mask it

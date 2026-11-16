@@ -41,7 +41,7 @@ matches:
       3. Research and plan, scaled to size: `/ycc:feature-research`, `/ycc:prp-plan --parallel --enhanced --no-worktree`. Favor security, data integrity, stability; log decisions in the PR
       4. Implement: `/ycc:prp-implement --parallel --no-worktree`. A bug fix starts with a failing regression test; unfinished user-reachable work stays behind a RELEASING.md switch (off)
       5. Verify (lint, type-check, build, tests for the change); adversarial review, fix findings: `/ycc:code-review --parallel`
-      6. PR (`Closes <TEAM>-N`, `Closes #N`, template, labels): `/ycc:git-workflow --pr --ci --ci-yes`, then `/ycc:pr-autofix <pr#> --parallel --severity low --yes --ci --ci-yes`. CodeRabbit (if present): first turn only
+      6. PR (`Closes <TEAM>-N`, `Closes #N`, template, labels): `/ycc:git-workflow --pr --ci --ci-yes`, then `/ycc:pr-autofix <pr#> --parallel --severity low --yes --ci --ci-yes`. Codex review (if present): fix valid comments, reply to the rest, then one `@codex review`
       7. Squash merge on green CI. Patch-line target? Label `backport:X.Y`, run `/ycc:backport <PR#> --ci`, merge it
       8. Remove the worktree and merged branches; close the Linear and GitHub issues
       9. Re-read the project (new or unblocked issues) before picking again
