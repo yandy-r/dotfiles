@@ -106,7 +106,7 @@ packages = ["mise", "rust", "lua"]
 [intents.ai]
 description = "AI coding assistants and CLIs"
 default = false
-packages = ["claude", "codex", "opencode", "omp", "fabric", "coderabbit", "playwright-cli", "github-mcp-server", "t3-code-server", "claude-desktop", "claude-desktop-macos", "claude-desktop-fedora"]
+packages = ["claude", "codex", "opencode", "omp", "fabric", "coderabbit", "playwright-cli", "github-mcp-server", "t3-code-server", "orca-server", "claude-desktop", "claude-desktop-macos", "claude-desktop-fedora", "orca", "orca-arm64", "orca-debian", "orca-arch", "orca-macos"]
 
 [intents.desktop]
 description = "Desktop GUI apps (terminals, editors, media, virt); skipped without a graphical session"
@@ -175,6 +175,11 @@ packages = [
     "t3-code-client-arm64",
     "t3-code-client-debian",
     "t3-code-client-macos",
+    "orca",
+    "orca-arm64",
+    "orca-debian",
+    "orca-arch",
+    "orca-macos",
     "discord",
     "discord-macos",
     "zed-preview",
@@ -1655,6 +1660,93 @@ url = "https://t3.codes/install.sh"
 provides = ["t3"]
 class = "rolling"
 justification = "official stable installer verifies release checksums and installs the full T3 runtime and t3 launcher"
+
+# Orca (stablyai/orca) desktop client — one logical tool, one route per host
+# (`dotf install --only orca` expands every sibling; the gates leave exactly one):
+#   - Debian family: the official rolling .deb (package `orca-ide`).
+#   - Arch: the AUR `stably-orca-bin` package upstream's README names.
+#   - Other Linux (Fedora, openSUSE, ...): the official rolling AppImage with a
+#     dotf-owned launcher. The official .rpm is NOT used: electron-builder RPMs
+#     on the same Electron release ship a byte-identical chrome-sandbox, so their
+#     /usr/lib/.build-id links collide and rpm refuses the transaction (seen
+#     against grok-bot). Upstream's x64 AppImage carries no arch token, so the
+#     arm64 build needs its own sibling with an explicit name.
+#   - macOS: the official `stablyai/orca/orca` tap cask (the bare `orca` cask
+#     is Plotly's, unrelated).
+# The Linux CLI is `orca-ide` (GNOME's screen reader owns `orca`).
+[[package]]
+name = "orca"
+requires = ["appimage-runtime"]
+arch = ["x86_64"]
+backend = "app-artifact"
+os = "linux"
+exclude_os = ["debian", "arch"]
+requires_desktop = true
+app = { icon = "https://raw.githubusercontent.com/stablyai/orca/v1.4.261/resources/icon.png", desktop_name = "Orca", categories = "Development;", exec_args = "%U", startup_wm_class = "orca", mime_type = "x-scheme-handler/orca;" }
+repo = "stablyai/orca"
+asset = "orca-linux.AppImage"
+class = "rolling"
+
+[[package]]
+# arm64 sibling of orca (selected by `--only orca`).
+name = "orca-arm64"
+requires = ["appimage-runtime"]
+arch = ["arm64"]
+backend = "app-artifact"
+os = "linux"
+exclude_os = ["debian", "arch"]
+requires_desktop = true
+app = { icon = "https://raw.githubusercontent.com/stablyai/orca/v1.4.261/resources/icon.png", desktop_name = "Orca", categories = "Development;", exec_args = "%U", startup_wm_class = "orca", mime_type = "x-scheme-handler/orca;" }
+repo = "stablyai/orca"
+asset = "orca-linux-arm64.AppImage"
+class = "rolling"
+
+[[package]]
+name = "orca-debian"
+arch = ["x86_64", "arm64"]
+backend = "pkg-url"
+os = "debian"
+requires_desktop = true
+repo = "stablyai/orca"
+asset = "orca-ide_*.deb"
+format = "deb"
+pkg_name = "orca-ide"
+class = "rolling"
+
+[[package]]
+name = "orca-arch"
+backend = "aur"
+os = "arch"
+requires_desktop = true
+names = { pacman = "stably-orca-bin" }
+
+[[package]]
+name = "orca-macos"
+backend = "pkg"
+os = "macos"
+requires_desktop = true
+names = { homebrew = "stablyai/orca/orca" }
+
+# Orca server-only build (headless `orca-ide serve`): orcad + its bundled Node
+# runtime + the orca-ide CLI, published per release as a Linux x64/arm64 tarball
+# with an orca-server-sha256sums.txt sidecar. github-release cannot express it
+# (it installs a single binary; this is a full runtime tree) and there is no
+# vendor install script for script-url. The installer verifies the sidecar
+# (fail closed) and GitHub's digest, installs into ~/.local/share/orca-server and
+# links ~/.local/bin/orca-server — never `orca-ide`, so it cannot shadow the
+# desktop package's /usr/bin/orca-ide. No service is enabled; run
+# `orca-server serve service install --command ~/.local/share/orca-server/bin/orca-ide`
+# manually if wanted.
+[[package]]
+name = "orca-server"
+arch = ["x86_64", "arm64"]
+backend = "custom-script"
+os = "linux"
+script = "bin/install-orca-server.sh"
+installed_when = { path = "~/.local/bin/orca-server" }
+actions = ["update", "remove"]
+class = "rolling"
+justification = "official server-only tarball is a full runtime tree verified against the release sha256 sidecar; no vendor installer or single-binary asset exists"
 
 [[package]]
 name = "discord"
