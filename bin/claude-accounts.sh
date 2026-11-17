@@ -27,19 +27,74 @@
 #   claude-accounts.sh unlink apple       detach: replace links with copies
 #   claude-accounts.sh mcp --all          only sync MCP servers
 #   claude-accounts.sh run apple [args]   sync MCP, then run claude as that account
+#   claude-accounts.sh mcp --all -r mac,nas   ...here, then on each ssh host
+#
+# Account dirs live in ~/.config on Linux/*nix and in
+# ~/Library/Application Support/claude-accounts on macOS (see "platform").
 #
 # Run `claude-accounts.sh --help` for every option.
 # ================================================================
 
 set -euo pipefail
 
-SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
-readonly SCRIPT_NAME
+# BASH_SOURCE is empty when the script is streamed to a remote (`bash -s`).
+SCRIPT_PATH="${BASH_SOURCE[0]:-}"
+SCRIPT_NAME="$(basename "${SCRIPT_PATH:-claude-accounts.sh}")"
+readonly SCRIPT_PATH SCRIPT_NAME
+
+# ---------------------------------------------------------------- platform
+# Claude Code keeps ~/.claude and ~/.claude.json on every OS, so the main dir
+# never moves. Where the account dirs and backups live does:
+#   *nix   $XDG_CONFIG_HOME/claude-<name>, $XDG_STATE_HOME/claude-accounts
+#   macOS  ~/Library/Application Support/claude-accounts/claude-<name>
+#          (backups in .../claude-accounts/backups). Accounts already made
+#          under ~/.config on a Mac keep working: that root is used while it
+#          holds accounts and the macOS one does not.
+# CLAUDE_ACCOUNTS_OS (darwin|linux) overrides detection.
+
+detect_os() {
+    local s="${CLAUDE_ACCOUNTS_OS:-$(uname -s 2>/dev/null || true)}"
+    case "$s" in
+    [Dd]arwin | [Mm]ac[Oo][Ss]) printf 'darwin\n' ;;
+    *) printf 'unix\n' ;;
+    esac
+}
+OS="$(detect_os)"
+readonly OS
+
+PREFIX="${CLAUDE_ACCOUNTS_PREFIX:-claude-}"
+
+# has_accounts reports whether a dir holds at least one ${PREFIX}<name> dir.
+has_accounts() {
+    local d
+    for d in "$1/$PREFIX"*; do
+        [[ -d "$d" && ! -L "$d" && "${d##*/}" != "$PREFIX" ]] && return 0
+    done
+    return 1
+}
+
+if [[ "$OS" == darwin ]]; then
+    MAC_ROOT="$HOME/Library/Application Support/claude-accounts"
+    LEGACY_ROOT="${XDG_CONFIG_HOME:-$HOME/.config}"
+    DEFAULT_ROOT="$MAC_ROOT"
+    if ! has_accounts "$MAC_ROOT" && has_accounts "$LEGACY_ROOT"; then
+        DEFAULT_ROOT="$LEGACY_ROOT"
+    fi
+    DEFAULT_BACKUP="$MAC_ROOT/backups"
+else
+    DEFAULT_ROOT="${XDG_CONFIG_HOME:-$HOME/.config}"
+    DEFAULT_BACKUP="${XDG_STATE_HOME:-$HOME/.local/state}/claude-accounts"
+fi
 
 MAIN_DIR="${CLAUDE_MAIN_DIR:-$HOME/.claude}"
-ACCOUNTS_ROOT="${CLAUDE_ACCOUNTS_ROOT:-${XDG_CONFIG_HOME:-$HOME/.config}}"
-PREFIX="${CLAUDE_ACCOUNTS_PREFIX:-claude-}"
-BACKUP_ROOT="${CLAUDE_ACCOUNTS_BACKUP_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/claude-accounts}"
+ACCOUNTS_ROOT="${CLAUDE_ACCOUNTS_ROOT:-$DEFAULT_ROOT}"
+BACKUP_ROOT="${CLAUDE_ACCOUNTS_BACKUP_DIR:-$DEFAULT_BACKUP}"
+
+# Remote hosts (ssh destinations) to run the same command on. The script is
+# streamed over ssh, so each host detects its own OS and paths.
+REMOTES=()
+LOCAL=true
+SSH_CMD="${CLAUDE_ACCOUNTS_SSH:-ssh}"
 
 # Config shared by default: everything you set up once.
 CONFIG_ITEMS=(
@@ -175,11 +230,27 @@ Options (link):
   -n, --dry-run    Show what would change.
   -h, --help       Show this help.
 
+Remotes (link, unlink, status, mcp, list):
+  -r, --remote, --remotes HOST[,HOST...]
+                   Also run the same command on each ssh host. Repeat the
+                   flag or separate hosts with commas. The script is streamed
+                   over ssh (no checkout needed there); each host uses its own
+                   OS paths, main config and accounts. Needs bash (and jq for
+                   MCP sync) on the host.
+  --no-local       With --remote: skip this machine, only run on the remotes.
+
+Paths on this host ($OS): accounts in $ACCOUNTS_ROOT,
+backups in $BACKUP_ROOT.
+On Linux/*nix: \$XDG_CONFIG_HOME and \$XDG_STATE_HOME/claude-accounts.
+On macOS: ~/Library/Application Support/claude-accounts (and .../backups);
+existing accounts under ~/.config keep being used until moved.
+
 Anything replaced is moved to $BACKUP_ROOT/<name>-<timestamp>/ first.
 Close running sessions of an account before linking it.
 
 Environment: CLAUDE_MAIN_DIR, CLAUDE_ACCOUNTS_ROOT, CLAUDE_ACCOUNTS_PREFIX,
-CLAUDE_ACCOUNTS_BACKUP_DIR.
+CLAUDE_ACCOUNTS_BACKUP_DIR, CLAUDE_ACCOUNTS_OS (darwin|linux),
+CLAUDE_ACCOUNTS_SSH (ssh command for --remote, default: ssh).
 EOF
 }
 
@@ -210,6 +281,22 @@ main_json() {
     else
         printf '%s\n' "$MAIN_DIR/.claude.json"
     fi
+}
+
+# is_logged_in reports whether an account dir has a login. Linux keeps the
+# token in .credentials.json; macOS keeps it in the login Keychain under
+# "Claude Code-credentials-<first 8 hex of sha256(CLAUDE_CONFIG_DIR)>".
+is_logged_in() {
+    local acct="$1" hash
+    [[ -f "$acct/.credentials.json" ]] && return 0
+    jq -e '.oauthAccount' "$acct/.claude.json" >/dev/null 2>&1 && return 0
+    if [[ "$OS" == darwin ]] && command -v security >/dev/null 2>&1 &&
+        command -v shasum >/dev/null 2>&1; then
+        hash="$(printf '%s' "$acct" | shasum -a 256 | cut -c1-8)"
+        security find-generic-password -s "Claude Code-credentials-$hash" >/dev/null 2>&1 &&
+            return 0
+    fi
+    return 1
 }
 
 validate_name() {
@@ -381,13 +468,14 @@ link_item() {
 
 # ---------------------------------------------------------------- mcp
 
-# mcp_render prints the account's .claude.json with main's MCP config applied.
+# mcp_render SRC DST STATE prints DST (a .claude.json) with SRC's MCP config
+# applied; STATE holds the server names synced from SRC last time.
 mcp_render() {
-    local acct="$1" state="$1/$MCP_STATE" s='{}'
+    local src="$1" dst="$2" state="$3" s='{}'
     if [[ -s "$state" ]] && jq -e 'type == "object"' "$state" >/dev/null 2>&1; then
         s="$(<"$state")"
     fi
-    jq --slurpfile m "$(main_json)" --argjson s "$s" "$MCP_JQ" "$acct/.claude.json"
+    jq --slurpfile m "$src" --argjson s "$s" "$MCP_JQ" "$dst"
 }
 
 # mcp_skip_reason prints why an account cannot be synced (empty if it can).
@@ -409,19 +497,22 @@ mcp_skip_reason() {
 # fails: problems are reported and the account is left as it was. With quiet
 # (used by `run`) only problems are printed.
 sync_mcp() {
-    local acct="$1" quiet="${2:-false}"
-    local dst="$acct/.claude.json" state="$acct/$MCP_STATE"
-    local reason src
-    src="$(main_json)"
+    local acct="$1" quiet="${2:-false}" reason
     reason="$(mcp_skip_reason "$acct")"
     if [[ -n "$reason" ]]; then
         [[ "$quiet" == true ]] || log "  ${c_dim}skip   mcp ($reason)${c_off}"
         return 0
     fi
+    mcp_merge "$(main_json)" "$acct/.claude.json" "$acct/$MCP_STATE" "$quiet"
+}
 
+# mcp_merge SRC DST STATE [QUIET] writes SRC's MCP servers into DST and records
+# what was synced in STATE. Never fails (see sync_mcp).
+mcp_merge() {
+    local src="$1" dst="$2" state="$3" quiet="${4:-false}"
     local state_json counts tmp="$dst.claude-accounts.$$"
     if ! state_json="$(jq -c "$MCP_STATE_JQ" "$src" 2>/dev/null)" ||
-        ! mcp_render "$acct" >"$tmp" 2>/dev/null || [[ ! -s "$tmp" ]]; then
+        ! mcp_render "$src" "$dst" "$state" >"$tmp" 2>/dev/null || [[ ! -s "$tmp" ]]; then
         rm -f "$tmp"
         warn "mcp: could not parse $src or $dst; MCP sync skipped"
         return 0
@@ -461,7 +552,7 @@ mcp_state() {
     reason="$(mcp_skip_reason "$acct")"
     if [[ -n "$reason" ]]; then
         printf '%s-%s (%s)' "$c_dim" "$c_off" "$reason"
-    elif mcp_render "$acct" 2>/dev/null | jq -e --slurpfile a "$acct/.claude.json" '. == $a[0]' >/dev/null 2>&1; then
+    elif mcp_render "$(main_json)" "$acct/.claude.json" "$acct/$MCP_STATE" 2>/dev/null | jq -e --slurpfile a "$acct/.claude.json" '. == $a[0]' >/dev/null 2>&1; then
         printf '%sin sync%s' "$c_ok" "$c_off"
     else
         printf '%sout of sync%s (run: %s mcp %s)' "$c_warn" "$c_off" "$SCRIPT_NAME" "${acct##*/"$PREFIX"}"
@@ -481,7 +572,12 @@ cmd_mcp() {
 
 cmd_link() {
     local names=("$@") name acct item
-    [[ -d "$MAIN_DIR" ]] || die "main config dir not found: $MAIN_DIR"
+    if [[ ! -d "$MAIN_DIR" ]]; then
+        # A --remote dry run: the push that would create main was skipped.
+        [[ "$DRY_RUN" == true && -n "$UPSTREAM_HOME" ]] ||
+            die "main config dir not found: $MAIN_DIR"
+        log "  ${c_dim}main $MAIN_DIR does not exist yet (the push creates it)${c_off}"
+    fi
     for name in "${names[@]}"; do
         validate_name "$name"
         acct="$(account_dir "$name")"
@@ -500,7 +596,7 @@ cmd_link() {
         if [[ "$SYNC_MCP" == true ]]; then
             sync_mcp "$acct"
         fi
-        if [[ ! -f "$acct/.credentials.json" && ! -f "$acct/.claude.json" ]]; then
+        if ! is_logged_in "$acct"; then
             log "  ${c_warn}not logged in yet:${c_off} $SCRIPT_NAME run $name  (then /login)"
         fi
     done
@@ -570,7 +666,7 @@ cmd_list() {
     local name acct login
     while IFS= read -r name; do
         acct="$(account_dir "$name")"
-        if [[ -f "$acct/.credentials.json" ]] || jq -e '.oauthAccount' "$acct/.claude.json" >/dev/null 2>&1; then
+        if is_logged_in "$acct"; then
             login="logged in"
         else
             login="${c_warn}not logged in${c_off}"
@@ -593,10 +689,223 @@ cmd_run() {
     CLAUDE_CONFIG_DIR="$acct" exec claude "$@"
 }
 
+# ---------------------------------------------------------------- remote
+#
+# `--remote host` makes main on this machine the upstream of main on the host:
+#   1. push: the config items present here (symlinks copied as files) are
+#      rsynced into host:~/.claude, and the MCP servers of this main
+#      .claude.json are uploaded next to them;
+#   2. the script is streamed over ssh and run there with the same command
+#      plus --upstream-home: it rewrites this machine's $HOME in the pushed
+#      JSON (plugin install paths, hooks, local-scope MCP project dirs) to the
+#      host's $HOME, merges the uploaded MCP servers into the host's main
+#      .claude.json (same rules as accounts: upstream wins, host-only servers
+#      stay), then runs the command against the host's own accounts.
+# Session data is never pushed: its project dirs are keyed by absolute path,
+# which differs between machines.
+
+UPSTREAM_FILE=".claude-accounts-upstream.json"
+UPSTREAM_STATE=".claude-accounts-upstream-mcp.json"
+UPSTREAM_HOME=""
+
+# UPSTREAM_MCP_JQ keeps only the MCP part of a .claude.json (no login data).
+read -r -d '' UPSTREAM_MCP_JQ <<'JQ' || true
+{
+    mcpServers: (.mcpServers // {}),
+    projects: ((.projects // {})
+        | map_values({mcpServers, enabledMcpjsonServers, disabledMcpjsonServers}
+            | with_entries(select(.value != null and (.value | length) > 0)))
+        | with_entries(select(.value | length > 0)))
+}
+JQ
+
+# REWRITE_JQ swaps home prefix $f for $t in every string and object key.
+read -r -d '' REWRITE_JQ <<'JQ' || true
+def rw: if . == $f then $t else split($f + "/") | join($t + "/") end;
+def w: if type == "object" then with_entries((.key |= rw) | (.value |= w))
+       elif type == "array" then map(w)
+       elif type == "string" then rw
+       else . end;
+w
+JQ
+
+# add_remotes appends comma-separated hosts to REMOTES.
+add_remotes() {
+    local list="$1" host parts=()
+    [[ -n "$list" ]] || die "--remote needs a host" 2
+    IFS=, read -r -a parts <<<"$list"
+    for host in ${parts[@]+"${parts[@]}"}; do
+        host="${host#"${host%%[![:space:]]*}"}"
+        host="${host%"${host##*[![:space:]]}"}"
+        [[ -n "$host" ]] || continue
+        [[ "$host" != -* ]] || die "invalid remote: '$host'" 2
+        REMOTES+=("$host")
+    done
+}
+
+# rewrite_home FILE FROM TO rewrites a JSON file in place (keeps its mode)
+# when the rewrite changes anything.
+rewrite_home() {
+    local f="$1" from="$2" to="$3" tmp="$1.claude-accounts.$$"
+    if jq --arg f "$from" --arg t "$to" "$REWRITE_JQ" "$f" >"$tmp" 2>/dev/null &&
+        [[ -s "$tmp" ]]; then
+        if ! jq -e --slurpfile a "$f" '. == $a[0]' "$tmp" >/dev/null 2>&1; then
+            log "  paths  ${f#"$MAIN_DIR"/} ($from -> $to)"
+            cat "$tmp" >"$f"
+        fi
+    else
+        warn "could not rewrite paths in $f"
+    fi
+    rm -f "$tmp"
+}
+
+# apply_upstream runs on the remote (--upstream-home), after the push.
+apply_upstream() {
+    local cmd="$1" from="$UPSTREAM_HOME" to="$HOME" f="$MAIN_DIR/$UPSTREAM_FILE" j dst
+    log "${c_ok}==>${c_off} main ($MAIN_DIR) [from upstream, $OS]"
+    if ! command -v jq >/dev/null 2>&1; then
+        warn "jq not found on this host: pushed paths and MCP servers not applied"
+        rm -f "$f"
+        return 0
+    fi
+    if [[ "$DRY_RUN" == true ]]; then
+        printf '%s  [dry-run] rewrite %s -> %s, merge upstream MCP servers%s\n' \
+            "$c_dim" "$from" "$to" "$c_off"
+        return 0
+    fi
+    if [[ "$cmd" == link && "$from" != "$to" ]]; then
+        for j in "$MAIN_DIR/settings.json" "$MAIN_DIR/keybindings.json" "$MAIN_DIR"/plugins/*.json; do
+            [[ -f "$j" && ! -L "$j" ]] || continue
+            rewrite_home "$j" "$from" "$to"
+        done
+    fi
+    [[ -f "$f" ]] || return 0
+    [[ "$from" == "$to" ]] || rewrite_home "$f" "$from" "$to" >/dev/null
+    dst="$(main_json)"
+    if [[ ! -f "$dst" ]]; then
+        (umask 077 && printf '{}\n' >"$dst")
+    fi
+    mcp_merge "$f" "$dst" "$MAIN_DIR/$UPSTREAM_STATE"
+    rm -f "$f"
+}
+
+# push_remote HOST CMD copies main's config items (link) and MCP servers
+# (link, mcp) into HOST's main dir. Returns non-zero on a failed transfer.
+push_remote() {
+    local host="$1" cmd="$2" item items=() rc=0
+    # Create ~/.claude on the host first (real runs only).
+    local dry=(--rsync-path="mkdir -p .claude && rsync")
+    [[ "$DRY_RUN" == true ]] && dry=(--dry-run)
+    if [[ "$cmd" == link ]]; then
+        for item in "${CONFIG_ITEMS[@]}"; do
+            [[ -e "$MAIN_DIR/$item" ]] && items+=("$item")
+        done
+        if ((${#items[@]})); then
+            log "  push   ${items[*]} -> $host:~/.claude"
+            (cd "$MAIN_DIR" && rsync -a --copy-links --keep-dirlinks "${dry[@]}" \
+                -e "$SSH_CMD" -- "${items[@]}" "$host:.claude/") || rc=$?
+            # 23/24: partial transfer (e.g. a dangling link); keep going.
+            if ((rc == 23 || rc == 24)); then
+                warn "$host: some files were not transferred (rsync exit $rc)"
+                rc=0
+            fi
+            ((rc == 0)) || return "$rc"
+        fi
+    fi
+    [[ "$SYNC_MCP" == true ]] || return 0
+    local src tmp
+    src="$(main_json)"
+    if [[ ! -f "$src" ]] || ! command -v jq >/dev/null 2>&1; then
+        log "  ${c_dim}skip   mcp push (no $src or no jq)${c_off}"
+        return 0
+    fi
+    log "  push   mcp servers -> $host:~/.claude/$UPSTREAM_FILE"
+    [[ "$DRY_RUN" == true ]] && return 0
+    tmp="$(mktemp "${TMPDIR:-/tmp}/claude-accounts.XXXXXX")"
+    chmod 600 "$tmp"
+    if ! jq "$UPSTREAM_MCP_JQ" "$src" >"$tmp" 2>/dev/null; then
+        rm -f "$tmp"
+        warn "mcp: could not parse $src; MCP push skipped"
+        return 0
+    fi
+    rsync -a --rsync-path="mkdir -p .claude && rsync" -e "$SSH_CMD" -- "$tmp" "$host:.claude/$UPSTREAM_FILE" || rc=$?
+    rm -f "$tmp"
+    return "$rc"
+}
+
+# remote_exec HOST ARGS... streams this script to HOST and runs it there. A
+# non-interactive ssh shell often lacks Homebrew/linuxbrew on PATH (and macOS
+# /bin/bash is 3.2), so the usual locations are put first.
+remote_exec() {
+    local host="$1" q="" a ssh=()
+    shift
+    for a in "$@"; do q+=" $(printf '%q' "$a")"; done
+    read -r -a ssh <<<"$SSH_CMD"
+    "${ssh[@]}" "$host" "env PATH=\"\$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:\$PATH\" bash -s --$q" <"$SCRIPT_PATH"
+}
+
+run_remotes() {
+    local cmd="$1" host failed=() rc
+    shift
+    for host in "${REMOTES[@]}"; do
+        log ""
+        log "${c_ok}##${c_off} remote $host"
+        rc=0
+        if [[ "$cmd" == link || "$cmd" == mcp ]]; then
+            if push_remote "$host" "$cmd"; then
+                remote_exec "$host" --upstream-home "$HOME" "$@" || rc=$?
+            else
+                rc=$?
+                warn "$host: push failed (exit $rc); not running $cmd there"
+            fi
+        else
+            remote_exec "$host" "$@" || rc=$?
+        fi
+        ((rc == 0)) || failed+=("$host")
+    done
+    if ((${#failed[@]})); then
+        warn "failed on: ${failed[*]}"
+        return 1
+    fi
+}
+
 # ---------------------------------------------------------------- main
 
+# dispatch runs one command against this machine's accounts.
+dispatch() {
+    local cmd="$1"
+    shift
+    local args=("$@")
+    case "$cmd" in
+    link | unlink | status | mcp)
+        if [[ "$ALL" == true || (${#args[@]} -eq 0 && "$cmd" == status) ]]; then
+            args=()
+            local n
+            while IFS= read -r n; do args+=("$n"); done < <(all_accounts)
+            if ((${#args[@]} == 0)); then
+                if [[ "$cmd" == link || "$cmd" == mcp ]] && [[ -n "$UPSTREAM_HOME" ]]; then
+                    log "  ${c_dim}no ${PREFIX}* dirs under $ACCOUNTS_ROOT${c_off}"
+                    return 0
+                fi
+                ((${#REMOTES[@]} == 0)) || {
+                    warn "no ${PREFIX}* dirs under $ACCOUNTS_ROOT"
+                    return 0
+                }
+                die "no ${PREFIX}* dirs under $ACCOUNTS_ROOT"
+            fi
+        elif ((${#args[@]} == 0)); then
+            die "usage: $SCRIPT_NAME $cmd <name...>|--all" 2
+        fi
+        "cmd_$cmd" "${args[@]}"
+        ;;
+    list) cmd_list ;;
+    run) cmd_run ${args[@]+"${args[@]}"} ;;
+    *) die "unknown command: $cmd (see --help)" 2 ;;
+    esac
+}
+
 main() {
-    local cmd="" args=()
+    local cmd="" args=() fwd=()
     while (($#)); do
         # After `run <name>` everything belongs to claude, even our own flags.
         if [[ "$cmd" == run && ${#args[@]} -ge 1 ]]; then
@@ -607,6 +916,33 @@ main() {
         -h | --help)
             usage
             return 0
+            ;;
+        -r | --remote | --remotes)
+            (($# >= 2)) || die "$1 needs a host" 2
+            add_remotes "$2"
+            shift 2
+            continue
+            ;;
+        --remote=* | --remotes=*)
+            add_remotes "${1#*=}"
+            shift
+            continue
+            ;;
+        -r?*)
+            add_remotes "${1#-r}"
+            shift
+            continue
+            ;;
+        --no-local)
+            LOCAL=false
+            shift
+            continue
+            ;;
+        --upstream-home) # internal: set by --remote on the far side
+            (($# >= 2)) || die "$1 needs a path" 2
+            UPSTREAM_HOME="$2"
+            shift 2
+            continue
             ;;
         --copy) MODE="copy" ;;
         --link) MODE="link" ;;
@@ -620,6 +956,7 @@ main() {
         --)
             shift
             args+=("$@")
+            fwd+=(-- "$@")
             break
             ;;
         -*)
@@ -638,29 +975,37 @@ main() {
             fi
             ;;
         esac
+        fwd+=("$1")
         shift
     done
 
-    case "$cmd" in
-    link | unlink | status | mcp)
-        if [[ "$ALL" == true || ( ${#args[@]} -eq 0 && "$cmd" == status ) ]]; then
-            args=()
-            local n
-            while IFS= read -r n; do args+=("$n"); done < <(all_accounts)
-            ((${#args[@]})) || die "no ${PREFIX}* dirs under $ACCOUNTS_ROOT"
-        elif ((${#args[@]} == 0)); then
-            die "usage: $SCRIPT_NAME $cmd <name...>|--all" 2
-        fi
-        "cmd_$cmd" "${args[@]}"
-        ;;
-    list) cmd_list ;;
-    run) cmd_run "${args[@]}" ;;
-    "")
+    if [[ -z "$cmd" ]]; then
         usage
         return 2
-        ;;
+    fi
+
+    if ((${#REMOTES[@]} == 0)); then
+        [[ "$LOCAL" == true ]] || die "--no-local needs --remote <host>" 2
+        [[ -z "$UPSTREAM_HOME" ]] || apply_upstream "$cmd"
+        dispatch "$cmd" ${args[@]+"${args[@]}"}
+        return
+    fi
+
+    case "$cmd" in
+    link | unlink | status | mcp | list) ;;
+    run) die "--remote does not work with run (it starts claude here)" 2 ;;
     *) die "unknown command: $cmd (see --help)" 2 ;;
     esac
+    [[ -n "$SCRIPT_PATH" && -f "$SCRIPT_PATH" ]] ||
+        die "--remote needs the script as a file (streamed to the host over ssh)"
+    if [[ "$cmd" == link || "$cmd" == mcp ]]; then
+        command -v rsync >/dev/null 2>&1 || die "--remote needs rsync (here and on the host)"
+    fi
+
+    if [[ "$LOCAL" == true ]]; then
+        dispatch "$cmd" ${args[@]+"${args[@]}"}
+    fi
+    run_remotes "$cmd" "${fwd[@]}"
 }
 
 main "$@"

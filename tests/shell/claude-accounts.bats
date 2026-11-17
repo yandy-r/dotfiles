@@ -156,3 +156,138 @@ make_account() {
 	[ "$status" -eq 0 ]
 	[ "$output" = "dir=$ACCT args=--resume -c" ]
 }
+
+# --------------------------------------------------------------- platform
+
+@test "macOS puts accounts and backups under Application Support" {
+	unset CLAUDE_ACCOUNTS_ROOT CLAUDE_ACCOUNTS_BACKUP_DIR XDG_CONFIG_HOME XDG_STATE_HOME
+	local root="$HOME/Library/Application Support/claude-accounts"
+	CLAUDE_ACCOUNTS_OS=Darwin run "$SCRIPT" link mac
+	[ "$status" -eq 0 ]
+	[ "$(readlink "$root/claude-mac/settings.json")" = "$MAIN/settings.json" ]
+	CLAUDE_ACCOUNTS_OS=Darwin run "$SCRIPT" list
+	[[ "$output" == *"$root/claude-mac"* ]]
+	CLAUDE_ACCOUNTS_OS=Darwin run "$SCRIPT" --help
+	[[ "$output" == *"backups in $root/backups"* ]]
+}
+
+@test "macOS keeps using accounts that already live in ~/.config" {
+	unset CLAUDE_ACCOUNTS_ROOT XDG_CONFIG_HOME
+	make_account
+	CLAUDE_ACCOUNTS_OS=Darwin run "$SCRIPT" link --all
+	[ "$status" -eq 0 ]
+	[ -L "$ACCT/settings.json" ]
+	[ ! -e "$HOME/Library/Application Support/claude-accounts/claude-work" ]
+}
+
+@test "Linux defaults to XDG dirs" {
+	unset CLAUDE_ACCOUNTS_ROOT CLAUDE_ACCOUNTS_BACKUP_DIR XDG_CONFIG_HOME XDG_STATE_HOME
+	CLAUDE_ACCOUNTS_OS=Linux run "$SCRIPT" --help
+	[[ "$output" == *"accounts in $HOME/.config,"* ]]
+	[[ "$output" == *"backups in $HOME/.local/state/claude-accounts."* ]]
+}
+
+# --------------------------------------------------------------- remotes
+
+# fake_ssh installs an ssh stand-in: host H runs locally with HOME set to
+# $BATS_TEST_TMPDIR/remote-H, a clean environment and the given OS.
+fake_ssh() {
+	mkdir -p "$BATS_TEST_TMPDIR/bin"
+	cat >"$BATS_TEST_TMPDIR/bin/fake-ssh" <<-'SH'
+		#!/usr/bin/env bash
+		host="$1"; shift
+		echo "$host" >>"$FAKE_SSH_LOG"
+		export HOME="$FAKE_SSH_ROOT/remote-$host"
+		mkdir -p "$HOME" && cd "$HOME" || exit 255
+		unset CLAUDE_MAIN_DIR CLAUDE_ACCOUNTS_ROOT CLAUDE_ACCOUNTS_BACKUP_DIR XDG_CONFIG_HOME XDG_STATE_HOME
+		export CLAUDE_ACCOUNTS_OS="${FAKE_SSH_OS:-Linux}"
+		exec bash -c "$*"
+	SH
+	chmod +x "$BATS_TEST_TMPDIR/bin/fake-ssh"
+	export CLAUDE_ACCOUNTS_SSH="$BATS_TEST_TMPDIR/bin/fake-ssh"
+	export FAKE_SSH_ROOT="$BATS_TEST_TMPDIR" FAKE_SSH_LOG="$BATS_TEST_TMPDIR/ssh.log"
+}
+
+# local main with a symlinked item, home-absolute plugin paths and MCP servers
+seed_upstream() {
+	echo agents-rules >"$BATS_TEST_TMPDIR/AGENTS.src"
+	ln -s "$BATS_TEST_TMPDIR/AGENTS.src" "$MAIN/AGENTS.md"
+	printf '{"m":{"installLocation":"%s/.claude/plugins/marketplaces/m"}}\n' "$HOME" \
+		>"$MAIN/plugins/known_marketplaces.json"
+	jq -n --arg h "$HOME" '{
+		oauthAccount: {emailAddress: "local@x"},
+		mcpServers: {gh: {command: "gh-mcp"}},
+		projects: {($h + "/proj"): {mcpServers: {db: {command: "db-mcp"}}, allowedTools: ["x"]}}
+	}' >"$HOME/.claude.json"
+}
+
+@test "--remote pushes main to each host's main, then links the host's accounts" {
+	fake_ssh
+	seed_upstream
+	local r="$BATS_TEST_TMPDIR/remote-mac"
+	local racct="$r/Library/Application Support/claude-accounts/claude-iot"
+	mkdir -p "$racct" "$r/.claude"
+	echo '{"oauthAccount":{"emailAddress":"remote@x"},"mcpServers":{"own":{"command":"o"}}}' >"$r/.claude.json"
+	echo '{"oauthAccount":{"emailAddress":"iot@x"}}' >"$racct/.claude.json"
+
+	FAKE_SSH_OS=Darwin run "$SCRIPT" link --all -r mac,nas --remote box
+	[ "$status" -eq 0 ]
+	[ "$(cat "$FAKE_SSH_LOG" | sort -u | tr '\n' ' ')" = "box mac nas " ]
+
+	# step 1: remote main updated; symlinks arrive as files; home rewritten
+	[ "$(cat "$r/.claude/settings.json")" = '{"main":true}' ]
+	[ -f "$r/.claude/AGENTS.md" ] && [ ! -L "$r/.claude/AGENTS.md" ]
+	[ "$(jq -r .m.installLocation "$r/.claude/plugins/known_marketplaces.json")" = "$r/.claude/plugins/marketplaces/m" ]
+	# no sessions pushed
+	[ ! -e "$r/.claude/projects/-p/s1.jsonl" ]
+	# MCP merged into remote main: upstream servers in, host-only kept, login untouched
+	[ "$(jq -r .mcpServers.gh.command "$r/.claude.json")" = gh-mcp ]
+	[ "$(jq -r .mcpServers.own.command "$r/.claude.json")" = o ]
+	[ "$(jq -r .oauthAccount.emailAddress "$r/.claude.json")" = remote@x ]
+	[ "$(jq -r --arg p "$r/proj" '.projects[$p].mcpServers.db.command' "$r/.claude.json")" = db-mcp ]
+	[ "$(jq -r --arg p "$r/proj" '.projects[$p].allowedTools' "$r/.claude.json")" = null ]
+	[ ! -e "$r/.claude/.claude-accounts-upstream.json" ]
+
+	# step 2: the host's account (macOS path) links to the host's main
+	[ "$(readlink "$racct/settings.json")" = "$r/.claude/settings.json" ]
+	[ "$(jq -r .mcpServers.gh.command "$racct/.claude.json")" = gh-mcp ]
+	[ "$(jq -r .oauthAccount.emailAddress "$racct/.claude.json")" = iot@x ]
+	# local still handled
+	[[ "$output" == *"remote nas"* ]]
+}
+
+@test "--remote removes upstream MCP servers dropped from local main" {
+	fake_ssh
+	seed_upstream
+	local r="$BATS_TEST_TMPDIR/remote-h"
+	"$SCRIPT" mcp --all --no-local -r h >/dev/null
+	[ "$(jq -r .mcpServers.gh.command "$r/.claude.json")" = gh-mcp ]
+	jq 'del(.mcpServers.gh)' "$HOME/.claude.json" >"$HOME/x" && mv "$HOME/x" "$HOME/.claude.json"
+	"$SCRIPT" mcp --all --no-local -r h >/dev/null
+	[ "$(jq -r '.mcpServers.gh // "gone"' "$r/.claude.json")" = gone ]
+}
+
+@test "--no-local only touches the remotes; --dry-run pushes nothing" {
+	fake_ssh
+	seed_upstream
+	run "$SCRIPT" link work --no-local -r h
+	[ "$status" -eq 0 ]
+	[ ! -e "$ACCT" ]
+	[ -L "$BATS_TEST_TMPDIR/remote-h/.config/claude-work/settings.json" ]
+	run "$SCRIPT" link work -n -r d
+	[ "$status" -eq 0 ]
+	[ ! -e "$BATS_TEST_TMPDIR/remote-d/.claude/settings.json" ]
+	[ ! -e "$ACCT" ]
+}
+
+@test "--remote rejects run, empty hosts and --no-local alone" {
+	run "$SCRIPT" run work -r h
+	[ "$status" -ne 0 ]
+	run "$SCRIPT" -r h run work
+	[ "$status" -eq 2 ]
+	[[ "$output" == *"does not work with run"* ]]
+	run "$SCRIPT" status -r ,
+	[ "$status" -ne 0 ]
+	run "$SCRIPT" status --no-local
+	[ "$status" -eq 2 ]
+}
