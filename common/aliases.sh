@@ -674,6 +674,7 @@ alias acc-apple='CLAUDE_CONFIG_DIR="$HOME/.config/claude-apple" claude --allow-d
 alias acc-itcn='CLAUDE_CONFIG_DIR="$HOME/.config/claude-itcn" claude --allow-dangerously-skip-permissions --dangerously-skip-permissions'
 alias acc-th='CLAUDE_CONFIG_DIR="$HOME/.config/claude-th" claude --allow-dangerously-skip-permissions --dangerously-skip-permissions'
 alias acc-rth='CLAUDE_CONFIG_DIR="$HOME/.config/claude-th" command claude --allow-dangerously-skip-permissions --dangerously-skip-permissions'
+alias claude-accounts='command "$DOTFILES_ROOT/bin/claude-accounts.sh"'
 alias oc='opencode --auto'
 
 # ================================================================
