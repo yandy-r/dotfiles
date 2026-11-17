@@ -10,15 +10,23 @@
 # setting once and every account sees it; `claude --resume` in a project shows
 # the sessions from every account.
 #
-# Never touched (per account): .credentials.json, .claude.json (login, MCP
-# trust, onboarding), policy-limits*, remote-settings*, caches, live-session
-# state (sessions/, session-env/, shell-snapshots/, ide/, daemon/, ...).
+# .claude.json (login, onboarding, trust) stays per account, but its MCP config
+# is synced from the main one: user-scope servers (mcpServers) and local-scope
+# servers (projects[<dir>].mcpServers, what a plain `claude mcp add` writes).
+# Main wins; a server removed from main is removed from the accounts, servers
+# added inside an account are kept. The sync runs on `link` and before every
+# `run`, so add MCP servers in the main config.
+#
+# Never touched (per account): .credentials.json, the rest of .claude.json,
+# policy-limits*, remote-settings*, caches, live-session state (sessions/,
+# session-env/, shell-snapshots/, ide/, daemon/, ...).
 #
 #   claude-accounts.sh link apple iot     symlink shared items (creates dirs)
 #   claude-accounts.sh link --all --copy  copy instead (one-way main -> account)
 #   claude-accounts.sh status [name...]   show what is linked / copied / local
 #   claude-accounts.sh unlink apple       detach: replace links with copies
-#   claude-accounts.sh run apple [args]   run claude as that account
+#   claude-accounts.sh mcp --all          only sync MCP servers
+#   claude-accounts.sh run apple [args]   sync MCP, then run claude as that account
 #
 # Run `claude-accounts.sh --help` for every option.
 # ================================================================
@@ -64,10 +72,49 @@ SESSION_ITEMS=(
 MODE="link" # link | copy
 SESSIONS=true
 MERGE=true
-SYNC_MCP=false
+SYNC_MCP=true
 DRY_RUN=false
 ALL=false
 BACKUP_DIR=""      # set lazily, one per run and account
+
+# Per-account record of the MCP server names synced last time, so servers
+# removed from main can be removed from the account too.
+MCP_STATE=".claude-accounts-mcp.json"
+
+# MCP_JQ rewrites an account's .claude.json ($m[0] = main .claude.json, $s =
+# state) so its MCP config matches main. Only MCP keys change: the account's
+# own servers stay, main's servers overwrite same-named ones, servers synced
+# before but gone from main are dropped, and .mcp.json approvals are unioned.
+read -r -d '' MCP_JQ <<'JQ' || true
+def strip($prev): with_entries(select(.key | IN($prev[]) | not));
+def put($k; $v): if ($v | length) > 0 or has($k) then .[$k] = $v else . end;
+def mcp_paths:
+    (.projects // {}) | to_entries[]
+    | select([.value.mcpServers, .value.enabledMcpjsonServers, .value.disabledMcpjsonServers]
+             | map(. // [] | length) | add > 0)
+    | .key;
+$m[0] as $main
+| put("mcpServers"; (.mcpServers // {} | strip($s.user // [])) + ($main.mcpServers // {}))
+| reduce ([($main | mcp_paths), (($s.projects // {}) | keys[])] | unique | .[]) as $p (.;
+    ($main.projects[$p] // {}) as $mp
+    | (.projects[$p] // {}) as $cur
+    | ($cur
+        | put("mcpServers"; (.mcpServers // {} | strip($s.projects[$p] // [])) + ($mp.mcpServers // {}))
+        | put("enabledMcpjsonServers"; (.enabledMcpjsonServers // []) + ($mp.enabledMcpjsonServers // []) | unique)
+        | put("disabledMcpjsonServers"; (.disabledMcpjsonServers // []) + ($mp.disabledMcpjsonServers // []) | unique)
+      ) as $new
+    | if $new == $cur then . else .projects[$p] = $new end)
+JQ
+
+# MCP_STATE_JQ lists the server names main defines, per scope.
+read -r -d '' MCP_STATE_JQ <<'JQ' || true
+{
+    user: (.mcpServers // {} | keys),
+    projects: ((.projects // {})
+        | map_values(.mcpServers // {} | keys)
+        | with_entries(select(.value | length > 0)))
+}
+JQ
 
 c_ok="" c_warn="" c_err="" c_dim="" c_off=""
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
@@ -104,8 +151,17 @@ Commands:
   unlink <name...>|--all   Detach: replace every link with a real copy of the
                            main item, so the account stands alone again.
   status [name...]         Show each shared item: linked, copy, local, missing.
+  mcp <name...>|--all      Only sync MCP servers from the main .claude.json.
   list                     List account dirs and whether they are logged in.
-  run <name> [args...]     Run claude with CLAUDE_CONFIG_DIR set to the account.
+  run <name> [args...]     Sync MCP servers, then run claude with
+                           CLAUDE_CONFIG_DIR set to the account. Everything
+                           after <name> is passed to claude.
+
+MCP sync (link, mcp, run): user-scope servers (mcpServers) and local-scope
+servers (projects[<dir>].mcpServers) from $(main_json)
+are written into each account's .claude.json. Main wins on name clashes;
+servers removed from main are removed from the account; servers added only in
+the account are kept. Add servers in the main config.
 
 Options (link):
   --copy           Copy instead of symlinking (one-way main -> account; newer
@@ -114,8 +170,7 @@ Options (link):
                    per account.
   --no-merge       Do not merge the account's own sessions into main before
                    linking (they are still backed up).
-  --mcp            Also merge user-scope MCP servers (mcpServers) from the main
-                   .claude.json into each account's .claude.json.
+  --no-mcp         Skip the MCP sync (link, run).
   --all            Every existing ${PREFIX}* dir.
   -n, --dry-run    Show what would change.
   -h, --help       Show this help.
@@ -324,30 +379,104 @@ link_item() {
     copy_from_main "$main_path" "$acct_path"
 }
 
-sync_mcp() {
-    local acct="$1"
-    local src dst="$acct/.claude.json"
+# ---------------------------------------------------------------- mcp
+
+# mcp_render prints the account's .claude.json with main's MCP config applied.
+mcp_render() {
+    local acct="$1" state="$1/$MCP_STATE" s='{}'
+    if [[ -s "$state" ]] && jq -e 'type == "object"' "$state" >/dev/null 2>&1; then
+        s="$(<"$state")"
+    fi
+    jq --slurpfile m "$(main_json)" --argjson s "$s" "$MCP_JQ" "$acct/.claude.json"
+}
+
+# mcp_skip_reason prints why an account cannot be synced (empty if it can).
+mcp_skip_reason() {
+    local acct="$1" src
     src="$(main_json)"
-    command -v jq >/dev/null 2>&1 || {
-        warn "--mcp needs jq; skipped"
-        return 0
-    }
-    [[ -f "$src" ]] || {
-        warn "no $src; MCP sync skipped"
-        return 0
-    }
-    if [[ ! -f "$dst" ]]; then
-        log "  ${c_dim}skip   mcpServers (account has no .claude.json yet; log in first)${c_off}"
+    if ! command -v jq >/dev/null 2>&1; then
+        printf 'needs jq'
+    elif [[ ! -f "$src" ]]; then
+        printf 'no %s' "$src"
+    elif [[ ! -f "$acct/.claude.json" ]]; then
+        printf 'no .claude.json yet; log in first'
+    elif [[ "$(resolve "$acct/.claude.json")" == "$(resolve "$src")" ]]; then
+        printf '.claude.json is the main one'
+    fi
+}
+
+# sync_mcp writes main's MCP servers into the account's .claude.json. Never
+# fails: problems are reported and the account is left as it was. With quiet
+# (used by `run`) only problems are printed.
+sync_mcp() {
+    local acct="$1" quiet="${2:-false}"
+    local dst="$acct/.claude.json" state="$acct/$MCP_STATE"
+    local reason src
+    src="$(main_json)"
+    reason="$(mcp_skip_reason "$acct")"
+    if [[ -n "$reason" ]]; then
+        [[ "$quiet" == true ]] || log "  ${c_dim}skip   mcp ($reason)${c_off}"
         return 0
     fi
-    local count
-    count="$(jq '(.mcpServers // {}) | length' "$src")"
-    log "  mcp    merge $count user-scope server(s) into .claude.json"
+
+    local state_json counts tmp="$dst.claude-accounts.$$"
+    if ! state_json="$(jq -c "$MCP_STATE_JQ" "$src" 2>/dev/null)" ||
+        ! mcp_render "$acct" >"$tmp" 2>/dev/null || [[ ! -s "$tmp" ]]; then
+        rm -f "$tmp"
+        warn "mcp: could not parse $src or $dst; MCP sync skipped"
+        return 0
+    fi
+    counts="$(jq -r '"\(.user | length) user, \([.projects[] | length] | add // 0) local"' <<<"$state_json")"
+
+    if jq -e --slurpfile a "$dst" '. == $a[0]' "$tmp" >/dev/null 2>&1; then
+        rm -f "$tmp"
+        [[ "$quiet" == true ]] || log "  ${c_ok}ok${c_off}     mcp ($counts server(s))"
+    elif [[ "$DRY_RUN" == true ]]; then
+        rm -f "$tmp"
+        log "  mcp    sync $counts server(s) into .claude.json"
+        printf '%s  [dry-run] write %s%s\n' "$c_dim" "$dst" "$c_off"
+        return 0
+    else
+        [[ "$quiet" == true ]] || log "  mcp    sync $counts server(s) into .claude.json"
+        chmod 600 "$tmp"
+        if ! mv "$tmp" "$dst"; then
+            rm -f "$tmp"
+            warn "mcp: could not write $dst"
+            return 0
+        fi
+    fi
+
     [[ "$DRY_RUN" == true ]] && return 0
-    local tmp="$dst.claude-accounts.$$"
-    jq --slurpfile m "$src" '.mcpServers = ((.mcpServers // {}) + ($m[0].mcpServers // {}))' "$dst" >"$tmp"
-    chmod 600 "$tmp"
-    mv "$tmp" "$dst"
+    if printf '%s\n' "$state_json" >"$state.$$" && chmod 600 "$state.$$"; then
+        mv "$state.$$" "$state" || rm -f "$state.$$"
+    else
+        rm -f "$state.$$"
+    fi
+    return 0
+}
+
+# mcp_state is the status column for an account's MCP config.
+mcp_state() {
+    local acct="$1" reason
+    reason="$(mcp_skip_reason "$acct")"
+    if [[ -n "$reason" ]]; then
+        printf '%s-%s (%s)' "$c_dim" "$c_off" "$reason"
+    elif mcp_render "$acct" 2>/dev/null | jq -e --slurpfile a "$acct/.claude.json" '. == $a[0]' >/dev/null 2>&1; then
+        printf '%sin sync%s' "$c_ok" "$c_off"
+    else
+        printf '%sout of sync%s (run: %s mcp %s)' "$c_warn" "$c_off" "$SCRIPT_NAME" "${acct##*/"$PREFIX"}"
+    fi
+}
+
+cmd_mcp() {
+    local name acct
+    for name in "$@"; do
+        validate_name "$name"
+        acct="$(account_dir "$name")"
+        [[ -d "$acct" ]] || die "no such account dir: $acct"
+        log "${c_ok}==>${c_off} $name ($acct) [mcp]"
+        sync_mcp "$acct"
+    done
 }
 
 cmd_link() {
@@ -368,7 +497,9 @@ cmd_link() {
         while IFS= read -r item; do
             link_item "$name" "$acct" "$item"
         done < <(selected_items)
-        [[ "$SYNC_MCP" == true ]] && sync_mcp "$acct"
+        if [[ "$SYNC_MCP" == true ]]; then
+            sync_mcp "$acct"
+        fi
         if [[ ! -f "$acct/.credentials.json" && ! -f "$acct/.claude.json" ]]; then
             log "  ${c_warn}not logged in yet:${c_off} $SCRIPT_NAME run $name  (then /login)"
         fi
@@ -431,6 +562,7 @@ cmd_status() {
         for item in "${CONFIG_ITEMS[@]}" "${SESSION_ITEMS[@]}"; do
             printf '  %-22s %s\n' "$item" "$(item_state "$acct/$item" "$item")"
         done
+        printf '  %-22s %s\n' "mcp (.claude.json)" "$(mcp_state "$acct")"
     done
 }
 
@@ -455,6 +587,9 @@ cmd_run() {
     local acct
     acct="$(account_dir "$name")"
     [[ -d "$acct" ]] || die "no such account dir: $acct (create it with: $SCRIPT_NAME link $name)"
+    if [[ "$SYNC_MCP" == true ]]; then
+        sync_mcp "$acct" true
+    fi
     CLAUDE_CONFIG_DIR="$acct" exec claude "$@"
 }
 
@@ -463,6 +598,11 @@ cmd_run() {
 main() {
     local cmd="" args=()
     while (($#)); do
+        # After `run <name>` everything belongs to claude, even our own flags.
+        if [[ "$cmd" == run && ${#args[@]} -ge 1 ]]; then
+            args+=("$@")
+            break
+        fi
         case "$1" in
         -h | --help)
             usage
@@ -474,6 +614,7 @@ main() {
         --sessions) SESSIONS=true ;;
         --no-merge) MERGE=false ;;
         --mcp) SYNC_MCP=true ;;
+        --no-mcp) SYNC_MCP=false ;;
         --all) ALL=true ;;
         -n | --dry-run) DRY_RUN=true ;;
         --)
@@ -492,9 +633,6 @@ main() {
         *)
             if [[ -z "$cmd" ]]; then
                 cmd="$1"
-            elif [[ "$cmd" == run && ${#args[@]} -ge 1 ]]; then
-                args+=("$@")
-                break
             else
                 args+=("$1")
             fi
@@ -504,7 +642,7 @@ main() {
     done
 
     case "$cmd" in
-    link | unlink | status)
+    link | unlink | status | mcp)
         if [[ "$ALL" == true || ( ${#args[@]} -eq 0 && "$cmd" == status ) ]]; then
             args=()
             local n
