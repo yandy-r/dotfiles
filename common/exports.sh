@@ -110,66 +110,10 @@ read_env_file() {
 #     unset GITHUB_PERSONAL_ACCESS_TOKEN
 # fi
 
-if tea_api_token="$(read_env_file "$XDG_CONFIG_HOME/environment.d/tea_api_token")"; then
-    export TEA_API_TOKEN="$tea_api_token"
-    export TEA_TOKEN="$tea_api_token"
-else
-    unset TEA_API_TOKEN
-    unset TEA_TOKEN
-fi
-
-if greptile_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/greptile_api_key")"; then
-    export GREPTILE_API_KEY="$greptile_api_key"
-else
-    unset GREPTILE_API_KEY
-fi
-
-if postman_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/postman_api_key")"; then
-    export POSTMAN_API_KEY="$postman_api_key"
-else
-    unset POSTMAN_API_KEY
-fi
-
-if context7_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/context7_api_key")"; then
-    export CONTEXT7_API_KEY="$context7_api_key"
-else
-    unset CONTEXT7_API_KEY
-fi
-
 if dropbox_dir="$(read_env_file "$XDG_CONFIG_HOME/environment.d/dropbox_dir")"; then
     export DROPBOX_DIR="$dropbox_dir"
 else
     unset DROPBOX_DIR
-fi
-
-if xero_client_id="$(read_env_file "$XDG_CONFIG_HOME/environment.d/xero_client_id")"; then
-    export XERO_CLIENT_ID="$xero_client_id"
-else
-    unset XERO_CLIENT_ID
-fi
-
-if xero_client_secret="$(read_env_file "$XDG_CONFIG_HOME/environment.d/xero_client_secret")"; then
-    export XERO_CLIENT_SECRET="$xero_client_secret"
-else
-    unset XERO_CLIENT_SECRET
-fi
-
-if nine_router_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/9router_api_key")"; then
-    export NINE_ROUTER_API_KEY="$nine_router_api_key"
-else
-    unset NINE_ROUTER_API_KEY
-fi
-
-if tokenhop_opencode_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/tokenhop_opencode_api_key")"; then
-    export TOKENHOP_OPENCODE_API_KEY="$tokenhop_opencode_api_key"
-else
-    unset TOKENHOP_OPENCODE_API_KEY
-fi
-
-if tokenhop_openai_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/tokenhop_openai_api_key")"; then
-    export TOKENHOP_OPENAI_API_KEY="$tokenhop_openai_api_key"
-else
-    unset TOKENHOP_OPENAI_API_KEY
 fi
 
 if tokenhop_openai_base_url="$(read_env_file "$XDG_CONFIG_HOME/environment.d/tokenhop_openai_base_url")"; then
@@ -184,46 +128,62 @@ else
     unset TOKENHOP_OPENAI_MODEL
 fi
 
-if claude_code_oauth_token="$(read_env_file "$XDG_CONFIG_HOME/environment.d/claude_code_oauth_token")"; then
-    export CLAUDE_CODE_OAUTH_TOKEN="$claude_code_oauth_token"
-else
-    unset CLAUDE_CODE_OAUTH_TOKEN
-fi
-
-if claude_code_tokenhop_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/claude_code_tokenhop_api_key")"; then
-    export CLAUDE_CODE_TOKENHOP_API_KEY="$claude_code_tokenhop_api_key"
-else
-    unset CLAUDE_CODE_TOKENHOP_API_KEY
-fi
-
-if gemini_api_key="$(read_env_file "$XDG_CONFIG_HOME/environment.d/gemini_api_key")"; then
-    export GEMINI_API_KEY="$gemini_api_key"
-else
-    unset GEMINI_API_KEY
-fi
-
+# The 1Password service-account token stays file-backed: every secret below
+# is read with it, so it must be exported first.
 if op_service_account_token="$(read_env_file "$XDG_CONFIG_HOME/environment.d/op_service_account_token")"; then
     export OP_SERVICE_ACCOUNT_TOKEN="$op_service_account_token"
 else
     unset OP_SERVICE_ACCOUNT_TOKEN
 fi
+unset op_service_account_token
 
-# Read from 1Password with the service-account token above, so no desktop
-# prompt opens on shell start; capped at 5s so a network outage can't hang it.
+# ================================================================
+# 1PASSWORD-BACKED SECRETS
+# ================================================================
+# Read with the service-account token above, so no desktop prompt opens on
+# shell start. `op whoami` first proves the token authenticates; then a single
+# `op inject` resolves every reference in one call (~0.35s total, vs ~0.35s
+# per secret with `op read`), capped at 5s so a network outage can't hang the
+# shell. Each entry is NAME=op://... ; a secret that can't be read, or whose
+# field is empty, stays unset. Shell Env Secrets (EnvSecrets vault, section
+# `env`) holds one field per variable, labelled with the variable name.
+_op_secret_refs=(
+    "TEA_API_TOKEN=op://EnvSecrets/Shell Env Secrets/env/TEA_API_TOKEN"
+    "GREPTILE_API_KEY=op://EnvSecrets/Shell Env Secrets/env/GREPTILE_API_KEY"
+    "POSTMAN_API_KEY=op://EnvSecrets/Shell Env Secrets/env/POSTMAN_API_KEY"
+    "CONTEXT7_API_KEY=op://EnvSecrets/Shell Env Secrets/env/CONTEXT7_API_KEY"
+    "XERO_CLIENT_ID=op://EnvSecrets/Shell Env Secrets/env/XERO_CLIENT_ID"
+    "XERO_CLIENT_SECRET=op://EnvSecrets/Shell Env Secrets/env/XERO_CLIENT_SECRET"
+    "NINE_ROUTER_API_KEY=op://EnvSecrets/Shell Env Secrets/env/NINE_ROUTER_API_KEY"
+    "TOKENHOP_OPENCODE_API_KEY=op://EnvSecrets/Shell Env Secrets/env/TOKENHOP_OPENCODE_API_KEY"
+    "TOKENHOP_OPENAI_API_KEY=op://EnvSecrets/Shell Env Secrets/env/TOKENHOP_OPENAI_API_KEY"
+    "CLAUDE_CODE_TOKENHOP_API_KEY=op://EnvSecrets/Shell Env Secrets/env/CLAUDE_CODE_TOKENHOP_API_KEY"
+    "CLAUDE_CODE_OAUTH_TOKEN=op://EnvSecrets/Shell Env Secrets/env/CLAUDE_CODE_OAUTH_TOKEN"
+    "GEMINI_API_KEY=op://EnvSecrets/Shell Env Secrets/env/GEMINI_API_KEY"
+    "OPENCODE_PASSWORD=op://EnvSecrets/Shell Env Secrets/env/OPENCODE_PASSWORD"
+    "CARTIO_LAB_MCP_TOKEN=op://EnvSecrets/Cartio Lab Secrets/ctrl/CARTIO_LAB_MCP_TOKEN"
+)
+
+_op_template=""
+for _op_ref in "${_op_secret_refs[@]}"; do
+    unset "${_op_ref%%=*}"
+    _op_template+="${_op_ref%%=*}={{ ${_op_ref#*=} }}"$'\n'
+done
+unset TEA_TOKEN
+
 if [[ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]] && command -v op >/dev/null 2>&1 &&
-    cartio_lab_mcp_token="$(timeout 5 op read "op://EnvSecrets/Cartio Lab Secrets/ctrl/CARTIO_LAB_MCP_TOKEN" 2>/dev/null)" &&
-    [[ -n "$cartio_lab_mcp_token" ]]; then
-    export CARTIO_LAB_MCP_TOKEN="$cartio_lab_mcp_token"
-else
-    unset CARTIO_LAB_MCP_TOKEN
+    timeout 5 op whoami >/dev/null 2>&1 &&
+    _op_env="$(printf '%s' "$_op_template" | timeout 5 op inject 2>/dev/null)"; then
+    while IFS= read -r _op_line; do
+        [[ "$_op_line" == [A-Z]*=?* ]] || continue
+        export "${_op_line%%=*}=${_op_line#*=}"
+    done <<<"$_op_env"
 fi
-unset cartio_lab_mcp_token
 
-if opencode_password="$(read_env_file "$XDG_CONFIG_HOME/environment.d/opencode_password")"; then
-    export OPENCODE_PASSWORD="$opencode_password"
-else
-    unset OPENCODE_PASSWORD
-fi
+# Aliases of 1Password-backed secrets.
+[[ -n "${TEA_API_TOKEN:-}" ]] && export TEA_TOKEN="$TEA_API_TOKEN"
+
+unset _op_secret_refs _op_ref _op_template _op_env _op_line
 
 # ================================================================
 # EDITOR CONFIGURATION
