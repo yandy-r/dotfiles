@@ -208,6 +208,17 @@ else
     unset OP_SERVICE_ACCOUNT_TOKEN
 fi
 
+# Read from 1Password with the service-account token above, so no desktop
+# prompt opens on shell start; capped at 5s so a network outage can't hang it.
+if [[ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]] && command -v op >/dev/null 2>&1 &&
+    cartio_lab_mcp_token="$(timeout 5 op read "op://EnvSecrets/Cartio Lab Secrets/ctrl/CARTIO_LAB_MCP_TOKEN" 2>/dev/null)" &&
+    [[ -n "$cartio_lab_mcp_token" ]]; then
+    export CARTIO_LAB_MCP_TOKEN="$cartio_lab_mcp_token"
+else
+    unset CARTIO_LAB_MCP_TOKEN
+fi
+unset cartio_lab_mcp_token
+
 if opencode_password="$(read_env_file "$XDG_CONFIG_HOME/environment.d/opencode_password")"; then
     export OPENCODE_PASSWORD="$opencode_password"
 else
