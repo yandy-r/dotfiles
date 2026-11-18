@@ -49,8 +49,8 @@ func TestEmbeddedManifest_T3Code(t *testing.T) {
 
 	t.Run("appimage clients", func(t *testing.T) {
 		for name, asset := range map[string]string{
-			"t3-code-client":       "T3-Code-*-x86_64.AppImage",
-			"t3-code-client-arm64": "T3-Code-*-arm64.AppImage",
+			"t3-code-client":       "T3-Code-*x86_64.AppImage",
+			"t3-code-client-arm64": "T3-Code-*arm64.AppImage",
 		} {
 			pkg := get(name)
 			arch := map[string]string{"t3-code-client": "x86_64", "t3-code-client-arm64": "arm64"}[name]

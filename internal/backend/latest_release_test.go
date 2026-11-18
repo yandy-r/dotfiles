@@ -117,6 +117,11 @@ func TestLatestReleaseArtifact_ArchSelection(t *testing.T) {
 		"T3-Code-0.1.7-x86_64.AppImage", "T3-Code-0.1.7-arm64.AppImage",
 		"T3-Code-0.1.7-amd64.deb", "T3-Code-0.1.7-arm64.deb",
 	}
+	// v0.1.10+ dropped the version from the AppImage names.
+	t3Unversioned := []string{
+		"T3-Code-x86_64.AppImage", "T3-Code-arm64.AppImage",
+		"T3-Code-0.1.10-amd64.deb", "T3-Code-0.1.10-arm64.deb",
+	}
 
 	tests := []struct {
 		name    string
@@ -163,10 +168,14 @@ func TestLatestReleaseArtifact_ArchSelection(t *testing.T) {
 			"T3-Code-0.1.7-amd64.deb", ""},
 		{"T3 deb glob selects arm64 on arm64", linuxARM64, t3, "T3-Code-*.deb",
 			"T3-Code-0.1.7-arm64.deb", ""},
-		{"T3 x86_64 AppImage glob is unambiguous", linuxX86, t3, "T3-Code-*-x86_64.AppImage",
+		{"T3 x86_64 AppImage glob is unambiguous", linuxX86, t3, "T3-Code-*x86_64.AppImage",
 			"T3-Code-0.1.7-x86_64.AppImage", ""},
-		{"T3 arm64 AppImage glob is unambiguous", linuxARM64, t3, "T3-Code-*-arm64.AppImage",
+		{"T3 arm64 AppImage glob is unambiguous", linuxARM64, t3, "T3-Code-*arm64.AppImage",
 			"T3-Code-0.1.7-arm64.AppImage", ""},
+		{"T3 x86_64 AppImage glob matches unversioned name", linuxX86, t3Unversioned, "T3-Code-*x86_64.AppImage",
+			"T3-Code-x86_64.AppImage", ""},
+		{"T3 arm64 AppImage glob matches unversioned name", linuxARM64, t3Unversioned, "T3-Code-*arm64.AppImage",
+			"T3-Code-arm64.AppImage", ""},
 		{"host token outweighs a foreign token in the same name", linuxX86,
 			[]string{"arm-gnu-toolchain-14-x86_64-arm-none-eabi.tar.xz", "arm-gnu-toolchain-14-aarch64-arm-none-eabi.tar.xz"},
 			"arm-gnu-toolchain-*-arm-none-eabi.tar.xz", "arm-gnu-toolchain-14-x86_64-arm-none-eabi.tar.xz", ""},

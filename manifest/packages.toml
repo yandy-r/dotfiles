@@ -1608,7 +1608,7 @@ exclude_os = ["debian"]
 requires_desktop = true
 app = { icon = "https://raw.githubusercontent.com/pingdotgg/t3code/v0.1.7/apps/marketing/public/apple-touch-icon.png", desktop_name = "T3 Code", categories = "Development;", exec_args = "%U", startup_wm_class = "t3code", mime_type = "x-scheme-handler/t3code;x-scheme-handler/t3code-dev;" }
 repo = "pingdotgg/t3code"
-asset = "T3-Code-*-x86_64.AppImage"
+asset = "T3-Code-*x86_64.AppImage"
 class = "rolling"
 
 [[package]]
@@ -1622,7 +1622,7 @@ exclude_os = ["debian"]
 requires_desktop = true
 app = { icon = "https://raw.githubusercontent.com/pingdotgg/t3code/v0.1.7/apps/marketing/public/apple-touch-icon.png", desktop_name = "T3 Code", categories = "Development;", exec_args = "%U", startup_wm_class = "t3code", mime_type = "x-scheme-handler/t3code;x-scheme-handler/t3code-dev;" }
 repo = "pingdotgg/t3code"
-asset = "T3-Code-*-arm64.AppImage"
+asset = "T3-Code-*arm64.AppImage"
 class = "rolling"
 
 [[package]]
