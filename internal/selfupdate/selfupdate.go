@@ -51,8 +51,6 @@ var ErrUnsupportedOS = errors.New("self-update is not supported on this operatin
 
 // Options controls a self-update run.
 type Options struct {
-	// Repo is the "owner/repo" release source; defaults to defaultRepo when "".
-	Repo string
 	// Force replaces even when already current, newer, or an unparseable dev build.
 	Force bool
 	// DryRun resolves and reports the target without downloading or replacing.
@@ -107,10 +105,7 @@ func Run(opts Options, info platform.Info) (Result, error) {
 		return Result{}, fmt.Errorf("%w (detected %q)", ErrUnsupportedOS, info.OS)
 	}
 
-	repo := opts.Repo
-	if repo == "" {
-		repo = defaultRepo
-	}
+	repo := defaultRepo
 
 	tag, err := latestRelease(repo)
 	if err != nil {

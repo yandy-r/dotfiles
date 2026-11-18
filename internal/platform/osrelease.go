@@ -7,7 +7,7 @@ import (
 )
 
 // defaultOSReleasePath is the standard location of the os-release file on
-// Linux systems. Overridable in tests via parseOSRelease's path parameter.
+// Linux systems.
 const defaultOSReleasePath = "/etc/os-release"
 
 // scanOSRelease reads an os-release file
@@ -100,33 +100,6 @@ func (o osRelease) distro() string {
 	return o.ID
 }
 
-// parseOSRelease reads the ID and ID_LIKE fields out of an os-release file at
-// path, mirroring common/platform.sh:detect_os and :get_distro_name, which
-// source the file and read $ID / $ID_LIKE.
-//
-// Both return values default to "" when the file is missing, unreadable, or
-// does not define the field — callers are responsible for applying the
-// "unknown" fallback, matching the shell's graceful degradation. parseOSRelease
-// never panics.
-//
-// It re-scans path and exists only as the path-taking seam the tests drive;
-// Detect goes through readOSRelease so a real run scans the file once.
-func parseOSRelease(path string) (id, idLike string) {
-	rel := readOSRelease(path)
-	return rel.ID, rel.IDLike
-}
-
-// osReleaseCodename reads the release codename out of an os-release file at
-// path, preferring VERSION_CODENAME and falling back to UBUNTU_CODENAME (which
-// older Ubuntu releases set instead). Returns "" when neither is present or
-// the file is missing/unreadable, matching the shell's graceful degradation.
-//
-// It re-scans path and exists only as the path-taking seam the tests drive;
-// Detect goes through readOSRelease so a real run scans the file once.
-func osReleaseCodename(path string) string {
-	return readOSRelease(path).Codename
-}
-
 // unquote strips a single pair of surrounding double or single quotes from
 // an os-release value, mirroring shell word-splitting behavior when the
 // file is sourced (e.g. ID="ubuntu" becomes ubuntu).
@@ -137,14 +110,4 @@ func unquote(s string) string {
 		}
 	}
 	return s
-}
-
-// distroName returns the raw distro ID from the os-release file at path,
-// mirroring common/platform.sh:get_distro_name. Returns "unknown" when the
-// file is missing or does not define ID.
-//
-// It re-scans path and exists only as the path-taking seam the tests drive;
-// Detect goes through readOSRelease so a real run scans the file once.
-func distroName(path string) string {
-	return readOSRelease(path).distro()
 }

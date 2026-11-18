@@ -35,9 +35,6 @@ func (unixDropper) Run(argv []string, home string) error {
 	if err != nil {
 		return err
 	}
-	if u.UID == 0 {
-		return ErrNoSudoUser
-	}
 
 	cmd := osexec.Command(argv[0], argv[1:]...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{

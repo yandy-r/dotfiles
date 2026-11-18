@@ -15,7 +15,7 @@ import (
 // TestRepoBackend_Install_ExactArgv pins the full command sequence each dnf_repo
 // mode issues, plus the apt path the generalisation lifted: the backend writes
 // under /etc with sudo, so the argv is the contract, not "no error". The apt
-// case is the no-regression proof that folding apt-repo into repo left the live
+// case is the no-regression proof that folding repo into repo left the live
 // docker-ce Debian path byte-identical.
 func TestRepoBackend_Install_ExactArgv(t *testing.T) {
 	t.Parallel()
@@ -661,8 +661,8 @@ func TestRepoBackend_DNFRepoExcludeFrom(t *testing.T) {
 		DNFRepo: &manifest.DNFRepo{COPR: "scottames/ghostty", ExcludeFrom: []string{"terra", "other"}},
 	}
 	wantBody := dnfRepoMarker + "\n[terra]\nexcludepkgs=ghostty,ghostty-*\n[other]\nexcludepkgs=ghostty,ghostty-*\n"
-	terraOnly := func() (map[string]bool, error) { return map[string]bool{"terra": true, "fedora": true}, nil }
-	none := func() (map[string]bool, error) { return map[string]bool{"fedora": true}, nil }
+	terraOnly := func() map[string]bool { return map[string]bool{"terra": true, "fedora": true} }
+	none := func() map[string]bool { return map[string]bool{"fedora": true} }
 	dnf5 := platform.Info{OS: platform.OSRedHat, PkgMgr: platform.PkgMgrDNF, VersionID: "44"}
 	dnf4 := platform.Info{OS: platform.OSRedHat, PkgMgr: platform.PkgMgrDNF, VersionID: "40"}
 	setopt := "--setopt=terra.excludepkgs=ghostty,ghostty-*"
@@ -670,7 +670,7 @@ func TestRepoBackend_DNFRepoExcludeFrom(t *testing.T) {
 	tests := []struct {
 		name      string
 		info      platform.Info
-		repoIDs   func() (map[string]bool, error)
+		repoIDs   func() map[string]bool
 		existing  string // current drop-in body; "" = missing
 		wantWrite bool
 		wantFinal []string

@@ -12,21 +12,10 @@ import (
 // never carries.
 var coprSlugPattern = regexp.MustCompile(`^[A-Za-z0-9._@+-]+/[A-Za-z0-9._+-]+$`)
 
-// keyFingerprintPattern matches a 40-hex OpenPGP v4 fingerprint, the expected
-// shape of AptRepo.KeyFingerprint (case-insensitive; the backend compares with
-// strings.EqualFold).
-var keyFingerprintPattern = regexp.MustCompile(`^[0-9A-Fa-f]{40}$`)
-
-// validateRepo checks a "repo" package (and its deprecated "apt-repo" alias):
-// at least one family sub-table must be present, and each present sub-table is
-// checked on its own terms. The alias keeps the legacy apt-only vocabulary in
-// its absent-sub-table message so an existing manifest's failure text does not
-// shift under the rename.
+// validateRepo checks a "repo" package: at least one family sub-table must be
+// present, and each present sub-table is checked on its own terms.
 func validateRepo(p Package) []error {
 	if p.AptRepo == nil && p.DNFRepo == nil {
-		if p.Backend == BackendAPTRepo {
-			return []error{&ValidationError{Package: p.Name, Msg: "apt-repo backend requires apt_repo"}}
-		}
 		return []error{&ValidationError{Package: p.Name, Msg: "repo backend requires at least one of apt_repo or dnf_repo"}}
 	}
 
@@ -47,21 +36,21 @@ func validateAptRepo(p Package) []error {
 	var errs []error
 
 	if p.AptRepo.KeyURL == "" {
-		errs = append(errs, &ValidationError{Package: p.Name, Msg: "apt-repo backend requires apt_repo.key_url"})
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: "repo backend requires apt_repo.key_url"})
 	}
 	if p.AptRepo.Keyring == "" {
-		errs = append(errs, &ValidationError{Package: p.Name, Msg: "apt-repo backend requires apt_repo.keyring"})
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: "repo backend requires apt_repo.keyring"})
 	}
 	if p.AptRepo.RepoLine == "" {
-		errs = append(errs, &ValidationError{Package: p.Name, Msg: "apt-repo backend requires apt_repo.repo_line"})
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: "repo backend requires apt_repo.repo_line"})
 	}
 	if p.AptRepo.SourcesPath == "" {
-		errs = append(errs, &ValidationError{Package: p.Name, Msg: "apt-repo backend requires apt_repo.sources_path"})
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: "repo backend requires apt_repo.sources_path"})
 	}
 	switch fp := p.AptRepo.KeyFingerprint; {
 	case fp == "":
-		errs = append(errs, &ValidationError{Package: p.Name, Msg: "apt-repo backend requires apt_repo.key_fingerprint"})
-	case !keyFingerprintPattern.MatchString(fp):
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: "repo backend requires apt_repo.key_fingerprint"})
+	case !gpgFingerprintPattern.MatchString(fp):
 		errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("apt_repo.key_fingerprint %q is not a 40-char hex OpenPGP fingerprint", fp)})
 	}
 

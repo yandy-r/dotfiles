@@ -37,7 +37,7 @@ const envHelp = "DOTF_MANIFEST   default manifest path (--manifest overrides)\n"
 	"DOTF_NO_USER_CONFIG  disable the ~/.config/dotf user-config overlay (--no-user-config)\n" +
 	"DOTFILES_ROOT   dotfiles repo root for source resolution\n" +
 	"ACCESSIBLE      set to force plan/apply into accessible (non-TUI) mode\n" +
-	"apply env twins NON_INTERACTIVE, FORCE_INSTALL, ENABLE_GAMING, ENABLE_OLLAMA,\n" +
+	"apply env twins NON_INTERACTIVE, FORCE_INSTALL, ENABLE_GAMING,\n" +
 	"                HYPRLAND (LINUX_DESKTOP is its deprecated alias), SNAPPER,\n" +
 	"                PLASMA (each =true mirrors its flag)"
 
@@ -134,7 +134,7 @@ var helpRegistry = []commandHelp{
 		long: "Resolve the manifest and probe installed state for every declared package\n" +
 			"(read-only), printing one sorted \"package=NAME backend=BACKEND\n" +
 			"installed=BOOL\" line per package to stdout. Packages whose backend cannot\n" +
-			"run on this host (e.g. apt-repo on a non-apt host) are not probed and are\n" +
+			"run on this host (e.g. repo on a non-apt host) are not probed and are\n" +
 			"printed with \"applicable=false\" instead of installed state. --counts appends\n" +
 			"an aggregate backend/class histogram (count.* lines, or a summary object with\n" +
 			"--json) for governance visibility.",
@@ -329,7 +329,7 @@ var helpRegistry = []commandHelp{
 			"sysconfig, packages, symlinks, plasma, then firewall and ssh server. The plasma\n" +
 			"phase is opt-in via --plasma and is a no-op off Linux. Boolean flags mirror\n" +
 			"bootstrap.sh environment twins (NON_INTERACTIVE, FORCE_INSTALL, ENABLE_GAMING,\n" +
-			"ENABLE_OLLAMA, HYPRLAND with LINUX_DESKTOP as its deprecated alias, SNAPPER,\n" +
+			"HYPRLAND with LINUX_DESKTOP as its deprecated alias, SNAPPER,\n" +
 			"PLASMA). Without --headless/--force on a terminal it drops into the guided\n" +
 			"wizard; non-interactively it refuses unless headless. --dry-run composes the\n" +
 			"plan and never primes sudo. The symlink phase backs up every real file it\n" +

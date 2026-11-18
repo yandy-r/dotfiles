@@ -247,7 +247,7 @@ func (e *realStepEngines) symlink(src string, info platform.Info) error {
 	}
 	se := symlink.NewEngine(e.repoRoot, e.home)
 	specs := []symlink.LinkSpec{spec}
-	opts := symlink.Options{Backup: true, Validate: true, BackupDir: e.backupDir}
+	opts := symlink.Options{Backup: true, BackupDir: e.backupDir}
 	plan, err := se.Plan(specs, info, opts)
 	if err != nil {
 		return err

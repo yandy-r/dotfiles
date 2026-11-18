@@ -61,10 +61,10 @@ func runLink(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 		_, _ = fmt.Fprintf(stderr, "%s: link: --hyprland cannot be combined with --no-backup (use --dry-run to preview)\n", progName)
 		return 2
 	}
+	validate := !o.noValidate
 	opts := symlink.Options{
 		DryRun:         o.dryRun,
 		Backup:         !o.noBackup,
-		Validate:       !o.noValidate,
 		ManageHyprland: o.hyprland || o.linuxDesktop,
 	}
 
@@ -86,7 +86,7 @@ func runLink(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	}
 
 	if o.dryRun {
-		return linkDryRun(stdout, stderr, eng, specs, info, opts, plan, staleDests(stale))
+		return linkDryRun(stdout, stderr, eng, specs, info, opts, validate, plan, staleDests(stale))
 	}
 
 	// Prune before Apply, then re-plan: removing a link can change what Plan
@@ -119,7 +119,7 @@ func runLink(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 	printLinkSummary(stderr, report)
 
 	code := 0
-	if opts.Validate {
+	if validate {
 		code = linkValidate(stderr, eng, specs, info, opts)
 	}
 	// A clean link run refreshes the shell's platform env cache; a write
@@ -157,9 +157,9 @@ func printLinkPrune(stdout io.Writer, dests []string) error {
 // non-failing preview: broken dests are surfaced on stdout as `link.broken=`
 // rather than through a non-zero exit, so a preview never signals drift via the
 // exit code (the real apply path still exits 1 on a broken link).
-func linkDryRun(stdout, stderr io.Writer, eng *symlink.Engine, specs []symlink.LinkSpec, info platform.Info, opts symlink.Options, plan *symlink.Plan, prune []string) int {
+func linkDryRun(stdout, stderr io.Writer, eng *symlink.Engine, specs []symlink.LinkSpec, info platform.Info, opts symlink.Options, validate bool, plan *symlink.Plan, prune []string) int {
 	broken := []string(nil)
-	if opts.Validate {
+	if validate {
 		if _, verr := eng.Validate(specs, info, opts); verr != nil {
 			var ble *symlink.BrokenLinkError
 			if errors.As(verr, &ble) {

@@ -31,8 +31,8 @@ func applySnapshot(stderr io.Writer, r exec.Runner, info platform.Info) {
 		_, _ = fmt.Fprintf(stderr, "%s: snapper requested but unavailable (non-Linux or snapper not installed); skipping snapshot\n", progName)
 		return
 	}
-	if out := snap.Create("pre-apply"); out.Err != nil {
-		_, _ = fmt.Fprintf(stderr, "%s: %v (continuing without a snapshot)\n", progName, out.Err)
+	if err := snap.Create("pre-apply"); err != nil {
+		_, _ = fmt.Fprintf(stderr, "%s: %v (continuing without a snapshot)\n", progName, err)
 	}
 }
 
@@ -166,10 +166,7 @@ func applyIdentity(eng *sysconfig.Engine, m *manifest.Manifest, info platform.In
 		coll.Record("sysconfig", err)
 		return sysconfig.Result{}
 	}
-	res, execErr := eng.Execute(plan)
-	if execErr != nil {
-		coll.Record("sysconfig", execErr)
-	}
+	res := eng.Execute(plan)
 	for _, sr := range res.Applied {
 		coll.Record("sysconfig:"+sr.Step.Domain, sr.Err)
 	}
@@ -298,10 +295,7 @@ func applyFirewall(eng *sysconfig.Engine, mode sysconfig.FirewallMode, info plat
 		coll.Record("sysconfig", err)
 		return sysconfig.Result{}
 	}
-	res, execErr := eng.Execute(plan)
-	if execErr != nil {
-		coll.Record("sysconfig", execErr)
-	}
+	res := eng.Execute(plan)
 	for _, sr := range res.Applied {
 		coll.Record("sysconfig:"+sr.Step.Domain, sr.Err)
 	}
@@ -319,10 +313,7 @@ func applySSHServer(eng *sysconfig.Engine, mode sysconfig.SSHServerMode, info pl
 		coll.Record("sysconfig", err)
 		return sysconfig.Result{}
 	}
-	res, execErr := eng.Execute(plan)
-	if execErr != nil {
-		coll.Record("sysconfig", execErr)
-	}
+	res := eng.Execute(plan)
 	for _, sr := range res.Applied {
 		coll.Record("sysconfig:"+sr.Step.Domain, sr.Err)
 	}
@@ -352,12 +343,11 @@ func identityConfig(m *manifest.Manifest) sysconfig.Config {
 // replaces is copied first; --hyprland (aliased by --linux-desktop) opts into
 // the desktop set, which the engine guard refuses with backups off outside a
 // dry run; DryRun mirrors opts so a preview
-// never mutates. Validate is always on.
+// never mutates.
 func applySymlinkOptions(opts applyOptions) symlink.Options {
 	return symlink.Options{
 		DryRun:         opts.DryRun,
 		Backup:         !opts.NoBackup,
-		Validate:       true,
 		ManageHyprland: opts.Hyprland,
 	}
 }
@@ -417,7 +407,7 @@ func applyDryRun(stdout, stderr io.Writer, r exec.Runner, m *manifest.Manifest, 
 	// Applicability filter: the preview must reflect what a real apply would
 	// actually do on THIS host, not what the manifest declares. Without it the
 	// dry run promises installs the real run silently skips (e.g.
-	// plan.apt-repo=docker-ce on a dnf host). Applicable is a pure read-only
+	// plan.repo=docker-ce on a dnf host). Applicable is a pure read-only
 	// gate, so this engine never runs a command and never primes sudo —
 	// the same construction status.go uses for its probe engine.
 	engine := backend.Default(r, nil, repoRoot, nil)

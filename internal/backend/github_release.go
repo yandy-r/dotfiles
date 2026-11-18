@@ -134,9 +134,6 @@ func (b *githubReleaseBackend) Installed(pkg manifest.Package, _ platform.Info) 
 // auto-detected), and its expected sha256 (per-target map, inline, or sidecar).
 // Install downloads it; resolve freezes it into a lockfile.Artifact.
 type resolvedAsset struct {
-	// Repo is the "owner/repo" slug.
-	Repo string
-
 	// Tag is the release tag to download from.
 	Tag string
 
@@ -156,7 +153,7 @@ func (b *githubReleaseBackend) resolveAsset(pkg manifest.Package, info platform.
 	if err != nil {
 		return resolvedAsset{}, err
 	}
-	return resolvedAsset{Repo: pkg.Repo, Tag: pkg.Tag, Asset: a.Asset, SHA256: a.SHA256}, nil
+	return resolvedAsset{Tag: pkg.Tag, Asset: a.Asset, SHA256: a.SHA256}, nil
 }
 
 // resolve records a frozen Artifact for target by routing through resolveAsset —

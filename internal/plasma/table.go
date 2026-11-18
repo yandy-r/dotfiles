@@ -206,8 +206,6 @@ func DefaultFiles() []FileSpec {
 			Format: FormatINI,
 			// Session ledgers rewritten on every logout.
 			VolatileGroups: []string{
-				"[Session: *]",
-				"[LegacySession: *]",
 				"[Session*]",
 				"[LegacySession*]",
 				"[Screen*]",

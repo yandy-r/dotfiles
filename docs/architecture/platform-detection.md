@@ -29,9 +29,9 @@ The Go detector owns the vocabulary — the OS/arch/package-manager/container to
 
 `Codename` and `VersionID` are populated but deliberately **not** printed by `dotf platform` — see [the output contract](#dotf-platform-output-contract).
 
-### `detectOS`
+### `detectOSFrom`
 
-`detectOS` resolves the kernel name via `unameS(r)` and dispatches on its prefix.
+`detectOSFrom` resolves the kernel name via `unameS(r)` and dispatches on its prefix.
 
 | `uname -s` prefix         | Result                           |
 | ------------------------- | -------------------------------- |
@@ -49,7 +49,7 @@ The Go detector owns the vocabulary — the OS/arch/package-manager/container to
 | `windows`      | `MSYS`                    |
 | anything else  | `""` (→ `unknown`)        |
 
-`detectOS` is the path-taking seam the tests drive; `Detect` scans os-release once and calls `detectOSFrom` with the already-scanned record.
+`Detect` scans os-release once and passes that record to `detectOSFrom`, so tests drive it with a constructed record.
 
 ### `detectLinuxFamily`
 

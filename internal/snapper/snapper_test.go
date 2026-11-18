@@ -39,16 +39,8 @@ func TestCreate_LinuxWithBinary(t *testing.T) {
 	fake.AddPath("snapper", "/usr/bin/snapper")
 	s := New(fake, platform.Info{OS: platform.OSArch})
 
-	out := s.Create("pre-apply")
-
-	if !out.Created {
-		t.Errorf("Created = false, want true")
-	}
-	if out.Skipped {
-		t.Errorf("Skipped = true, want false")
-	}
-	if out.Err != nil {
-		t.Errorf("Err = %v, want nil", out.Err)
+	if err := s.Create("pre-apply"); err != nil {
+		t.Errorf("Create() = %v, want nil", err)
 	}
 	if !s.Available() {
 		t.Errorf("Available() = false, want true")
@@ -63,16 +55,8 @@ func TestCreate_NonLinuxNoOp(t *testing.T) {
 	fake.AddPath("snapper", "/usr/bin/snapper")
 	s := New(fake, platform.Info{OS: platform.OSMacOS})
 
-	out := s.Create("pre-apply")
-
-	if !out.Skipped {
-		t.Errorf("Skipped = false, want true")
-	}
-	if out.Reason != "non-linux" {
-		t.Errorf("Reason = %q, want %q", out.Reason, "non-linux")
-	}
-	if out.Created {
-		t.Errorf("Created = true, want false")
+	if err := s.Create("pre-apply"); err != nil {
+		t.Errorf("Create() = %v, want nil", err)
 	}
 	if s.Available() {
 		t.Errorf("Available() = true, want false")
@@ -84,16 +68,8 @@ func TestCreate_MissingBinary(t *testing.T) {
 	fake := exec.NewFake() // no AddPath: snapper does not resolve
 	s := New(fake, platform.Info{OS: platform.OSDebian})
 
-	out := s.Create("pre-apply")
-
-	if !out.Skipped {
-		t.Errorf("Skipped = false, want true")
-	}
-	if out.Reason != "snapper-not-installed" {
-		t.Errorf("Reason = %q, want %q", out.Reason, "snapper-not-installed")
-	}
-	if out.Created {
-		t.Errorf("Created = true, want false")
+	if err := s.Create("pre-apply"); err != nil {
+		t.Errorf("Create() = %v, want nil", err)
 	}
 	if s.Available() {
 		t.Errorf("Available() = true, want false")
@@ -108,19 +84,13 @@ func TestCreate_RunErrorNonFatal(t *testing.T) {
 	fake.RunErrors[exec.CommandKey("sudo", "snapper", "create", "-d", "dotf apply: pre-apply")] = wantErr
 	s := New(fake, platform.Info{OS: platform.OSArch})
 
-	out := s.Create("pre-apply")
+	err := s.Create("pre-apply")
 
-	if out.Err == nil {
-		t.Fatalf("Err = nil, want non-nil")
+	if err == nil {
+		t.Fatalf("Create() = nil, want non-nil")
 	}
-	if !errors.Is(out.Err, wantErr) {
-		t.Errorf("Err = %v, want wrapping %v", out.Err, wantErr)
-	}
-	if out.Created {
-		t.Errorf("Created = true, want false")
-	}
-	if out.Skipped {
-		t.Errorf("Skipped = true, want false")
+	if !errors.Is(err, wantErr) {
+		t.Errorf("Create() = %v, want wrapping %v", err, wantErr)
 	}
 	assertOneCall(t, fake, "sudo",
 		[]string{"snapper", "create", "-d", "dotf apply: pre-apply"})
@@ -131,10 +101,8 @@ func TestCreate_CustomDesc(t *testing.T) {
 	fake.AddPath("snapper", "/usr/bin/snapper")
 	s := New(fake, platform.Info{OS: platform.OSSUSE})
 
-	out := s.Create("nightly-2026")
-
-	if !out.Created {
-		t.Errorf("Created = false, want true")
+	if err := s.Create("nightly-2026"); err != nil {
+		t.Errorf("Create() = %v, want nil", err)
 	}
 	assertOneCall(t, fake, "sudo",
 		[]string{"snapper", "create", "-d", "dotf apply: nightly-2026"})

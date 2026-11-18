@@ -251,10 +251,9 @@ func (e *Engine) Plan(cfg Config, info platform.Info) (Plan, error) {
 // Execute runs each Step in p, collecting per-step failures non-fatally into
 // the returned Result (it never aborts mid-plan). Command steps run through
 // the exec.Runner; file steps are staged via FileSystem.WriteTemp and
-// installed with a privileged copy. The returned error is reserved for a
-// catastrophic dispatch failure and is nil in normal operation — inspect
-// Result.Applied for per-step outcomes.
-func (e *Engine) Execute(p Plan) (Result, error) {
+// installed with a privileged copy. Inspect Result.Applied for per-step
+// outcomes.
+func (e *Engine) Execute(p Plan) Result {
 	res := Result{Skipped: p.Skipped}
 
 	for _, step := range p.Steps {
@@ -270,7 +269,7 @@ func (e *Engine) Execute(p Plan) (Result, error) {
 		res.Applied = append(res.Applied, sr)
 	}
 
-	return res, nil
+	return res
 }
 
 // installFile stages fi.Content to a 0600 temp file, optionally backs up the

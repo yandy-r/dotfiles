@@ -37,37 +37,16 @@ func (s *Snapshotter) Available() bool {
 	return err == nil
 }
 
-// Outcome is the non-fatal result of a Create call. At most one of Created,
-// Skipped is true; Err carries a snapper failure (non-fatal to the caller).
-type Outcome struct {
-	// Created is true when a snapshot was successfully taken.
-	Created bool
-
-	// Skipped is true when Create was a no-op; Reason explains why.
-	Skipped bool
-
-	// Reason is the skip reason ("non-linux" or "snapper-not-installed").
-	Reason string
-
-	// Err is a non-nil snapper failure. It is non-fatal: the caller logs it
-	// as a warning and continues the apply run.
-	Err error
-}
-
 // Create runs `sudo snapper create -d "dotf apply: <desc>"`. It is a no-op
-// (Skipped) when Available is false: a non-Linux OS yields
-// Reason "non-linux" and an unresolvable binary yields
-// Reason "snapper-not-installed", both recording zero Run calls. A snapper
-// failure yields Err (non-fatal).
-func (s *Snapshotter) Create(desc string) Outcome {
-	if !platform.IsLinuxFamily(s.info.OS) {
-		return Outcome{Skipped: true, Reason: "non-linux"}
-	}
-	if _, err := s.r.LookPath(binary); err != nil {
-		return Outcome{Skipped: true, Reason: "snapper-not-installed"}
+// returning nil when Available is false (non-Linux, or snapper not on PATH),
+// recording zero Run calls. A snapper failure is returned wrapped; the caller
+// treats it as non-fatal.
+func (s *Snapshotter) Create(desc string) error {
+	if !s.Available() {
+		return nil
 	}
 	if err := s.r.Run("sudo", binary, "create", "-d", "dotf apply: "+desc); err != nil {
-		return Outcome{Err: fmt.Errorf("snapper: create snapshot: %w", err)}
+		return fmt.Errorf("snapper: create snapshot: %w", err)
 	}
-	return Outcome{Created: true}
+	return nil
 }

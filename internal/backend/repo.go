@@ -49,7 +49,7 @@ type repoBackend struct {
 
 	// repoIDs reports the dnf repo ids configured on the host (see
 	// hostDNFRepoIDs). Tests inject a fake so they never read the real /etc.
-	repoIDs func() (map[string]bool, error)
+	repoIDs func() map[string]bool
 }
 
 func newRepoBackend(r exec.Runner) *repoBackend {
@@ -71,20 +71,10 @@ func (b *repoBackend) applicableFor(pkg manifest.Package, info platform.Info) bo
 	}
 }
 
-// backendLabel names the backend an error is reported against: the manifest's
-// own spelling when set, so an entry written under the deprecated apt-repo
-// alias reports apt-repo, and the canonical "repo" otherwise.
-func backendLabel(pkg manifest.Package) manifest.Backend {
-	if pkg.Backend != "" {
-		return pkg.Backend
-	}
-	return manifest.BackendRepo
-}
-
 func (b *repoBackend) Install(pkg manifest.Package, info platform.Info) error {
 	if !b.applicableFor(pkg, info) {
 		return &UnsupportedPlatformError{
-			Backend: backendLabel(pkg),
+			Backend: manifest.BackendRepo,
 			OS:      info.OS,
 			PkgMgr:  info.PkgMgr,
 		}
@@ -97,7 +87,7 @@ func (b *repoBackend) Install(pkg manifest.Package, info platform.Info) error {
 		return b.installDNF(pkg, info)
 	default:
 		return &UnsupportedPlatformError{
-			Backend: backendLabel(pkg),
+			Backend: manifest.BackendRepo,
 			OS:      info.OS,
 			PkgMgr:  info.PkgMgr,
 		}
@@ -141,7 +131,7 @@ func (b *repoBackend) Remove(pkg manifest.Package, info platform.Info) error {
 
 func (b *repoBackend) lifecycle(pkg manifest.Package, info platform.Info, argvFn func(platform.PkgMgr, string) ([]string, error)) error {
 	if !b.applicableFor(pkg, info) {
-		return &UnsupportedPlatformError{Backend: backendLabel(pkg), OS: info.OS, PkgMgr: info.PkgMgr}
+		return &UnsupportedPlatformError{Backend: manifest.BackendRepo, OS: info.OS, PkgMgr: info.PkgMgr}
 	}
 	name := pkg.Names[string(info.PkgMgr)]
 	if name == "" {
@@ -293,7 +283,7 @@ func (b *repoBackend) Installed(pkg manifest.Package, info platform.Info) (bool,
 		return true, nil
 	default:
 		return false, &UnsupportedPlatformError{
-			Backend: backendLabel(pkg),
+			Backend: manifest.BackendRepo,
 			OS:      info.OS,
 			PkgMgr:  info.PkgMgr,
 		}
@@ -308,7 +298,7 @@ func (b *repoBackend) Installed(pkg manifest.Package, info platform.Info) (bool,
 // on apt-get update.
 func renderRepoLine(line string, info platform.Info) (string, error) {
 	if strings.Contains(line, "{{.Codename}}") && info.Codename == "" {
-		return "", fmt.Errorf("apt-repo: host codename unknown (os-release VERSION_CODENAME/UBUNTU_CODENAME absent); cannot render repo_line %q", line)
+		return "", fmt.Errorf("repo: host codename unknown (os-release VERSION_CODENAME/UBUNTU_CODENAME absent); cannot render repo_line %q", line)
 	}
 	return strings.NewReplacer("{{.Codename}}", info.Codename, "{{.Arch}}", info.Arch.ReleaseArch()).Replace(line), nil
 }

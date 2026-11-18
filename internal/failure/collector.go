@@ -44,14 +44,6 @@ func (c *Collector) Failed() bool {
 	return len(c.failures) > 0
 }
 
-// Failures returns the accumulated failures in run order. The returned slice is
-// a defensive copy; mutating it does not affect the collector.
-func (c *Collector) Failures() []Failure {
-	out := make([]Failure, len(c.failures))
-	copy(out, c.failures)
-	return out
-}
-
 // WriteSummary writes the run's aggregate line to w, followed by one line per
 // failure in run order. The aggregate line is always written, even when every
 // step succeeded. prog is the program name prefix (e.g. "dotf").

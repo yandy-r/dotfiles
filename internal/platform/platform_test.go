@@ -185,7 +185,7 @@ func TestDetectOS(t *testing.T) {
 				}
 			}
 
-			if got := detectOS(r, osReleasePath, procVersionPath); got != tt.want {
+			if got := detectOSFrom(r, readOSRelease(osReleasePath), procVersionPath); got != tt.want {
 				t.Errorf("detectOS() = %q, want %q", got, tt.want)
 			}
 		})
@@ -196,7 +196,7 @@ func TestDetectOS_Darwin(t *testing.T) {
 	r := exec.NewFake()
 	r.AddCommand("uname", []string{"-s"}, []byte("Darwin\n"), nil)
 
-	if got := detectOS(r, "/nonexistent/os-release", "/nonexistent/proc-version"); got != OSMacOS {
+	if got := detectOSFrom(r, readOSRelease("/nonexistent/os-release"), "/nonexistent/proc-version"); got != OSMacOS {
 		t.Errorf("detectOS() = %q, want %q", got, OSMacOS)
 	}
 }
@@ -205,7 +205,7 @@ func TestDetectOS_Windows(t *testing.T) {
 	r := exec.NewFake()
 	r.AddCommand("uname", []string{"-s"}, []byte("MINGW64_NT-10.0\n"), nil)
 
-	if got := detectOS(r, "/nonexistent/os-release", "/nonexistent/proc-version"); got != OSWindows {
+	if got := detectOSFrom(r, readOSRelease("/nonexistent/os-release"), "/nonexistent/proc-version"); got != OSWindows {
 		t.Errorf("detectOS() = %q, want %q", got, OSWindows)
 	}
 }
@@ -214,7 +214,7 @@ func TestDetectOS_UnknownUname(t *testing.T) {
 	r := exec.NewFake()
 	r.AddCommand("uname", []string{"-s"}, []byte("FreeBSD\n"), nil)
 
-	if got := detectOS(r, "/nonexistent/os-release", "/nonexistent/proc-version"); got != OSUnknown {
+	if got := detectOSFrom(r, readOSRelease("/nonexistent/os-release"), "/nonexistent/proc-version"); got != OSUnknown {
 		t.Errorf("detectOS() = %q, want %q", got, OSUnknown)
 	}
 }
@@ -228,7 +228,7 @@ func TestDetectOS_UnameUnavailable_DoesNotPanic(t *testing.T) {
 		}
 	}()
 
-	_ = detectOS(r, "/nonexistent/os-release", "/nonexistent/proc-version")
+	_ = detectOSFrom(r, readOSRelease("/nonexistent/os-release"), "/nonexistent/proc-version")
 }
 
 func TestDetectPkgMgr(t *testing.T) {
@@ -308,91 +308,6 @@ func TestDetectPkgMgr(t *testing.T) {
 				t.Errorf("detectPkgMgr() = %q, want %q", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestDistroName(t *testing.T) {
-	tests := []struct {
-		name      string
-		osRelease string
-		missing   bool
-		want      string
-	}{
-		{name: "ubuntu", osRelease: "ID=ubuntu\n", want: "ubuntu"},
-		{name: "quoted ID", osRelease: `ID="cachyos"` + "\n", want: "cachyos"},
-		{name: "single-quoted ID", osRelease: `ID='cachyos'` + "\n", want: "cachyos"},
-		{name: "fedora-asahi-remix", osRelease: "ID=fedora-asahi-remix\n", want: "fedora-asahi-remix"},
-		{name: "missing file -> unknown", missing: true, want: "unknown"},
-		{name: "no ID field -> unknown", osRelease: "NAME=Test\n", want: "unknown"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "missing")
-			if !tt.missing {
-				path = writeOSRelease(t, tt.osRelease)
-			}
-
-			if got := distroName(path); got != tt.want {
-				t.Errorf("distroName() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestOSReleaseCodename(t *testing.T) {
-	tests := []struct {
-		name      string
-		osRelease string
-		want      string
-	}{
-		{
-			name:      "VERSION_CODENAME present",
-			osRelease: "ID=ubuntu\nVERSION_CODENAME=noble\n",
-			want:      "noble",
-		},
-		{
-			name:      "only UBUNTU_CODENAME present",
-			osRelease: "ID=ubuntu\nUBUNTU_CODENAME=jammy\n",
-			want:      "jammy",
-		},
-		{
-			name:      "both present -> VERSION_CODENAME wins",
-			osRelease: "ID=ubuntu\nVERSION_CODENAME=noble\nUBUNTU_CODENAME=jammy\n",
-			want:      "noble",
-		},
-		{
-			name:      "neither present -> empty",
-			osRelease: "ID=arch\nID_LIKE=arch\n",
-			want:      "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			path := writeOSRelease(t, tt.osRelease)
-
-			if got := osReleaseCodename(path); got != tt.want {
-				t.Errorf("osReleaseCodename() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestParseOSRelease_PermissionDenied_GracefulFallback(t *testing.T) {
-	if os.Getuid() == 0 {
-		t.Skip("running as root; permission checks do not apply")
-	}
-
-	path := writeOSRelease(t, "ID=arch\n")
-	if err := os.Chmod(path, 0o000); err != nil {
-		t.Fatalf("Chmod() error = %v", err)
-	}
-	defer func() { _ = os.Chmod(path, 0o644) }()
-
-	id, idLike := parseOSRelease(path)
-	if id != "" || idLike != "" {
-		t.Errorf("parseOSRelease() = (%q, %q), want (\"\", \"\") on permission error", id, idLike)
 	}
 }
 

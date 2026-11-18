@@ -33,7 +33,7 @@ func TestPackage_EffectiveClass(t *testing.T) {
 	}{
 		{"pkg infers managed", manifest.Package{Backend: manifest.BackendPkg}, manifest.ClassManaged},
 		{"aur infers managed", manifest.Package{Backend: manifest.BackendAUR}, manifest.ClassManaged},
-		{"apt-repo infers managed", manifest.Package{Backend: manifest.BackendAPTRepo}, manifest.ClassManaged},
+		{"repo infers managed", manifest.Package{Backend: manifest.BackendRepo}, manifest.ClassManaged},
 		{"repo infers managed", manifest.Package{Backend: manifest.BackendRepo}, manifest.ClassManaged},
 		{"toolchain infers managed", manifest.Package{Backend: manifest.BackendToolchain}, manifest.ClassManaged},
 		{"git-clone infers managed", manifest.Package{Backend: manifest.BackendGitClone}, manifest.ClassManaged},
@@ -67,7 +67,7 @@ func TestLegalClasses(t *testing.T) {
 	}{
 		{manifest.BackendPkg, []manifest.Class{manifest.ClassManaged}},
 		{manifest.BackendAUR, []manifest.Class{manifest.ClassManaged}},
-		{manifest.BackendAPTRepo, []manifest.Class{manifest.ClassManaged}},
+		{manifest.BackendRepo, []manifest.Class{manifest.ClassManaged}},
 		{manifest.BackendRepo, []manifest.Class{manifest.ClassManaged}},
 		{manifest.BackendToolchain, []manifest.Class{manifest.ClassManaged}},
 		{manifest.BackendGitClone, []manifest.Class{manifest.ClassManaged}},

@@ -54,16 +54,6 @@ func TestResolveApplyOptions(t *testing.T) {
 			want: applyOptions{Gaming: true},
 		},
 		{
-			name:  "ollama flag",
-			flags: applyFlags{Ollama: true},
-			want:  applyOptions{Ollama: true},
-		},
-		{
-			name: "ollama env",
-			env:  map[string]string{"ENABLE_OLLAMA": "true"},
-			want: applyOptions{Ollama: true},
-		},
-		{
 			name:  "hyprland flag",
 			flags: applyFlags{Hyprland: true},
 			want:  applyOptions{Hyprland: true},
@@ -180,7 +170,6 @@ func TestResolveApplyOptions_TruthinessLock(t *testing.T) {
 		t.Run("value="+v, func(t *testing.T) {
 			env := map[string]string{
 				"ENABLE_GAMING":       v,
-				"ENABLE_OLLAMA":       v,
 				"NON_INTERACTIVE":     v,
 				"FORCE_INSTALL":       v,
 				"HYPRLAND":            v,
@@ -190,7 +179,7 @@ func TestResolveApplyOptions_TruthinessLock(t *testing.T) {
 				"DOTF_NO_USER_CONFIG": v,
 			}
 			got := resolveApplyOptions(applyFlags{}, mapGetenv(env))
-			if got.Gaming || got.Ollama || got.Headless || got.Force || got.Hyprland || got.Snapper || got.Plasma || got.NoUserConfig {
+			if got.Gaming || got.Headless || got.Force || got.Hyprland || got.Snapper || got.Plasma || got.NoUserConfig {
 				t.Errorf("non-\"true\" value %q flipped a field: %+v", v, got)
 			}
 		})
@@ -203,7 +192,6 @@ func testIntentsManifest() *manifest.Manifest {
 			"base":      {},
 			"dev":       {},
 			"gaming":    {},
-			"ollama":    {},
 			"runtimes":  {},
 			"ai":        {},
 			"cloud":     {},
@@ -213,7 +201,7 @@ func testIntentsManifest() *manifest.Manifest {
 }
 
 // TestResolveIntents covers the headless intent set: sorted default excluding
-// opt-in intents, gaming/ollama appended when flagged, explicit --intent
+// opt-in intents, gaming appended when flagged, explicit --intent
 // narrowing, and order-preserving dedupe.
 func TestResolveIntents(t *testing.T) {
 	m := testIntentsManifest()
@@ -224,7 +212,7 @@ func TestResolveIntents(t *testing.T) {
 		want []string
 	}{
 		{
-			name: "default excludes all opt-in intents (gaming/ollama + parity bundles), sorted",
+			name: "default excludes all opt-in intents (gaming + parity bundles), sorted",
 			opts: applyOptions{},
 			want: []string{"base", "dev"},
 		},
@@ -237,16 +225,6 @@ func TestResolveIntents(t *testing.T) {
 			name: "gaming appended when flagged",
 			opts: applyOptions{Gaming: true},
 			want: []string{"base", "dev", "gaming"},
-		},
-		{
-			name: "ollama appended when flagged",
-			opts: applyOptions{Ollama: true},
-			want: []string{"base", "dev", "ollama"},
-		},
-		{
-			name: "gaming and ollama both appended",
-			opts: applyOptions{Gaming: true, Ollama: true},
-			want: []string{"base", "dev", "gaming", "ollama"},
 		},
 		{
 			name: "explicit intents narrow and skip manifest scan",

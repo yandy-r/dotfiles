@@ -123,7 +123,7 @@ func osGateAllows(want string, host platform.OS) bool {
 }
 
 // platformGated is implemented by backends that can only run on certain
-// hosts (apt-repo requires apt, aur requires Arch). Backends without this
+// hosts (repo requires apt, aur requires Arch). Backends without this
 // method are applicable on every host.
 type platformGated interface {
 	applicable(info platform.Info) bool

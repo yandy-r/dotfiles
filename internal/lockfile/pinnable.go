@@ -10,7 +10,7 @@ import "github.com/yandy-r/dotfiles/internal/manifest"
 // It keys on manifest.Package.EffectiveClass so the class taxonomy is the sole
 // source of truth: github-release infers pinned; script-url infers pinned when
 // it declares an inline sha256 and rolling when it does not (so a rotating
-// installer like starship is never locked); pkg/aur/apt-repo/toolchain infer
+// installer like starship is never locked); pkg/aur/repo/toolchain infer
 // managed; and custom-script must declare its class explicitly. Only pinned is
 // lockable.
 func Pinnable(pkg manifest.Package) bool {

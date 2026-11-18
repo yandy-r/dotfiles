@@ -11,7 +11,7 @@ import (
 
 // defaultProcVersionPath is the standard location of the kernel version
 // banner on Linux, used to detect WSL when /etc/os-release is unavailable.
-// Overridable in tests via detectOS's procVersionPath parameter.
+// Overridable in tests via detectOSFrom's procVersionPath parameter.
 const defaultProcVersionPath = "/proc/version"
 
 // Detect probes the host via r and the filesystem and returns its canonical
@@ -84,13 +84,6 @@ func hasWaylandSocket(runtimeDir string) bool {
 		}
 	}
 	return false
-}
-
-// detectOS determines the canonical OS/distro family from the os-release file
-// at osReleasePath. It is the path-taking seam the tests drive; Detect scans
-// os-release once and calls detectOSFrom directly.
-func detectOS(r exec.Runner, osReleasePath, procVersionPath string) OS {
-	return detectOSFrom(r, readOSRelease(osReleasePath), procVersionPath)
 }
 
 // detectOSFrom determines the canonical OS/distro family from an already

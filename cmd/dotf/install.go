@@ -205,7 +205,7 @@ func resolveAction(update, remove bool) (backend.Action, error) {
 
 // performPackage probes backend applicability, applies the action-aware
 // installed-state gate, then dispatches the lifecycle action to the engine.
-// Packages whose backend cannot run on this host (apt-repo on a non-apt host,
+// Packages whose backend cannot run on this host (repo on a non-apt host,
 // aur on non-Arch) are skipped with status "not-applicable" and no error, so a
 // converged host is never failed by a platform-gated manifest entry. A probe
 // error (unknown backend) is recorded as a failure.
@@ -329,8 +329,7 @@ func (m *multiFlag) Set(value string) error {
 // define. Without this gate a typo (--intent devs for dev) would be silently
 // dropped by packagesForInstall, resolve to an empty package set, and exit 0 —
 // silent success on a no-op. Only explicit user input goes through here; the
-// gaming/ollama opt-in appends in resolveIntents stay tolerant, preserving the
-// "--enable-ollama is a no-op until the manifest defines it" contract.
+// the gaming opt-in append in resolveIntents stays tolerant.
 func validateIntents(m *manifest.Manifest, intents []string) error {
 	for _, intentName := range intents {
 		if _, ok := m.Intents[intentName]; !ok {

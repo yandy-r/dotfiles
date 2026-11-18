@@ -260,7 +260,7 @@ func checkSymlinks(repoRoot, home string, info platform.Info) []doctorCheck {
 
 	eng := symlink.NewEngine(repoRoot, home)
 	specs := symlink.DefaultTable()
-	opts := symlink.Options{Validate: true}
+	opts := symlink.Options{}
 
 	plan, err := eng.Plan(specs, info, opts)
 	if err != nil {

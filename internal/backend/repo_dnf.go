@@ -93,10 +93,7 @@ func (b *repoBackend) dnfRepoArgs(repo *manifest.DNFRepo, name string) ([]string
 	if len(repo.ExcludeFrom) == 0 {
 		return args, nil
 	}
-	present, err := b.repoIDs()
-	if err != nil {
-		return nil, err
-	}
+	present := b.repoIDs()
 	for _, id := range repo.ExcludeFrom {
 		if present[id] {
 			args = append(args, fmt.Sprintf("--setopt=%s.excludepkgs=%s", id, dnfExcludePatterns(name)))
@@ -158,7 +155,7 @@ func (b *repoBackend) writeDNFOverride(dest, body string) error {
 // hostDNFRepoIDs returns the repo ids declared by section headers in the .repo
 // files of dnf's repo directories. Unreadable or missing directories are
 // skipped: the result only gates per-command --setopt flags.
-func hostDNFRepoIDs() (map[string]bool, error) {
+func hostDNFRepoIDs() map[string]bool {
 	ids := map[string]bool{}
 	for _, dir := range []string{yumReposDir, "/etc/distro.repos.d/"} {
 		files, _ := filepath.Glob(dir + "*.repo")
@@ -175,7 +172,7 @@ func hostDNFRepoIDs() (map[string]bool, error) {
 			}
 		}
 	}
-	return ids, nil
+	return ids
 }
 
 // dnfEnableRepoArgs returns the --enablerepo flag install and upgrade need when

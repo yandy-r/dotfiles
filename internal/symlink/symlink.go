@@ -23,8 +23,6 @@ type Options struct {
 	// BackupDir before removing it. The CLIs default it to true (--no-backup
 	// opts out); false removes real files without a copy.
 	Backup bool
-	// Validate runs post-apply validation (Ansible validate_after; default true).
-	Validate bool
 	// ManageHyprland opts into the Hyprland/wlroots desktop config set. The CLI
 	// spells it --hyprland, with --linux-desktop retained as a back-compat alias.
 	ManageHyprland bool
