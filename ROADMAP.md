@@ -73,8 +73,7 @@ Worth doing, but off the first-boot path:
   raising it.
 - **openSUSE third-party repos** as a `zypper_repo` sub-table on the existing `repo` backend. Explicitly _not_ a new
   backend — ADR-5 made `repo` the family-dispatching seam precisely so this stays a sub-table.
-- **Retiring or wiring the orphaned `bin/install-*.sh` scripts.** `install-docker.sh`, `install-native-packages.sh`,
-  `install-arch-pkgs.sh`, `install-modern-cli.sh` and `install-brew.sh` are among those unreachable from
+- **Retiring or wiring the orphaned `bin/install-*.sh` scripts.** `install-arch-pkgs.sh` and `install-brew.sh` are among those unreachable from
   `bootstrap.sh → dotf apply`. Either they become reachable or they go.
 - **Wiring the `sysconfig` `[[module]]` step kind and its `ports` list.** `dotf setup` is not reachable from the
   bootstrap pipeline at all, so the module surface is currently inert.

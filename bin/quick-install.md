@@ -40,34 +40,11 @@ Fast reference for installing cloud and CLI tools using official methods.
 ./bin/install-hashicorp-tools.sh --check
 ```
 
-### Container/Kubernetes Tools
+### Container Tools
 
 ```bash
 # Install Skaffold and Hadolint
 ./bin/install-container-tools.sh
-
-# Kubernetes ecosystem (kubectl, helm, k9s, etc.)
-./bin/k8s-tools.sh
-
-# Check K8s tools status
-./bin/k8s-tools.sh --check
-```
-
-### Modern CLI Tools
-
-```bash
-# Install all modern CLI tools
-# (lazygit, delta, bottom, eza, carapace, xh)
-./bin/install-modern-cli.sh
-
-# Install only specific tools
-./bin/install-modern-cli.sh lazygit delta
-
-# Check what's installed
-./bin/install-modern-cli.sh --check
-
-# Install to custom directory
-./bin/install-modern-cli.sh --dir ~/.local/bin
 ```
 
 ## 🔍 Common Options
@@ -78,7 +55,7 @@ All installer scripts support these options:
 | ----------- | -------------------------- | ------------------------------------------------ |
 | `--check`   | Show installed versions    | `./bin/install-aws-tools.sh --check`             |
 | `--dry-run` | Preview without installing | `./bin/install-azure-cli.sh --dry-run`           |
-| `--dir DIR` | Custom install directory   | `./bin/install-modern-cli.sh --dir ~/.local/bin` |
+| `--dir DIR` | Custom install directory   | `./bin/install-aws-tools.sh --dir ~/.local/bin` |
 | `--help`    | Show help message          | `./bin/install-hashicorp-tools.sh --help`        |
 
 ## 📦 What Each Script Installs
@@ -103,25 +80,6 @@ All installer scripts support these options:
 - **skaffold** - K8s development workflow (official Google installer)
 - **hadolint** - Dockerfile linter (GitHub releases)
 
-### Kubernetes (`k8s-tools.sh`)
-
-- **kubectl** - Kubernetes CLI
-- **helm** - Kubernetes package manager
-- **k9s** - Kubernetes TUI
-- **kubectx/kubens** - Context/namespace switchers
-- **kustomize** - Kubernetes customization
-- **stern** - Multi-pod log tailing
-- **krew** - kubectl plugin manager
-
-### Modern CLI (`install-modern-cli.sh`)
-
-- **lazygit** - Terminal UI for git
-- **delta** - Better diff viewer
-- **bottom** (btm) - System monitor
-- **eza** - Better ls alternative
-- **carapace** - Universal completion generator
-- **xh** - Friendly HTTP client
-
 ## 🚀 Installation Workflow
 
 ### First Time Setup
@@ -135,16 +93,9 @@ All installer scripts support these options:
 ./bin/install-azure-cli.sh
 ./bin/install-hashicorp-tools.sh
 
-# 3. Install Kubernetes tools
-./bin/k8s-tools.sh
-
-# 4. Install modern CLI tools
-./bin/install-modern-cli.sh
-
-# 5. Check everything is installed
+# 3. Check everything is installed
 ./bin/install-aws-tools.sh --check
-./bin/install-modern-cli.sh --check
-./bin/k8s-tools.sh --check
+./bin/install-hashicorp-tools.sh --check
 ```
 
 ### Preview Before Installing
@@ -153,7 +104,6 @@ All installer scripts support these options:
 # Test installation without making changes
 ./bin/install-aws-tools.sh --dry-run
 ./bin/install-azure-cli.sh --dry-run
-./bin/install-modern-cli.sh --dry-run
 ```
 
 ### Selective Installation
@@ -162,8 +112,6 @@ All installer scripts support these options:
 # Install only what you need
 ./bin/install-aws-tools.sh aws          # AWS CLI only
 ./bin/install-hashicorp-tools.sh terraform
-./bin/install-modern-cli.sh lazygit delta eza
-./bin/k8s-tools.sh kubectl helm
 ```
 
 ## 📍 Installation Locations
@@ -176,12 +124,6 @@ Scripts install binaries to different locations based on permissions:
 | `~/.local/bin`     | User-only (fallback)  | No            |
 | Custom via `--dir` | User-specified        | Depends       |
 
-**Tip:** For user-local installations without sudo:
-
-```bash
-./bin/install-modern-cli.sh --dir ~/.local/bin
-```
-
 ## 🔧 Troubleshooting
 
 ### Tool not found after installation
@@ -193,13 +135,6 @@ export PATH="/usr/local/bin:$PATH"
 
 # Reload shell
 exec zsh  # or: exec bash
-```
-
-### Permission denied errors
-
-```bash
-# Use user-local directory instead
-./bin/install-modern-cli.sh --dir ~/.local/bin
 ```
 
 ### Download failures
@@ -243,19 +178,6 @@ tflint --version
 # Container Tools
 skaffold version
 hadolint --version
-
-# Kubernetes
-kubectl version --client
-helm version
-k9s version
-
-# Modern CLI
-lazygit --version
-delta --version
-btm --version
-eza --version
-carapace --version
-xh --version
 ```
 
 ## 📚 More Information
@@ -270,20 +192,15 @@ xh --version
 1. **Use check mode first** to see what's already installed
 2. **Preview with dry-run** before committing to installation
 3. **Install selectively** - only install tools you actually use
-4. **User-local installation** avoids sudo and system-wide changes
-5. **Keep PATH updated** - add `~/.local/bin` to your PATH for user installs
+4. **Keep PATH updated** - add `~/.local/bin` to your PATH for user installs
 
 ## 🔄 Updates
 
 To update tools later:
 
 ```bash
-# Kubernetes tools support update mode
-./bin/k8s-tools.sh --update kubectl k9s
-
-# For others, reinstall to get latest version
+# Reinstall to get latest version
 ./bin/install-aws-tools.sh aws
-./bin/install-modern-cli.sh lazygit
 ```
 
 ## 🎯 Most Common Use Cases
@@ -293,7 +210,6 @@ To update tools later:
 ```bash
 ./bin/install-aws-tools.sh
 ./bin/install-hashicorp-tools.sh
-./bin/k8s-tools.sh
 ./bin/install-container-tools.sh
 ```
 
@@ -302,21 +218,12 @@ To update tools later:
 ```bash
 ./bin/install-aws-tools.sh
 ./bin/install-azure-cli.sh
-./bin/k8s-tools.sh kubectl helm
-```
-
-### Modern CLI Enthusiast
-
-```bash
-./bin/install-modern-cli.sh
-./bin/k8s-tools.sh --check  # Verify K8s tools
 ```
 
 ### Minimal Server Setup
 
 ```bash
 ./bin/install-aws-tools.sh aws
-./bin/install-modern-cli.sh lazygit
 ```
 
 ---

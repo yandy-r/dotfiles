@@ -21,8 +21,6 @@ after-startup-command = [
   'workspace 1',
   # Initialize borders for visual feedback
   'exec-and-forget borders active_color=0xffe1e3e4 inactive_color=0xff494d64 width=5.0',
-  # Optional: Launch status bar integration
-  # 'exec-and-forget ~/.config/dotfiles/scripts/aerospace-status.sh',
 ]
 
 # Start AeroSpace at login

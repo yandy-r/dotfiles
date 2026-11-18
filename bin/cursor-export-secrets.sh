@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Manual use only. Not wired into bootstrap, playbooks, or CI.
 # Export Cursor authentication state to a private JSON file.
 
 set -euo pipefail

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-#
-# Manual use only. Not wired into bootstrap, playbooks, or CI.
-#
 
 set -euo pipefail
 

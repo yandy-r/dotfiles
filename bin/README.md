@@ -10,10 +10,10 @@ repository. All scripts are designed to be cross-platform and follow consistent 
 | Setup            | `bootstrap.sh`                                                                       | Shim: downloads `dotf`, runs `dotf apply` |
 | Package Managers | `install-brew.sh`, `up-brew.sh`, `un-brew.sh`                                        | Homebrew management         |
 | Cloud Tools      | `install-aws-tools.sh`, `install-azure-cli.sh`, `install-1password-cli.sh`           | Cloud CLI tools             |
-| DevOps           | `install-hashicorp-tools.sh`, `k8s-tools.sh`, `install-docker.sh`                    | Infrastructure tools        |
-| Modern CLI       | `install-modern-cli.sh`, `install-yazi.sh`, `install-espanso.sh`, `install-blesh.sh` | Modern command-line tools   |
+| DevOps           | `install-hashicorp-tools.sh`                                                         | Infrastructure tools        |
+| Modern CLI       | `install-espanso.sh`, `install-blesh.sh`                                             | Modern command-line tools   |
 | AI/Development   | `install-claude.sh`, `install-codex.sh`, `install-opencode.sh`, `install-omp.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-graphify.sh`, `install-neovim.sh` | Development tools           |
-| Utilities        | `sync-configs.sh`, `cursor-export-secrets.sh`, `dc-manage.sh`, `cleanup-*.sh`, `markdown-tools.sh` | System utilities |
+| Utilities        | `sync-configs.sh`, `cursor-export-secrets.sh`, `cleanup-*.sh`                        | System utilities            |
 | Style / Lint     | `style.sh`, `lint.sh`, `format.sh`                                                   | Multi-language lint/format  |
 
 ## Key Scripts
@@ -146,21 +146,6 @@ All installer scripts share common features:
 
 **Tools:** Terraform, TFLint
 
-#### k8s-tools.sh
-
-```bash
-# Install all Kubernetes tools
-./bin/k8s-tools.sh
-
-# Install specific tools
-./bin/k8s-tools.sh kubectl helm k9s
-
-# Update tools
-./bin/k8s-tools.sh --update kubectl
-```
-
-**Tools:** kubectl, helm, k9s, kubectx, kubens, kustomize, stern, krew
-
 #### install-container-tools.sh
 
 ```bash
@@ -172,43 +157,6 @@ All installer scripts share common features:
 ```
 
 **Tools:** Skaffold, Hadolint
-
-#### install-docker.sh
-
-```bash
-# Install Docker
-./bin/install-docker.sh
-
-# Check version
-./bin/install-docker.sh --check
-```
-
-### Modern CLI Tools
-
-#### install-modern-cli.sh
-
-Install modern command-line tools from GitHub releases.
-
-```bash
-# Install all modern CLI tools
-./bin/install-modern-cli.sh
-
-# Install specific tools
-./bin/install-modern-cli.sh lazygit delta eza
-
-# Custom directory
-./bin/install-modern-cli.sh --dir ~/.local/bin
-```
-
-**Tools:** lazygit, delta, bottom (btm), eza, carapace, xh
-
-#### install-yazi.sh
-
-Install Yazi terminal file manager.
-
-```bash
-./bin/install-yazi.sh
-```
 
 ### Development Tools
 
@@ -511,21 +459,6 @@ Windows build via `winget.exe`. Configuration is never touched by `--remove`.
 
 ### Utility Scripts
 
-#### dc-manage.sh
-
-Docker Compose management tool.
-
-```bash
-# Start services
-./bin/dc-manage.sh up
-
-# Stop services
-./bin/dc-manage.sh down
-
-# View logs
-./bin/dc-manage.sh logs
-```
-
 #### tea-tools
 
 Small wrapper around the Gitea/Forgejo `tea` CLI for workflows that `tea` does not expose directly.
@@ -560,22 +493,6 @@ Clean temporary files and caches.
 
 ```bash
 ./bin/cleanup-temp.sh
-```
-
-#### cleanup-omz.sh
-
-Clean up Oh My Zsh remnants after migration.
-
-```bash
-./bin/cleanup-omz.sh
-```
-
-#### markdown-tools.sh
-
-Markdown file processing utilities.
-
-```bash
-./bin/markdown-tools.sh
 ```
 
 #### standardize-md-names.sh
@@ -742,14 +659,6 @@ Install packages on Arch Linux. The Hyprland desktop stack is opt-in via `--hypr
 ./bin/install-arch-pkgs.sh --hyprland
 ```
 
-#### install-native-packages.sh
-
-Install packages using native package managers.
-
-```bash
-./bin/install-native-packages.sh
-```
-
 ### Miscellaneous
 
 #### init-branchlet.sh
@@ -768,14 +677,6 @@ Initialize `.envrc` for direnv.
 ./bin/init-envrc
 # Or use the alias:
 envrc
-```
-
-#### tmux-wrapper.sh
-
-Tmux session wrapper.
-
-```bash
-./bin/tmux-wrapper.sh
 ```
 
 #### tmux-osc52-copy
@@ -907,7 +808,6 @@ main "$@"
 | `installers.md`              | Comprehensive installer script reference |
 | `NON_INTERACTIVE.md`         | Non-interactive installation guide       |
 | `quick-install.md`           | Quick installation reference             |
-| `install-native-packages.md` | Native package manager guide             |
 | `smartsheet-cli.md`          | Smartsheet CLI documentation             |
 
 ## Subdirectories
