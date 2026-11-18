@@ -8,8 +8,6 @@ Comprehensive collection of installer scripts for cloud tools, CLI utilities, an
 - [Azure CLI](#azure-cli)
 - [HashiCorp Tools](#hashicorp-tools)
 - [Container/K8s Tools](#containerk8s-tools)
-- [Modern CLI Tools](#modern-cli-tools)
-- [Kubernetes Tools](#kubernetes-tools)
 - [Common Features](#common-features)
 
 ---
@@ -206,106 +204,6 @@ Install container and Kubernetes development tools.
 
 ---
 
-## Modern CLI Tools
-
-**Script:** `install-modern-cli.sh`
-
-Install modern CLI tools from GitHub releases (useful for older distributions).
-
-### Tools Included
-
-| Tool       | Command    | Description           | Source          |
-| ---------- | ---------- | --------------------- | --------------- |
-| `lazygit`  | `lazygit`  | Terminal UI for git   | GitHub releases |
-| `delta`    | `delta`    | Better diff viewer    | GitHub releases |
-| `bottom`   | `btm`      | System monitor        | GitHub releases |
-| `eza`      | `eza`      | Better ls alternative | GitHub releases |
-| `carapace` | `carapace` | Universal completion  | GitHub releases |
-| `xh`       | `xh`       | Friendly HTTP client  | GitHub releases |
-
-### Usage
-
-```bash
-# Install all modern CLI tools
-./bin/install-modern-cli.sh
-
-# Install specific tools
-./bin/install-modern-cli.sh lazygit delta eza
-
-# Check versions
-./bin/install-modern-cli.sh --check
-
-# Preview installation
-./bin/install-modern-cli.sh --dry-run
-
-# Custom installation directory (default: ~/.local/bin)
-./bin/install-modern-cli.sh --dir ~/.local/bin
-```
-
-### Installation Methods
-
-All tools installed from GitHub releases:
-
-- Latest version detection via GitHub API
-- Binary downloads for Linux and macOS
-- Support for x86_64, aarch64, and arm64
-- Automatic architecture detection
-
-### Notes
-
-- Default installation to `~/.local/bin` (user-local, no sudo)
-- Tools use native binaries (no runtime dependencies)
-- Prefer system package managers when available
-- Useful for older Ubuntu/Debian without latest packages
-- Script checks if `~/.local/bin` is in PATH
-
----
-
-## Kubernetes Tools
-
-**Script:** `k8s-tools.sh`
-
-Install comprehensive Kubernetes CLI tools (existing script).
-
-### Tools Included
-
-| Tool        | Description            | Source                  |
-| ----------- | ---------------------- | ----------------------- |
-| `kubectl`   | Kubernetes CLI         | Official K8s releases   |
-| `helm`      | K8s package manager    | Official Helm installer |
-| `k9s`       | Kubernetes TUI         | GitHub releases         |
-| `kubectx`   | Context switcher       | GitHub raw              |
-| `kubens`    | Namespace switcher     | GitHub raw              |
-| `kustomize` | K8s customization      | Official installer      |
-| `stern`     | Multi-pod log tailing  | GitHub releases         |
-| `krew`      | kubectl plugin manager | Official Krew installer |
-
-### Usage
-
-```bash
-# Install all Kubernetes tools
-./bin/k8s-tools.sh
-
-# Install specific tools
-./bin/k8s-tools.sh kubectl helm k9s
-
-# Check versions
-./bin/k8s-tools.sh --check
-
-# Update tools
-./bin/k8s-tools.sh --update kubectl k9s
-```
-
-### Notes
-
-- Includes comprehensive K8s ecosystem tools
-- Auto-detects Homebrew for macOS installations
-- Downloads official binaries for Linux
-- Krew requires kubectl to be installed first
-- Path configuration included for krew plugins
-
----
-
 ## Common Features
 
 All installer scripts share these features:
@@ -336,7 +234,6 @@ Install only specific tools:
 ```bash
 ./bin/install-aws-tools.sh aws sam          # Only AWS CLI and SAM
 ./bin/install-hashicorp-tools.sh terraform  # Only Terraform
-./bin/install-modern-cli.sh lazygit delta   # Only lazygit and delta
 ```
 
 ### ✅ Custom Installation Directory
@@ -464,7 +361,7 @@ export PATH="/usr/local/bin:$PATH"
 mkdir -p ~/.local/bin
 
 # Install to user directory
-./bin/install-modern-cli.sh --dir ~/.local/bin
+./bin/install-aws-tools.sh --dir ~/.local/bin
 ```
 
 #### Download fails
@@ -497,7 +394,6 @@ file $(which tool-name)
 - **Platform Detection:** `common/platform.sh` - OS and architecture detection
 - **Tool Detection:** `common/tools.sh` - Comprehensive tool management
 - **Bootstrap:** `bootstrap.sh` - Initial system setup
-- **Kubernetes:** `k8s-tools.sh` - Kubernetes tooling
 
 ---
 

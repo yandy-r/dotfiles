@@ -629,8 +629,6 @@ installation methods. All scripts support:
 | `install-1password-cli.sh`   | 1Password CLI (`op`)                                | brew cask / GPG-verified zip / winget |
 | `install-hashicorp-tools.sh` | Terraform, TFLint                                   | HashiCorp repository + GitHub         |
 | `install-container-tools.sh` | Skaffold, Hadolint                                  | Official installers + GitHub          |
-| `install-modern-cli.sh`      | lazygit, delta, bottom, eza, carapace, xh           | GitHub releases                       |
-| `k8s-tools.sh`               | kubectl, helm, k9s, kubectx, kustomize, stern, krew | Official K8s ecosystem                |
 
 ### Quick Examples
 
@@ -642,14 +640,13 @@ installation methods. All scripts support:
 ./bin/install-aws-tools.sh --check
 
 # Preview without installing
-./bin/install-modern-cli.sh --dry-run
+./bin/install-aws-tools.sh --dry-run
 
 # Install specific tools
 ./bin/install-hashicorp-tools.sh terraform
-./bin/install-modern-cli.sh lazygit delta eza
 
 # Custom installation directory
-./bin/install-modern-cli.sh --dir ~/.local/bin
+./bin/install-aws-tools.sh --dir ~/.local/bin
 ```
 
 See [bin/installers.md](bin/installers.md) for complete documentation.
