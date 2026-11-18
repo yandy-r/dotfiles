@@ -283,7 +283,7 @@ func validatePackage(p Package) []error {
 				Msg:     fmt.Sprintf("toolchain backend tool %q must be one of: %s", p.Tool, strings.Join(ToolchainTools(), ", ")),
 			})
 		}
-	case BackendRepo, BackendAPTRepo:
+	case BackendRepo:
 		errs = append(errs, validateRepo(p)...)
 	case BackendGitClone:
 		errs = append(errs, validateGitClone(p)...)
@@ -902,7 +902,7 @@ func validatePackageOS(p Package) []error {
 
 // pathInstallBackends is the set of backends that place a binary on PATH and so
 // support an explicit installed-state probe (Provides/ProvidesAny/InstalledWhen).
-// The other backends (pkg/apt-repo/aur) query the package authority directly and
+// The other backends (pkg/repo/aur) query the package authority directly and
 // are already honest, so a probe there is rejected as meaningless.
 var pathInstallBackends = map[Backend]bool{
 	BackendCustomScript:  true,

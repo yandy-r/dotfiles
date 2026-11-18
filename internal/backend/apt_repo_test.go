@@ -29,7 +29,7 @@ func TestAptRepoBackend_Install_KeyringSourcesUpdateInstallSequence(t *testing.T
 	b := newRepoBackend(r)
 	pkg := manifest.Package{
 		Name:    "docker-ce",
-		Backend: manifest.BackendAPTRepo,
+		Backend: manifest.BackendRepo,
 		Names:   map[string]string{"apt": aptName},
 		AptRepo: &manifest.AptRepo{
 			KeyURL:      keyURL,
@@ -80,7 +80,7 @@ func TestAptRepoBackend_Install_RerunConverges(t *testing.T) {
 	b := newRepoBackend(r)
 	pkg := manifest.Package{
 		Name:    "docker-ce",
-		Backend: manifest.BackendAPTRepo,
+		Backend: manifest.BackendRepo,
 		Names:   map[string]string{"apt": aptName},
 		AptRepo: &manifest.AptRepo{
 			KeyURL:      keyURL,
@@ -123,7 +123,7 @@ func TestAptRepoBackend_Install_UnsupportedPlatform(t *testing.T) {
 	b := newRepoBackend(exec.NewFake())
 	pkg := manifest.Package{
 		Name:    "docker-ce",
-		Backend: manifest.BackendAPTRepo,
+		Backend: manifest.BackendRepo,
 		Names:   map[string]string{"apt": "docker-ce"},
 		AptRepo: &manifest.AptRepo{
 			KeyURL:      "https://example.com/gpg",
@@ -143,8 +143,8 @@ func TestAptRepoBackend_Install_UnsupportedPlatform(t *testing.T) {
 	if !errors.As(err, &unsupported) {
 		t.Fatalf("Install() error = %T, want *UnsupportedPlatformError", err)
 	}
-	if unsupported.Backend != manifest.BackendAPTRepo {
-		t.Errorf("UnsupportedPlatformError.Backend = %q, want %q", unsupported.Backend, manifest.BackendAPTRepo)
+	if unsupported.Backend != manifest.BackendRepo {
+		t.Errorf("UnsupportedPlatformError.Backend = %q, want %q", unsupported.Backend, manifest.BackendRepo)
 	}
 }
 
@@ -316,7 +316,7 @@ func TestAptRepoBackend_Install_TemplatedCodename(t *testing.T) {
 	b := newRepoBackend(r)
 	pkg := manifest.Package{
 		Name:    "docker-ce",
-		Backend: manifest.BackendAPTRepo,
+		Backend: manifest.BackendRepo,
 		Names:   map[string]string{"apt": aptName},
 		AptRepo: &manifest.AptRepo{
 			KeyURL:      keyURL,
@@ -351,7 +351,7 @@ func TestAptRepoBackend_Install_MissingCodename_Errors(t *testing.T) {
 	b := newRepoBackend(r)
 	pkg := manifest.Package{
 		Name:    "docker-ce",
-		Backend: manifest.BackendAPTRepo,
+		Backend: manifest.BackendRepo,
 		Names:   map[string]string{"apt": aptName},
 		AptRepo: &manifest.AptRepo{
 			KeyURL:      keyURL,

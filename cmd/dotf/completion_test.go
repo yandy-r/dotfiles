@@ -775,7 +775,7 @@ func TestGeneratedFish_PlasmaVerbFlagsInRealFish(t *testing.T) {
 			t.Errorf("`dotf plasma apply --` = %v, want it to offer %s", got, want)
 		}
 	}
-	for _, leaked := range []string{"--headless", "--gaming", "--snapper", "--enable-ollama", "--plasma"} {
+	for _, leaked := range []string{"--headless", "--gaming", "--snapper", "--plasma"} {
 		if slices.Contains(got, leaked) {
 			t.Errorf("`dotf plasma apply --` leaks the top-level apply flag %s: %v", leaked, got)
 		}

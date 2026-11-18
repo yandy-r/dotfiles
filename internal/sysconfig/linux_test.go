@@ -149,10 +149,7 @@ func TestLinux_Plan_Idempotent(t *testing.T) {
 
 	// A converged Plan executes nothing → zero mutating commands.
 	eng := NewEngine(nil, fake, NewOSFileSystem(root))
-	res, err := eng.Execute(plan)
-	if err != nil {
-		t.Fatalf("Execute(empty) error = %v", err)
-	}
+	res := eng.Execute(plan)
 	if len(res.Applied) != 0 {
 		t.Errorf("Execute(empty) applied = %d steps, want 0", len(res.Applied))
 	}

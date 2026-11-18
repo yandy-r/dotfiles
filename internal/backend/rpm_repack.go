@@ -122,9 +122,6 @@ func queryRPMMeta(r exec.Runner, path string) (*rpmMeta, error) {
 	if err != nil {
 		return nil, fmt.Errorf("query file dump: %w", err)
 	}
-	if m.digestAlgo == "" {
-		return nil, fmt.Errorf("rpm reports no file digest algorithm")
-	}
 	if m.dump, err = parseRPMDump(dumpOut); err != nil {
 		return nil, err
 	}

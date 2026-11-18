@@ -395,7 +395,7 @@ func TestRunStatus_ManifestResolutionError(t *testing.T) {
 }
 
 // applicabilityTestManifest exercises platform applicability (issue #9): an
-// apt-repo package (apt hosts only) and an aur package (Arch hosts only)
+// repo package (apt hosts only) and an aur package (Arch hosts only)
 // alongside an everywhere-applicable pkg entry.
 const applicabilityTestManifest = `# platform-applicability test fixture
 
@@ -406,7 +406,7 @@ names = { pacman = "git", apt = "git", dnf = "git", zypper = "git", homebrew = "
 
 [[package]]
 name = "docker-ce"
-backend = "apt-repo"
+backend = "repo"
 names = { apt = "docker-ce" }
 apt_repo = { key_url = "https://example.com/gpg", key_fingerprint = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb https://example.com stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
 
@@ -415,7 +415,7 @@ name = "lutris"
 backend = "aur"
 `
 
-// cmdApplicabilityManifest is the command-level variant: pkg + apt-repo only,
+// cmdApplicabilityManifest is the command-level variant: pkg + repo only,
 // so runStatus/runDiff assertions stay deterministic on any development or CI
 // host. The aur backend gates on the detected OS, which platform.Detect reads
 // from the real /etc/os-release, so aur coverage lives in the driftReport
@@ -429,7 +429,7 @@ names = { pacman = "git", apt = "git", dnf = "git", zypper = "git", homebrew = "
 
 [[package]]
 name = "docker-ce"
-backend = "apt-repo"
+backend = "repo"
 names = { apt = "docker-ce" }
 apt_repo = { key_url = "https://example.com/gpg", key_fingerprint = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb https://example.com stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
 `
@@ -480,7 +480,7 @@ func TestDriftReport_StatusEmitsNotApplicable_ArchHost(t *testing.T) {
 
 	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
 	want := []string{
-		"package=docker-ce backend=apt-repo applicable=false",
+		"package=docker-ce backend=repo applicable=false",
 		"package=git backend=pkg installed=true",
 		"package=lutris backend=aur installed=false",
 	}
@@ -533,7 +533,7 @@ func TestDriftReport_StatusEmitsNotApplicable_DebianHost(t *testing.T) {
 
 	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
 	want := []string{
-		"package=docker-ce backend=apt-repo installed=false",
+		"package=docker-ce backend=repo installed=false",
 		"package=git backend=pkg installed=true",
 		"package=lutris backend=aur applicable=false",
 	}
@@ -564,7 +564,7 @@ func TestDriftReport_DiffExcludesNotApplicable_DebianHost(t *testing.T) {
 	}
 
 	got := strings.TrimSpace(buf.String())
-	want := "drift=declared-not-installed package=docker-ce backend=apt-repo"
+	want := "drift=declared-not-installed package=docker-ce backend=repo"
 	if got != want {
 		t.Errorf("diff output = %q, want %q", got, want)
 	}
@@ -582,7 +582,7 @@ func TestRunStatus_NotApplicableBackendExitsZero(t *testing.T) {
 
 	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
 	want := []string{
-		"package=docker-ce backend=apt-repo applicable=false",
+		"package=docker-ce backend=repo applicable=false",
 		"package=git backend=pkg installed=true",
 	}
 	if len(lines) != len(want) {
@@ -650,8 +650,8 @@ func TestRunStatus_JSONShape(t *testing.T) {
 	}
 
 	docker := findReport(t, rep, "docker-ce")
-	if docker.Backend != "apt-repo" || docker.Applicable {
-		t.Errorf("docker-ce report = %+v, want backend=apt-repo applicable=false", docker)
+	if docker.Backend != "repo" || docker.Applicable {
+		t.Errorf("docker-ce report = %+v, want backend=repo applicable=false", docker)
 	}
 	if docker.Installed != nil {
 		t.Errorf("docker-ce installed = %v, want nil (not probed)", docker.Installed)
@@ -920,7 +920,7 @@ func TestRunDiff_CountsText(t *testing.T) {
 }
 
 // TestRunStatus_CountsIncludesNonApplicable verifies status --counts summarizes
-// non-applicable rows too: on an arch host docker-ce (apt-repo) is not
+// non-applicable rows too: on an arch host docker-ce (repo) is not
 // applicable, yet it carries an effective class (managed) and is counted, so the
 // histogram totals both declared packages.
 func TestRunStatus_CountsIncludesNonApplicable(t *testing.T) {
@@ -940,13 +940,13 @@ func TestRunStatus_CountsIncludesNonApplicable(t *testing.T) {
 	if rep.Summary == nil {
 		t.Fatal("Summary = nil, want a populated summary under --counts")
 	}
-	// git (pkg, applicable) + docker-ce (apt-repo, NOT applicable) — both counted,
+	// git (pkg, applicable) + docker-ce (repo, NOT applicable) — both counted,
 	// both effective class managed.
 	if rep.Summary.Total != 2 {
 		t.Errorf("Summary.Total = %d, want 2 (non-applicable docker-ce still counted)", rep.Summary.Total)
 	}
-	if rep.Summary.ByBackend["apt-repo"] != 1 || rep.Summary.ByBackend["pkg"] != 1 {
-		t.Errorf("Summary.ByBackend = %v, want apt-repo=1 pkg=1", rep.Summary.ByBackend)
+	if rep.Summary.ByBackend["repo"] != 1 || rep.Summary.ByBackend["pkg"] != 1 {
+		t.Errorf("Summary.ByBackend = %v, want repo=1 pkg=1", rep.Summary.ByBackend)
 	}
 	if rep.Summary.ByClass["managed"] != 2 {
 		t.Errorf("Summary.ByClass = %v, want managed=2", rep.Summary.ByClass)

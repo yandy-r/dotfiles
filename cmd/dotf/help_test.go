@@ -642,7 +642,7 @@ func TestSetApplyFlags_Parses(t *testing.T) {
 	f := setApplyFlags(fs)
 	args := []string{
 		"--manifest", "m", "--homebrew", "true", "--headless", "--force",
-		"--gaming", "--enable-ollama", "--hyprland", "--linux-desktop", "--snapper", "--plasma",
+		"--gaming", "--hyprland", "--linux-desktop", "--snapper", "--plasma",
 		"--dry-run", "--intent", "core",
 	}
 	if err := fs.Parse(args); err != nil {
@@ -651,7 +651,7 @@ func TestSetApplyFlags_Parses(t *testing.T) {
 	if f.Manifest != "m" || f.Homebrew != "true" {
 		t.Errorf("string fields mismatch: %+v", *f)
 	}
-	if !f.Headless || !f.Force || !f.Gaming || !f.Ollama || !f.Hyprland || !f.LinuxDesktop || !f.Snapper || !f.Plasma || !f.DryRun {
+	if !f.Headless || !f.Force || !f.Gaming || !f.Hyprland || !f.LinuxDesktop || !f.Snapper || !f.Plasma || !f.DryRun {
 		t.Errorf("bool fields mismatch: %+v", *f)
 	}
 	if got := []string(f.Intents); !equalStringSlices(got, []string{"core"}) {
@@ -722,7 +722,7 @@ func TestSetFlags_ExactFlagNames(t *testing.T) {
 		// apply registers --no-user-config inside setApplyFlags (its own env-twin
 		// path), so this case does not wrap and just expects the name.
 		{"apply", func(fs *flag.FlagSet) { setApplyFlags(fs) },
-			[]string{"desktop", "dry-run", "enable-ollama", "force", "gaming", "headless", "homebrew", "hyprland", "intent", "linux-desktop", "manifest", "no-backup", "no-user-config", "only", "plasma", "skip", "snapper"}},
+			[]string{"desktop", "dry-run", "force", "gaming", "headless", "homebrew", "hyprland", "intent", "linux-desktop", "manifest", "no-backup", "no-user-config", "only", "plasma", "skip", "snapper"}},
 		{"lock", func(fs *flag.FlagSet) { setLockFlags(fs); setNoUserConfigFlag(fs) },
 			[]string{"check", "dry-run", "json", "lock", "manifest", "no-user-config", "only", "platform", "skip"}},
 		// self-update is flag-only: four booleans, and deliberately NO

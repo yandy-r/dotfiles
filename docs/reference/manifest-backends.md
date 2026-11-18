@@ -75,8 +75,8 @@ Try these in order; the first that fits is the right one:
      `excludepkgs` across drop-ins, so your own excludes are kept.
 
    A host whose package manager matches no sub-table reports `applicable=false` — it is
-   silent, not an error. `apt-repo` is the deprecated alias of this backend; do not use it
-   for new entries.
+   silent, not an error. The former `apt-repo` alias was removed: set `backend = "repo"`
+   (a manifest entry still naming `apt-repo` fails validation).
 
 4. **`toolchain`** — installable via a language toolchain (`cargo`, `npm`). Set `tool`.
 5. **`github-release`** — a GitHub release ships a checksummed binary/asset. Supports

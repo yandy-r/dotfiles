@@ -286,7 +286,7 @@ func TestPinnable(t *testing.T) {
 		{"script-url without sha is rolling", manifest.Package{Backend: manifest.BackendScriptURL}, false},
 		{"pkg is managed", manifest.Package{Backend: manifest.BackendPkg}, false},
 		{"aur is managed", manifest.Package{Backend: manifest.BackendAUR}, false},
-		{"apt-repo is managed", manifest.Package{Backend: manifest.BackendAPTRepo}, false},
+		{"repo is managed", manifest.Package{Backend: manifest.BackendRepo}, false},
 		{"toolchain is managed", manifest.Package{Backend: manifest.BackendToolchain}, false},
 		{"custom-script without class is not pinned", manifest.Package{Backend: manifest.BackendCustomScript}, false},
 		{"explicit rolling on github overrides to false", manifest.Package{Backend: manifest.BackendGitHubRelease, Class: manifest.ClassRolling}, false},

@@ -45,7 +45,6 @@ func (c Class) Valid() bool {
 var classByBackend = map[Backend]map[Class]bool{
 	BackendPkg:           {ClassManaged: true},
 	BackendAUR:           {ClassManaged: true},
-	BackendAPTRepo:       {ClassManaged: true},
 	BackendRepo:          {ClassManaged: true},
 	BackendToolchain:     {ClassManaged: true},
 	BackendGitClone:      {ClassManaged: true},
@@ -95,7 +94,7 @@ func (p Package) EffectiveClass() Class {
 		return p.Class
 	}
 	switch p.Backend {
-	case BackendPkg, BackendAUR, BackendAPTRepo, BackendRepo, BackendToolchain, BackendGitClone, BackendFont:
+	case BackendPkg, BackendAUR, BackendRepo, BackendToolchain, BackendGitClone, BackendFont:
 		return ClassManaged
 	case BackendGitHubRelease:
 		return ClassPinned

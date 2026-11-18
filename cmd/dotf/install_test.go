@@ -418,7 +418,7 @@ func TestInstallPackage_Applicability(t *testing.T) {
 		wantErr    bool
 		wantCalls  bool
 	}{
-		{"apt-repo not applicable on arch host", byName["docker-ce"], archInfo(), "not-applicable", false, false},
+		{"repo not applicable on arch host", byName["docker-ce"], archInfo(), "not-applicable", false, false},
 		{"aur not applicable on debian host", byName["lutris"], debianInfo(), "not-applicable", false, false},
 		{"pkg applicable on arch host installs", byName["git"], archInfo(), "ok", false, true},
 		{"unknown backend fails", manifest.Package{Name: "mystery", Backend: "bogus"}, archInfo(), "failed", true, false},
@@ -494,7 +494,7 @@ func TestInstallPackage_AlreadyInstalledGate(t *testing.T) {
 }
 
 // TestRunInstall_NotApplicableBackendExitsZero is the command-level issue #14
-// regression test: on a pacman host, the apt-repo package is reported as
+// regression test: on a pacman host, the repo package is reported as
 // not-applicable, never attempted, and the run exits 0.
 func TestRunInstall_NotApplicableBackendExitsZero(t *testing.T) {
 	manifestPath := writeManifestFile(t, cmdApplicabilityManifest)
@@ -506,8 +506,8 @@ func TestRunInstall_NotApplicableBackendExitsZero(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("runInstall() code = %d, want 0; stderr = %q", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "result.apt-repo=docker-ce:not-applicable") {
-		t.Errorf("stdout = %q, want result.apt-repo=docker-ce:not-applicable", stdout.String())
+	if !strings.Contains(stdout.String(), "result.repo=docker-ce:not-applicable") {
+		t.Errorf("stdout = %q, want result.repo=docker-ce:not-applicable", stdout.String())
 	}
 	// archPacmanFake reports git installed via `pacman -Q git`, so the
 	// idempotency gate (#40) skips it as already-installed rather than "ok".
@@ -524,7 +524,7 @@ func TestRunInstall_NotApplicableBackendExitsZero(t *testing.T) {
 	for _, call := range fake.CallsSnapshot() {
 		switch call.Name {
 		case "apt-get", "curl", "gpg", "wget":
-			t.Errorf("apt-repo command ran on non-apt host: %s %v", call.Name, call.Args)
+			t.Errorf("repo command ran on non-apt host: %s %v", call.Name, call.Args)
 		}
 	}
 }

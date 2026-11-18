@@ -190,7 +190,7 @@ type Package struct {
 	Tool string `toml:"tool"`
 
 	// AptRepo configures the APT repository to add before installing, for
-	// the "apt-repo" backend.
+	// the "repo" backend.
 	AptRepo *AptRepo `toml:"apt_repo"`
 
 	// DNFRepo configures the dnf repository to add before installing, for the
@@ -290,7 +290,7 @@ type Package struct {
 	// g-prefixed GNU-tool provides sentinel is never falsely evaluated on Linux
 	// (where LookPath would always miss). It follows the same gate model as the
 	// symlink Facet (macOS/Arch/Linux-desktop) and the platformGated backends
-	// (apt-repo requires apt, aur requires Arch). NOTE: a modern WSL host
+	// (repo with apt_repo requires apt, aur requires Arch). NOTE: a modern WSL host
 	// resolves to a concrete distro family, so use "linux" (not a bare "wsl"
 	// token, which is intentionally not accepted) for Linux-only tools.
 	OS string `toml:"os"`
@@ -415,7 +415,7 @@ type Probe struct {
 }
 
 // AptRepo describes an APT repository (GPG key + sources.list entry) to
-// configure before installing a package via the "apt-repo" backend.
+// configure before installing a package via the "repo" backend.
 type AptRepo struct {
 	// KeyURL is the HTTPS URL of the repository's GPG key.
 	KeyURL string `toml:"key_url"`
@@ -533,16 +533,6 @@ const (
 	// Package.Tool.
 	BackendToolchain Backend = "toolchain"
 
-	// BackendAPTRepo adds an APT repository before installing.
-	//
-	// Superseded by BackendRepo and retained one release as a compatibility
-	// alias: it validates identically and resolves to the same backend. New
-	// entries use "repo" with an apt_repo sub-table. Deliberately carries no
-	// machine-readable "Deprecated:" marker — the alias is still registered and
-	// still names every existing apt_repo entry, so staticcheck's SA1019 would
-	// fire on correct in-tree code rather than on a caller that must migrate.
-	BackendAPTRepo Backend = "apt-repo"
-
 	// BackendRepo adds a third-party OS repository before installing: an APT
 	// sources entry via apt_repo on a Debian-family host, a dnf repository via
 	// dnf_repo on a RedHat-family host. One logical tool is ONE entry; the
@@ -582,7 +572,7 @@ const (
 // Valid reports whether b is one of the canonical Backend values.
 func (b Backend) Valid() bool {
 	switch b {
-	case BackendPkg, BackendGitHubRelease, BackendAUR, BackendToolchain, BackendAPTRepo, BackendRepo, BackendScriptURL, BackendCustomScript, BackendGitClone, BackendFont, BackendAppArtifact, BackendPkgURL:
+	case BackendPkg, BackendGitHubRelease, BackendAUR, BackendToolchain, BackendRepo, BackendScriptURL, BackendCustomScript, BackendGitClone, BackendFont, BackendAppArtifact, BackendPkgURL:
 		return true
 	default:
 		return false

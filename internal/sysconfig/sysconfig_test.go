@@ -84,10 +84,7 @@ func TestEngine_Execute_RunsArgvStepsInOrder(t *testing.T) {
 		Skipped: []string{"locale"},
 	}
 
-	res, err := eng.Execute(plan)
-	if err != nil {
-		t.Fatalf("Execute() error = %v, want nil", err)
-	}
+	res := eng.Execute(plan)
 	if len(res.Applied) != 2 {
 		t.Fatalf("Result.Applied len = %d, want 2", len(res.Applied))
 	}
@@ -120,10 +117,7 @@ func TestEngine_Execute_CollectsStepFailuresNonFatally(t *testing.T) {
 		{Domain: "firewall", Argv: []string{"sudo", "ufw", "--force", "enable"}},
 	}}
 
-	res, err := eng.Execute(plan)
-	if err != nil {
-		t.Fatalf("Execute() error = %v, want nil (per-step failures are non-fatal)", err)
-	}
+	res := eng.Execute(plan)
 	if len(res.Applied) != 3 {
 		t.Fatalf("Result.Applied len = %d, want 3", len(res.Applied))
 	}
@@ -146,10 +140,7 @@ func TestEngine_Execute_UnknownStepRecordsError(t *testing.T) {
 	fake := exec.NewFake()
 	eng := NewEngine(nil, fake, NewOSFileSystem(t.TempDir()))
 
-	res, err := eng.Execute(Plan{Steps: []Step{{Domain: "hostname"}}})
-	if err != nil {
-		t.Fatalf("Execute() error = %v, want nil", err)
-	}
+	res := eng.Execute(Plan{Steps: []Step{{Domain: "hostname"}}})
 	if len(res.Applied) != 1 || res.Applied[0].Err == nil {
 		t.Fatalf("Execute() malformed-step result = %+v, want a recorded error", res.Applied)
 	}
@@ -172,10 +163,7 @@ func TestEngine_Execute_FileStepBacksUpThenInstalls(t *testing.T) {
 		File:   &FileInstall{Dest: "/etc/hosts", Content: []byte("127.0.0.1 localhost\n127.0.1.1\tweb01\n"), Backup: true},
 	}}}
 
-	res, err := eng.Execute(plan)
-	if err != nil {
-		t.Fatalf("Execute() error = %v, want nil", err)
-	}
+	res := eng.Execute(plan)
 	if res.Applied[0].Err != nil {
 		t.Fatalf("Applied[0].Err = %v, want nil", res.Applied[0].Err)
 	}
@@ -205,9 +193,7 @@ func TestEngine_Execute_FileStepSkipsBackupWhenDestMissing(t *testing.T) {
 		File:   &FileInstall{Dest: "/etc/hosts", Content: []byte("127.0.1.1\tweb01\n"), Backup: true},
 	}}}
 
-	if _, err := eng.Execute(plan); err != nil {
-		t.Fatalf("Execute() error = %v, want nil", err)
-	}
+	eng.Execute(plan)
 
 	calls := fake.CallsSnapshot()
 	if len(calls) != 1 {

@@ -14,7 +14,7 @@ import (
 type applyFlags struct {
 	Manifest, Homebrew string
 	Headless, Force    bool
-	Gaming, Ollama     bool
+	Gaming             bool
 	Hyprland, Snapper  bool
 	LinuxDesktop       bool
 	Plasma             bool
@@ -38,7 +38,6 @@ func setApplyFlags(fs *flag.FlagSet) *applyFlags {
 	fs.BoolVar(&f.Headless, "headless", false, "skip the TUI and all prompts; apply the resolved intent set")
 	fs.BoolVar(&f.Force, "force", false, "imply --headless and reinstall already-installed packages")
 	fs.BoolVar(&f.Gaming, "gaming", false, "add the gaming intent to the packages phase")
-	fs.BoolVar(&f.Ollama, "enable-ollama", false, "add the ollama intent (no-op until the manifest defines it)")
 	fs.BoolVar(&f.Hyprland, "hyprland", false, "manage the opt-in Hyprland/wlroots desktop config set (refused with --no-backup on Linux)")
 	fs.BoolVar(&f.LinuxDesktop, "linux-desktop", false, "deprecated alias for --hyprland")
 	fs.BoolVar(&f.Snapper, "snapper", false, "take a snapper pre-apply snapshot (Linux only, no-op without snapper)")
@@ -59,15 +58,15 @@ func setApplyFlags(fs *flag.FlagSet) *applyFlags {
 
 // applyOptions is the resolved view of applyFlags after merging each boolean
 // with its environment equivalent: Headless with NON_INTERACTIVE/FORCE_INSTALL,
-// Force with FORCE_INSTALL, Gaming with ENABLE_GAMING, Ollama with
-// ENABLE_OLLAMA, Hyprland with HYPRLAND (and the deprecated LINUX_DESKTOP
+// Force with FORCE_INSTALL, Gaming with ENABLE_GAMING, Hyprland with
+// HYPRLAND (and the deprecated LINUX_DESKTOP
 // alias), Snapper with SNAPPER, Plasma with PLASMA, and NoUserConfig with
 // DOTF_NO_USER_CONFIG. Homebrew is a flag-only tristate, and NoBackup is
 // flag-only (the symlink phase backs up real files by default).
 type applyOptions struct {
 	Manifest, Homebrew string
 	Headless, Force    bool
-	Gaming, Ollama     bool
+	Gaming             bool
 	Hyprland, Snapper  bool
 	Plasma             bool
 	DryRun             bool
@@ -81,8 +80,8 @@ type applyOptions struct {
 // Values like "1", "yes", or "TRUE" are intentionally not truthy.
 func envTrue(v string) bool { return v == "true" }
 
-// optInIntents are intents excluded from the headless default set. gaming and
-// ollama are added by their feature flag (--gaming/--enable-ollama); the
+// optInIntents are intents excluded from the headless default set. gaming is
+// added by its feature flag (--gaming); the
 // provisioning-parity bundles (runtimes/ai/cloud/git-tools), the system-setup
 // bundle, and desktop-fonts (the extra Nerd Font families only the Hyprland
 // desktop set pins) have no dedicated flag and are opted into explicitly with
@@ -90,7 +89,6 @@ func envTrue(v string) bool { return v == "true" }
 // families the terminal and editor configs pin belong in the default set.
 var optInIntents = map[string]bool{
 	"gaming":        true,
-	"ollama":        true,
 	"runtimes":      true,
 	"ai":            true,
 	"cloud":         true,
@@ -114,7 +112,6 @@ func resolveApplyOptions(f applyFlags, getenv func(string) string) applyOptions 
 		Headless: f.Headless || f.Force || envTrue(getenv("NON_INTERACTIVE")) || envTrue(getenv("FORCE_INSTALL")),
 		Force:    f.Force || envTrue(getenv("FORCE_INSTALL")),
 		Gaming:   f.Gaming || envTrue(getenv("ENABLE_GAMING")),
-		Ollama:   f.Ollama || envTrue(getenv("ENABLE_OLLAMA")),
 		// --hyprland/HYPRLAND is the primary spelling; --linux-desktop and
 		// LINUX_DESKTOP are the retained deprecated aliases, so all four sources
 		// OR into one resolved field.
@@ -122,7 +119,7 @@ func resolveApplyOptions(f applyFlags, getenv func(string) string) applyOptions 
 		Snapper:  f.Snapper || envTrue(getenv("SNAPPER")),
 		// The twin is the unprefixed PLASMA, not DOTF_PLASMA: every apply twin
 		// is unprefixed (NON_INTERACTIVE, FORCE_INSTALL, ENABLE_GAMING,
-		// ENABLE_OLLAMA, HYPRLAND and its LINUX_DESKTOP alias, SNAPPER) because
+		// HYPRLAND and its LINUX_DESKTOP alias, SNAPPER) because
 		// they are a bootstrap.sh contract, and a one-off prefix here would break
 		// this uniform getenv(NAME) shape. envTrue is exact-match, so a stray
 		// PLASMA=1 or PLASMA=kde is not truthy.
@@ -138,8 +135,8 @@ func resolveApplyOptions(f applyFlags, getenv func(string) string) applyOptions 
 
 // resolveIntents computes the headless intent set. When --intent flags were
 // given, that explicit set is the base; otherwise the base is every manifest
-// intent NOT in optInIntents, sorted for determinism. The gaming/ollama opt-in
-// intents are then appended when their flags/env are set, and the result is
+// intent NOT in optInIntents, sorted for determinism. The gaming opt-in
+// intent is then appended when its flag/env is set, and the result is
 // deduplicated preserving first-seen order. Guided mode uses
 // tui.Selection.Intents instead and does not call this.
 func resolveIntents(m *manifest.Manifest, opts applyOptions) []string {
@@ -159,9 +156,6 @@ func resolveIntents(m *manifest.Manifest, opts applyOptions) []string {
 	combined = append(combined, base...)
 	if opts.Gaming {
 		combined = append(combined, "gaming")
-	}
-	if opts.Ollama {
-		combined = append(combined, "ollama")
 	}
 	return dedupeStrings(combined)
 }

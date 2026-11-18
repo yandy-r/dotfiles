@@ -283,7 +283,7 @@ func TestParse_InvalidManifests(t *testing.T) {
 		{name: "script-url http scheme", file: "invalid_script_url_http.toml"},
 		{name: "github-release with no checksum source", file: "invalid_missing_sha256.toml"},
 		{name: "github-release checksum source without tag", file: "invalid_github_release_no_tag.toml"},
-		{name: "apt-repo missing required field", file: "invalid_apt_repo_missing_field.toml"},
+		{name: "repo missing required field", file: "invalid_apt_repo_missing_field.toml"},
 		{name: "sysconfig bad firewall value", file: "invalid_sysconfig_firewall.toml"},
 		{name: "toolchain unknown tool", file: "invalid_toolchain_tool.toml"},
 		{name: "toolchain names key not a tool", file: "invalid_toolchain_names_key.toml"},

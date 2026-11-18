@@ -178,13 +178,13 @@ func TestEngine_Perform_RoutesByAction(t *testing.T) {
 	}
 }
 
-// TestEngine_RepoAUR_ImplementLifecycle: repo, its apt-repo alias, and aur now
+// TestEngine_RepoAUR_ImplementLifecycle: repo and aur now
 // satisfy the optional lifecycle interfaces (no ActionUnsupportedError).
 func TestEngine_RepoAUR_ImplementLifecycle(t *testing.T) {
 	t.Parallel()
 
 	eng := testLifecycleEngine(exec.NewFake())
-	for _, b := range []manifest.Backend{manifest.BackendRepo, manifest.BackendAPTRepo, manifest.BackendAUR} {
+	for _, b := range []manifest.Backend{manifest.BackendRepo, manifest.BackendRepo, manifest.BackendAUR} {
 		be := eng.backends[b]
 		if _, ok := be.(Updater); !ok {
 			t.Errorf("%s: not an Updater", b)

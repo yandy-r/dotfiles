@@ -24,7 +24,6 @@ func TestDefault_CoversAllValidBackends(t *testing.T) {
 		manifest.BackendGitHubRelease,
 		manifest.BackendAUR,
 		manifest.BackendToolchain,
-		manifest.BackendAPTRepo,
 		manifest.BackendRepo,
 		manifest.BackendScriptURL,
 		manifest.BackendCustomScript,

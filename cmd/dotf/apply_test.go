@@ -26,7 +26,7 @@ func TestApplyDirs_CreatesStandardDirs(t *testing.T) {
 	applyDirs(home, &coll)
 
 	if coll.Failed() {
-		t.Fatalf("applyDirs recorded a failure: %+v", coll.Failures())
+		t.Fatalf("applyDirs recorded a failure")
 	}
 	for _, rel := range []string{".config", ".local/bin", ".zsh/completions", "go/bin", "go/src", "go/pkg"} {
 		fi, err := os.Stat(filepath.Join(home, rel))
@@ -50,7 +50,7 @@ func TestApplyDirs_Idempotent(t *testing.T) {
 	applyDirs(home, &coll)
 
 	if coll.Failed() {
-		t.Fatalf("applyDirs is not idempotent: %+v", coll.Failures())
+		t.Fatalf("applyDirs is not idempotent")
 	}
 }
 
@@ -1029,7 +1029,7 @@ func TestApplyPackages_NotApplicableRecordedOK(t *testing.T) {
 		pkgName string
 		info    platform.Info
 	}{
-		{"apt-repo backend on arch host", "docker-ce", archInfo()},
+		{"repo backend on arch host", "docker-ce", archInfo()},
 		{"aur backend on debian host", "lutris", debianInfo()},
 	}
 
@@ -1056,7 +1056,7 @@ func TestApplyPackages_NotApplicableRecordedOK(t *testing.T) {
 				t.Errorf("err = %v, want nil", results[0].err)
 			}
 			if coll.Failed() {
-				t.Errorf("collector failed = true, want false: %+v", coll.Failures())
+				t.Errorf("collector failed = true, want false")
 			}
 			if calls := fake.CallsSnapshot(); len(calls) != 0 {
 				t.Errorf("commands ran = %+v, want none", calls)
@@ -1089,7 +1089,7 @@ func TestApplyPackages_SkipsAlreadyInstalled(t *testing.T) {
 		t.Errorf("status = %q, want already-installed", results[0].status)
 	}
 	if coll.Failed() {
-		t.Errorf("collector failed = true, want false: %+v", coll.Failures())
+		t.Errorf("collector failed = true, want false")
 	}
 	if n := countSudoCalls(fake, "pacman", "-S", "--noconfirm", "--needed", "git"); n != 0 {
 		t.Errorf("install argv ran %d times, want 0 (git already installed)", n)
@@ -1154,7 +1154,7 @@ func TestApplyPlasma_RecordsOneStepOnSuccess(t *testing.T) {
 		t.Fatal("report = nil, want a report")
 	}
 	if coll.Failed() {
-		t.Errorf("collector failed: %+v", coll.Failures())
+		t.Errorf("collector failed")
 	}
 	if got := plasmaSteps(t, &coll); !strings.Contains(got, "steps=1 ok=1 failed=0") {
 		t.Errorf("summary = %q, want exactly one ok step", got)

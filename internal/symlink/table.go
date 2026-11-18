@@ -30,13 +30,6 @@ const (
 	FacetAll Facet = iota
 	// FacetMacOS applies only on macOS (Ansible os_family == Darwin).
 	FacetMacOS
-	// FacetArch applies only on Arch-family hosts (Ansible os_family == Archlinux).
-	// Empty today (ADR-12 moved the tmux user unit to FacetLinux), kept because
-	// it is still a live gate in applies and in TestApplies — FacetWindows is
-	// the precedent for a zero-entry facet.
-	FacetArch
-	// FacetWindows applies only on Windows (Ansible os_family == Windows; empty today).
-	FacetWindows
 	// FacetHyprland applies on Linux-family hosts only when the opt-in
 	// ManageHyprland flag is set. It is the Hyprland/wlroots stack (hypr,
 	// waybar, swayosd, mako, wlogout, fuzzel, satty plus the generic launchers)
@@ -203,10 +196,6 @@ func applies(spec LinkSpec, info platform.Info, opts Options) bool {
 		return true
 	case FacetMacOS:
 		return info.OS == platform.OSMacOS
-	case FacetArch:
-		return info.OS == platform.OSArch
-	case FacetWindows:
-		return info.OS == platform.OSWindows
 	case FacetHyprland:
 		return isLinuxFamily(info.OS) && opts.ManageHyprland
 	case FacetLinux:

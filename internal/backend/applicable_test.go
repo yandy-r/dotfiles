@@ -34,8 +34,6 @@ func TestEngine_Applicable(t *testing.T) {
 	}{
 		// The repo backend gates on the PACKAGE too: an entry is applicable only
 		// where the host's package manager has a matching sub-table.
-		{"apt-repo alias with apt_repo on pacman host", manifest.BackendAPTRepo, "", nil, true, false, archPacman, false},
-		{"apt-repo alias with apt_repo on apt host", manifest.BackendAPTRepo, "", nil, true, false, debianAPT, true},
 		{"repo with apt_repo on apt host", manifest.BackendRepo, "", nil, true, false, debianAPT, true},
 		{"repo with apt_repo only on dnf host", manifest.BackendRepo, "", nil, true, false, fedoraDNF, false},
 		{"repo with dnf_repo on dnf host", manifest.BackendRepo, "", nil, false, true, fedoraDNF, true},

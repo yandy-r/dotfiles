@@ -264,14 +264,10 @@ func findBinary(root, name string) (string, error) {
 	return found, nil
 }
 
-// releaseAssetURL builds the download URL for a release asset. A non-empty tag
-// pins the exact release; an empty tag falls back to the floating latest
-// release. self-update owns this builder (rather than depending on an
-// unexported backend helper) so its release-URL shape is explicit and testable.
+// releaseAssetURL builds the download URL for an asset of the pinned release
+// tag. self-update owns this builder (rather than depending on an unexported
+// backend helper) so its release-URL shape is explicit and testable.
 func releaseAssetURL(repo, tag, asset string) string {
-	if tag != "" {
-		return fmt.Sprintf("https://github.com/%s/releases/download/%s/%s",
-			repo, url.PathEscape(tag), url.PathEscape(asset))
-	}
-	return fmt.Sprintf("https://github.com/%s/releases/latest/download/%s", repo, url.PathEscape(asset))
+	return fmt.Sprintf("https://github.com/%s/releases/download/%s/%s",
+		repo, url.PathEscape(tag), url.PathEscape(asset))
 }

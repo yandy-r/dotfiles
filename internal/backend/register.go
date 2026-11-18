@@ -19,7 +19,6 @@ func Default(r exec.Runner, drop privilege.Dropper, repoRoot string, lock *lockf
 		manifest.BackendAUR:           newAURBackend(r, drop),
 		manifest.BackendToolchain:     newToolchainBackend(r),
 		manifest.BackendRepo:          repo,
-		manifest.BackendAPTRepo:       repo, // deprecated alias, retained one release
 		manifest.BackendScriptURL:     newScriptURLBackend(r, lock),
 		manifest.BackendCustomScript:  newCustomScriptBackend(r, repoRoot),
 		manifest.BackendGitClone:      newGitCloneBackend(r),

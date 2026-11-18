@@ -124,10 +124,7 @@ func runSysconfig(args []string, stdout, stderr io.Writer, r exec.Runner) int {
 		cancel = sudo.KeepAlive(context.Background(), r)
 	}
 
-	res, err := engine.Execute(plan)
-	if err != nil {
-		return reportErr(stderr, err)
-	}
+	res := engine.Execute(plan)
 	if err := printSysconfigResults(stdout, res); err != nil {
 		return reportErr(stderr, err)
 	}

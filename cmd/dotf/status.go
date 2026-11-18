@@ -74,7 +74,7 @@ func runDriftWithCount(args []string, stdout, stderr io.Writer, r exec.Runner, o
 
 // driftReport enumerates m.Packages, calls engine.Installed for each package
 // (read-only), sorts by package name, and writes the result to stdout. Packages
-// whose backend cannot run on this host (apt-repo on a non-apt host, aur on
+// whose backend cannot run on this host (repo on a non-apt host, aur on
 // non-Arch) are never probed: status emits them with applicable=false, diff
 // excludes them from drift entirely. When onlyMissing is false every applicable
 // package is emitted with installed=true|false; when true only packages with
