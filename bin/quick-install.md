@@ -124,12 +124,6 @@ Scripts install binaries to different locations based on permissions:
 | `~/.local/bin`     | User-only (fallback)  | No            |
 | Custom via `--dir` | User-specified        | Depends       |
 
-**Tip:** For user-local installations without sudo:
-
-```bash
-./bin/install-aws-tools.sh --dir ~/.local/bin
-```
-
 ## 🔧 Troubleshooting
 
 ### Tool not found after installation
@@ -141,13 +135,6 @@ export PATH="/usr/local/bin:$PATH"
 
 # Reload shell
 exec zsh  # or: exec bash
-```
-
-### Permission denied errors
-
-```bash
-# Use user-local directory instead
-./bin/install-aws-tools.sh --dir ~/.local/bin
 ```
 
 ### Download failures
@@ -205,8 +192,7 @@ hadolint --version
 1. **Use check mode first** to see what's already installed
 2. **Preview with dry-run** before committing to installation
 3. **Install selectively** - only install tools you actually use
-4. **User-local installation** avoids sudo and system-wide changes
-5. **Keep PATH updated** - add `~/.local/bin` to your PATH for user installs
+4. **Keep PATH updated** - add `~/.local/bin` to your PATH for user installs
 
 ## 🔄 Updates
 

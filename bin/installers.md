@@ -354,16 +354,6 @@ export PATH="$HOME/.local/bin:$PATH"
 export PATH="/usr/local/bin:$PATH"
 ```
 
-#### Permission denied
-
-```bash
-# Create local bin directory
-mkdir -p ~/.local/bin
-
-# Install to user directory
-./bin/install-aws-tools.sh --dir ~/.local/bin
-```
-
 #### Download fails
 
 ```bash
