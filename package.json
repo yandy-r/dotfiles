@@ -31,23 +31,11 @@
     "go:vet": "go vet ./...",
     "go:build": "go build -o dotf ./cmd/dotf"
   },
-  "dependencies": {
-    "chalk": "^5.3.0",
-    "cli-table3": "^0.6.5",
-    "commander": "^12.1.0",
-    "ora": "^8.1.0",
-    "prompts": "^2.4.2",
-    "smartsheet": "^4.3.0"
-  },
   "devDependencies": {
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
-    "@types/node": "^22.10.5",
-    "@types/prompts": "^2.4.9",
     "markdownlint-cli2": "^0.23.0",
-    "prettier": "^3.9.4",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "prettier": "^3.9.4"
   },
   "engines": {
     "node": ">=18.0.0"
