@@ -1,4 +1,50 @@
 {
+  "ssh_connections": [
+    {
+      "host": "eve",
+      "args": [],
+      "projects": [
+        {
+          "paths": [
+            "/opt/unetlab/labs"
+          ]
+        }
+      ]
+    },
+    {
+      "host": "g7",
+      "args": [],
+      "projects": [
+        {
+          "paths": [
+            "/home/yandy/Projects/github.com/yandy-r/ystack"
+          ]
+        }
+      ]
+    },
+    {
+      "host": "g7",
+      "args": [],
+      "projects": [
+        {
+          "paths": [
+            "/home/yandy/Projects/github.com/yandy-r"
+          ]
+        }
+      ]
+    },
+    {
+      "host": "localhost",
+      "args": [],
+      "projects": [
+        {
+          "paths": [
+            "/home/yandy/.config/dotfiles"
+          ]
+        }
+      ]
+    }
+  ],
   "context_servers": {
     "composio": {
       "enabled": true,
@@ -31,10 +77,9 @@
   },
   "agent": {
     "inline_assistant_model": {
-      "provider": "openai_subscribed",
-      "model": "gpt-6.1-sol",
-      "enable_thinking": true,
-      "effort": "low",
+      "provider": "openai-subscribed",
+      "model": "gpt-6.1-terra",
+      "enable_thinking": false,
     },
     "tool_permissions": {
       "default": "allow",
