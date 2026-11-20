@@ -54,7 +54,7 @@ DEBUGGER:
     --debugger-only check that 'python' on PATH can import it (falling back to
     python3 when python is absent). If anything is missing, interactive runs
     explain and ask; non-interactive runs install it with a notice.
-    Externally managed system Python uses distro packages (Debian/Ubuntu:
+    Externally managed or distro-owned (/usr) Python uses distro packages (Debian/Ubuntu:
     python3-debugpy + python-is-python3; Fedora: python3-debugpy +
     python-unversioned-command; Arch: python-debugpy), via sudo when needed.
     Other Pythons use pip (virtualenv, writable site, or --user); a python3-only
@@ -183,6 +183,9 @@ import os, sys, sysconfig
 if sys.prefix != sys.base_prefix:
     print("venv")
 elif os.path.exists(os.path.join(sysconfig.get_path("stdlib"), "EXTERNALLY-MANAGED")):
+    print("managed")
+elif sys.base_prefix == "/usr":
+    # Distro-owned interpreter without the PEP 668 marker (e.g. Fedora).
     print("managed")
 elif os.access(sysconfig.get_path("purelib"), os.W_OK):
     print("site")
@@ -314,7 +317,15 @@ install_binary() {
 	TEMP_DIR="$(mktemp -d)"
 	trap cleanup_temp EXIT
 	curl -fsSL --connect-timeout 10 --max-time 120 "$INSTALL_URL" -o "$TEMP_DIR/install.sh"
-	PI_INSTALL_DIR="$PI_INSTALL_DIR" sh "$TEMP_DIR/install.sh" "${args[@]}"
+	# Upstream aborts stalled downloads (curl exit 28); retry transient failures.
+	local attempt rc=0
+	for attempt in 1 2 3; do
+		PI_INSTALL_DIR="$PI_INSTALL_DIR" sh "$TEMP_DIR/install.sh" "${args[@]}" && rc=0 && break
+		rc=$?
+		log "WARNING: installer failed (exit $rc, attempt $attempt/3)"
+		if ((attempt < 3)); then sleep $((attempt * 5)); fi
+	done
+	((rc == 0)) || error_exit "omp installer failed after 3 attempts (exit $rc)"
 	"$PI_INSTALL_DIR/omp" --version || error_exit "Installed omp cannot start"
 	cleanup_temp
 	trap - EXIT
