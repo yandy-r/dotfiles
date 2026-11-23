@@ -219,6 +219,11 @@ rm -rf "$ROOT/usr/share/lintian"
 TOP="$WORK/rpmbuild"
 mkdir -p "$TOP/SPECS"
 rpm_version="${want//-/_}"
+# Files only some releases ship (pixmaps appeared in 6.x); listed only when present
+# so pinned older versions still build without "File not found" errors.
+optional_files=""
+[[ -e "$ROOT/usr/share/pixmaps/claude-desktop.png" ]] &&
+  optional_files+="/usr/share/pixmaps/claude-desktop.png"
 cat >"$TOP/SPECS/claude-desktop.spec" <<EOF
 Name:           claude-desktop
 Version:        $rpm_version
@@ -257,6 +262,7 @@ gtk-update-icon-cache -q /usr/share/icons/hicolor >/dev/null 2>&1 || :
 /usr/share/applications/com.anthropic.Claude.desktop
 /usr/share/icons/hicolor/*/apps/*
 /usr/share/doc/claude-desktop
+${optional_files}
 EOF
 mkdir -p "$TOP/tmp"
 rpmbuild --quiet --define "_topdir $TOP" --define "_tmppath $TOP/tmp" -bb "$TOP/SPECS/claude-desktop.spec" >&2
