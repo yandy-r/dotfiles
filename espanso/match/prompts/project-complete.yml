@@ -22,11 +22,11 @@ matches:
       ## Scope
 
       - Linear: itcn workspace; team (itcn|yandy-r) from RELEASING.md/AGENTS.md or repo name. Project missing/ambiguous? stop, ask
-      - Inventory all open issues + sub-issues
+      - Inventory open issues + sub-issues
       - Order: blocking relations, milestone, priority. Small related issues, same target release → one PR
-      - Skip others' issues (assigned / PR or branch not yours); resume yours
-      - Follow-ups the goal needs: add to project + loop; others: file elsewhere, don't work
-      - Never widen an issue past its acceptance criteria
+      - Skip others' issues (assigned/PR/branch not yours); resume yours
+      - Follow-ups the goal needs: add to project + loop; others: file, don't work
+      - Never widen past acceptance criteria
       - Duplicate/obsolete? Cancel w/ reason; never just to finish
 
       ## Before
@@ -37,19 +37,19 @@ matches:
       ## Loop (until no workable issue; sub-agents, skills = hints)
 
       1. Pick next; read fully (comments, links, subs). Acceptance criteria = spec (none? write). Set target release (RELEASING.md rule 1); link GitHub issue (else create). → In Progress
-      2. Worktree `<type>/<issue-id>-<slug>` off freshly pulled RELEASING.md base
+      2. Worktree `<type>/<issue-id>-<slug>` off fresh RELEASING.md base
       3. Research + plan (scale to size): `/ycc:feature-research`, `/ycc:prp-plan --parallel --enhanced --no-worktree`. Favor security/data integrity/stability; log decisions in PR
       4. Implement: `/ycc:prp-implement --parallel --no-worktree`. Bug fix: failing regression test first. Unfinished user-reachable work: off behind RELEASING.md switch
       5. Verify (lint, type-check, build, tests for change); adversarial review, fix: `/ycc:code-review --parallel`
-      6. PR (`Closes <TEAM>-N`, `Closes #N`, template, labels): `/ycc:git-workflow --pr --ci --ci-yes`, then `/ycc:pr-autofix <pr#> --parallel --severity low --yes --ci --ci-yes`. Codex review (if present): fix valid, reply to rest, one `@codex review`
+      6. PR (`Closes <TEAM>-N`, `Closes #N`, template, labels): `/ycc:git-workflow --pr --ci --ci-yes`, then `/ycc:pr-autofix <pr#> --parallel --severity low --yes --ci --ci-yes`. Bots (CodeRabbit/Codex/Claude/Greptile/...): 2 fix rounds max, then only high/P1+; reply to rest. Codex (if present): one `@codex review`
       7. Squash merge on green CI. Patch-line target? Label `backport:X.Y`, `/ycc:backport <PR#> --ci`, merge it
       8. Remove worktree + merged branches; close Linear + GitHub issues
       9. Re-read project for new/unblocked issues
 
       ## Blockers
 
-      - Blocked issue? Comment why, mark blocked, continue (never ends run)
-      - Stop only on repo-wide blockers (no access, trunk CI red beyond a small PR fix, contradictory goal); report needs
+      - Blocked issue? Comment why, mark blocked, continue
+      - Stop only on repo-wide blockers (no access, trunk CI red beyond small fix, contradictory goal); report needs
       - Ask only if irreversible (destructive migration, data loss, security, API break)
 
       ## Never

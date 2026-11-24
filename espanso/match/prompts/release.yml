@@ -30,6 +30,7 @@ matches:
       ## Release
 
       - Land needed commits (version, changelog, docs) via branch + PR into release branch, merge on green CI; never commit/push directly to default/release/long-lived branches
+      - Bots (CodeRabbit/Codex/Claude/Greptile/...): 2 fix rounds max, then only high/P1+; reply to rest
       - Then `/ycc:releaser <version> --publish --confirm --ci --ci-yes`
       - Notes from merged changes; call out breaking changes w/ migration steps (required for major)
       - Only direct ref writes: the release tag + branches RELEASING.md says the release creates

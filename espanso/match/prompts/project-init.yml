@@ -38,19 +38,19 @@ matches:
 
       ## Steps
 
-      1. Post short plan from survey (exists/missing/per-step changes). No commits yet? Push one `git commit --allow-empty` to default branch as PR base. Then worktree/branch `chore/project-init` off it; all other commits go there
+      1. Post short plan from survey (exists/missing/changes). No commits yet? Push one `git commit --allow-empty` to default branch as PR base. Then worktree/branch `chore/project-init` off it; all commits go there
       2. Agent docs, git, GitHub templates: `/ycc:init --templates --git` (existing: `--update`) → agent docs, .gitmessage, commitlint, lefthook, issue forms, PR template, PR-title workflow, `.github/labels.md`
       3. Labels: `gh label create` each missing one in `.github/labels.md`
-      4. Lint/format w/ CI + hooks: `/ycc:formatters --ci --hooks --yes` (existing: `--sync`). Run lint + format once; fix findings in separate commit
+      4. Lint/format w/ CI + hooks: `/ycc:formatters --ci --hooks --yes` (existing: `--sync`). Run lint + format; fixes in separate commit
       5. Release model: no RELEASING.md? `/ycc:release-model` w/ model {{form.model}} ("auto": take recommendation); else `/ycc:release-model --audit`, `--upgrade` only on gaps
          - Tracker: {{form.tracker}}. Linear → release-label tracker so issues carry target release
          - release-branches → `backport:X.Y` label per maintenance branch
       6. Release CI: no release workflow? `/ycc:releaser --ci-config=generate --dry-run` (workflow only); else `/ycc:releaser --ci-config=audit`, fix findings
-      7. Agent hooks (if language has rule-based hooks): `/ycc:hooks-workflow <language> --target=claude --dry-run`, apply what fits
-      8. Hygiene, where missing: README (setup, test, lint, release cmds), LICENSE (ask me which), Dependabot/Renovate for project ecosystems
-      9. Verify: lint, format check, type-check, build, tests; generated workflows valid YAML, reference real jobs/scripts
+      7. Agent hooks (if supported): `/ycc:hooks-workflow <language> --target=claude --dry-run`, apply what fits
+      8. Hygiene, where missing: README (setup, test, lint, release cmds), LICENSE (ask me which), Dependabot/Renovate
+      9. Verify: lint, format check, type-check, build, tests; workflows valid YAML w/ real jobs/scripts
       10. Commit (Conventional Commits, grouped by concern), PR: `/ycc:git-workflow --pr --ci --ci-yes`
-      11. Squash merge on green CI, clean up branch
+      11. Bots (CodeRabbit/Codex/Claude/Greptile/...): 2 fix rounds max, then only high/P1+; reply to rest. Squash merge on green CI, clean up branch
 
       ## Never
 
@@ -62,9 +62,9 @@ matches:
 
       ## Manual Follow-Ups
 
-      List (don't do) what needs repo admin: branch protection/rulesets (required checks: lint, tests, PR title), secret scanning + push protection, Codex code review for repo, secrets release workflow needs.
+      List (don't do) what needs repo admin: branch protection/rulesets (required checks: lint, tests, PR title), secret scanning + push protection, Codex review, secrets release workflow needs.
 
       ## Done When
 
       - Every step created/updated/confirmed current; lint, tests, CI green; setup PR merged
-      - Report per step: created/updated/current/skipped (+ why), plus manual follow-ups
+      - Report per step: created/updated/current/skipped (+ why) + manual follow-ups
