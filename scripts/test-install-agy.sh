@@ -135,6 +135,16 @@ expect_failure env INTERRUPT_INSTALL=true AGY_FAKE_VERSION=9.9.9 bash "$INSTALLE
 shell_files_intact
 cmp "$BIN" "$TEST_ROOT/original" || fail 'interrupted update did not restore the previous binary'
 [[ -z "$(ls -A "$TMPDIR")" ]] || fail 'temporary files leaked on interrupt'
+# A snapshot that cannot be taken stops before the installer ever runs.
+: >"$TEST_LOG"
+printf '#!/usr/bin/env bash\nexit 1\n' >"$TEST_ROOT/bin/cp"
+chmod +x "$TEST_ROOT/bin/cp"
+expect_failure bash "$INSTALLER" --update
+rm "$TEST_ROOT/bin/cp"
+contains 'Could not snapshot shell startup files' "$TEST_ROOT/error"
+! grep -q '^installer' "$TEST_LOG" || fail 'installer ran without a shell snapshot'
+shell_files_intact
+cmp "$BIN" "$TEST_ROOT/original" || fail 'snapshot failure did not restore the previous binary'
 # A new binary that installs but cannot start is replaced by the previous one.
 expect_failure env BROKEN_INSTALL=true bash "$INSTALLER" --update
 contains 'the previous agy was restored' "$TEST_ROOT/error"

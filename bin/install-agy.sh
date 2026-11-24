@@ -139,21 +139,30 @@ cleanup() {
 	# backup before getting here.
 	if [[ -n "$BACKUP_BINARY" && -f "$BACKUP_BINARY" ]]; then
 		rm -f -- "$(target_path)" || true
-		mv -f -- "$BACKUP_BINARY" "$(target_path)" || true
+		if ! mv -f -- "$BACKUP_BINARY" "$(target_path)"; then
+			# Never delete the only working copy.
+			log "ERROR: could not restore the previous agy; it is kept at $BACKUP_BINARY"
+			TEMP_DIR=""
+		fi
 	fi
 	if [[ -n "$TEMP_DIR" ]]; then rm -rf -- "$TEMP_DIR"; fi
 	TEMP_DIR=""
 	BACKUP_BINARY=""
 }
 
-# Record each shell startup file's content (or absence) before the installer.
+# Record each shell startup file's content, or its absence, before the
+# installer. Returns non-zero on any failure (e.g. a full disk), so the caller
+# never runs the installer without a complete snapshot to restore from.
 snapshot_shell_files() {
-	local rel file
-	mkdir -p "$TEMP_DIR/shell"
+	local rel file saved
+	rm -rf -- "$TEMP_DIR/shell" && mkdir -p "$TEMP_DIR/shell" || return 1
 	for rel in "${SHELL_FILES[@]}"; do
 		file="$HOME/$rel"
+		saved="$TEMP_DIR/shell/${rel//\//__}"
 		if [[ -f "$file" ]]; then
-			cp -- "$file" "$TEMP_DIR/shell/${rel//\//__}"
+			cp -- "$file" "$saved" || return 1
+		elif [[ ! -e "$file" && ! -L "$file" ]]; then
+			: >"$saved.absent" || return 1
 		fi
 	done
 	SHELL_SNAPSHOT_PENDING=true
@@ -172,7 +181,7 @@ restore_shell_files() {
 				log "Restoring $file (the upstream installer edited it; these dotfiles manage PATH)"
 				cat -- "$saved" >"$file"
 			fi
-		elif [[ -f "$file" && ! -L "$file" ]]; then
+		elif [[ -f "$saved.absent" && -f "$file" && ! -L "$file" ]]; then
 			log "Removing $file (created by the upstream installer)"
 			rm -f -- "$file"
 		fi
@@ -185,7 +194,7 @@ run_official_installer() {
 	if [[ "$AGY_INSTALL_DIR" != "$DEFAULT_INSTALL_DIR" ]]; then args=(--dir "$AGY_INSTALL_DIR"); fi
 	local attempt rc=0
 	for attempt in 1 2 3; do
-		snapshot_shell_files
+		snapshot_shell_files || error_exit "Could not snapshot shell startup files; not running the installer"
 		# The install dir goes first on PATH so the installer's setup step sees
 		# agy as already reachable.
 		PATH="$AGY_INSTALL_DIR:$PATH" bash "$TEMP_DIR/install.sh" ${args[@]+"${args[@]}"} && rc=0 || rc=$?
