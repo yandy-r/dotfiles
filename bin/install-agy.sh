@@ -129,7 +129,11 @@ foreign_agy() {
 
 TEMP_DIR=""
 BACKUP_BINARY=""
+SHELL_SNAPSHOT_PENDING=false
 cleanup() {
+	# An interrupted installer (Ctrl+C, SIGTERM) never reaches the normal
+	# restore, so put the shell startup files back before dropping the snapshot.
+	if [[ "$SHELL_SNAPSHOT_PENDING" == true ]]; then restore_shell_files || true; fi
 	# Any unsuccessful update (failed, interrupted, or a new binary that fails
 	# validation) puts the previous binary back. A successful update deletes the
 	# backup before getting here.
@@ -152,6 +156,7 @@ snapshot_shell_files() {
 			cp -- "$file" "$TEMP_DIR/shell/${rel//\//__}"
 		fi
 	done
+	SHELL_SNAPSHOT_PENDING=true
 }
 
 # Undo any installer edit to a shell startup file. Content is written back
@@ -172,6 +177,7 @@ restore_shell_files() {
 			rm -f -- "$file"
 		fi
 	done
+	SHELL_SNAPSHOT_PENDING=false
 }
 
 run_official_installer() {
@@ -217,6 +223,9 @@ install_binary() {
 	confirm "Download and execute the official Antigravity CLI installer?"
 	TEMP_DIR="$(mktemp -d)"
 	trap cleanup EXIT
+	# Turn signals into a normal exit so the EXIT trap restores everything.
+	trap 'exit 130' INT
+	trap 'exit 143' TERM
 	# Download completely before execution; a failed/partial download must not run.
 	curl -fsSL --connect-timeout 10 --max-time 120 "$AGY_INSTALL_URL" -o "$TEMP_DIR/install.sh" ||
 		error_exit "Failed to download $AGY_INSTALL_URL"
@@ -233,7 +242,7 @@ install_binary() {
 	"$target" --version >&2 || error_exit "Installed agy cannot start${BACKUP_BINARY:+; the previous agy was restored}"
 	if [[ -n "$BACKUP_BINARY" ]]; then rm -f -- "$BACKUP_BINARY"; fi
 	cleanup
-	trap - EXIT
+	trap - EXIT INT TERM
 	case ":$PATH:" in
 	*:"$AGY_INSTALL_DIR":*) ;;
 	*) log "WARNING: $AGY_INSTALL_DIR is not on PATH; open a new shell or add it to run agy" ;;

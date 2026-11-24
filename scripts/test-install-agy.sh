@@ -77,6 +77,7 @@ chmod +x "$dir/agy"
 printf 'export PATH="%s:$PATH"\n' "$dir" >>"$HOME/.bashrc"
 printf 'export PATH="%s:$PATH"\n' "$dir" >>"$HOME/.profile"
 printf 'export PATH="%s:$PATH"\n' "$dir" >>"$HOME/.zshrc"
+if [ "${INTERRUPT_INSTALL:-false}" = true ]; then kill -TERM "$PPID"; exit 0; fi
 if [ "${FAIL_INSTALL:-false}" = true ]; then exit 1; fi
 UPSTREAM
 CURL
@@ -129,6 +130,11 @@ expect_failure env FAIL_INSTALL=true AGY_FAKE_VERSION=9.9.9 bash "$INSTALLER" --
 cmp "$BIN" "$TEST_ROOT/original" || fail 'failed update did not restore the previous binary'
 shell_files_intact
 [[ -z "$(ls -A "$TMPDIR")" ]] || fail 'temporary files leaked on failure'
+# An interrupted installer still gets its shell edits undone and the old binary back.
+expect_failure env INTERRUPT_INSTALL=true AGY_FAKE_VERSION=9.9.9 bash "$INSTALLER" --update
+shell_files_intact
+cmp "$BIN" "$TEST_ROOT/original" || fail 'interrupted update did not restore the previous binary'
+[[ -z "$(ls -A "$TMPDIR")" ]] || fail 'temporary files leaked on interrupt'
 # A new binary that installs but cannot start is replaced by the previous one.
 expect_failure env BROKEN_INSTALL=true bash "$INSTALLER" --update
 contains 'the previous agy was restored' "$TEST_ROOT/error"
