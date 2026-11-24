@@ -201,6 +201,10 @@ jobs:
         if: runner.os == 'Linux'
         run: bash scripts/test-install-omp.sh
 
+      - name: Antigravity CLI installer lifecycle
+        if: runner.os == 'Linux'
+        run: bash scripts/test-install-agy.sh
+
       - name: OpenCode installer lifecycle
         if: runner.os == 'Linux'
         run: bash scripts/test-install-opencode.sh

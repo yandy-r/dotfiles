@@ -12,7 +12,7 @@ repository. All scripts are designed to be cross-platform and follow consistent 
 | Cloud Tools      | `install-aws-tools.sh`, `install-azure-cli.sh`, `install-1password-cli.sh`           | Cloud CLI tools             |
 | DevOps           | `install-hashicorp-tools.sh`                                                         | Infrastructure tools        |
 | Modern CLI       | `install-espanso.sh`, `install-blesh.sh`                                             | Modern command-line tools   |
-| AI/Development   | `install-claude.sh`, `install-codex.sh`, `install-opencode.sh`, `install-omp.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-graphify.sh`, `install-neovim.sh` | Development tools           |
+| AI/Development   | `install-claude.sh`, `install-codex.sh`, `install-opencode.sh`, `install-omp.sh`, `install-agy.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-graphify.sh`, `install-neovim.sh` | Development tools           |
 | Utilities        | `sync-configs.sh`, `cursor-export-secrets.sh`, `cleanup-*.sh`                        | System utilities            |
 | Style / Lint     | `style.sh`, `lint.sh`, `format.sh`                                                   | Multi-language lint/format  |
 
@@ -297,6 +297,40 @@ package is in the `dev` intent, which a headless `dotf apply` includes.
 `--uninstall` removes the install directory,
 `${XDG_CACHE_HOME:-~/.cache}/blesh`, and
 `${XDG_STATE_HOME:-~/.local/state}/blesh`. It does not remove `~/.config/blesh`.
+
+#### install-agy.sh
+
+Install the [Antigravity CLI](https://antigravity.google/) (`agy`) with Google's
+official installer (`https://antigravity.google/cli/install.sh`), the native route on
+both macOS and Linux (including WSL). Upstream verifies the release's SHA512 and puts
+the binary in `~/.local/bin/agy`. There is no fallback to any other method (no
+Homebrew cask, no npm): if the official installer fails, the script fails. Included
+in dotf's opt-in `ai` intent.
+
+```bash
+dotf install --only agy
+dotf install --only agy --update
+dotf install --only agy --remove
+# Or install it with the rest of the AI tools:
+dotf apply --intent ai
+
+./bin/install-agy.sh                       # no-op when installed
+./bin/install-agy.sh --update              # reinstall the latest release
+./bin/install-agy.sh --force               # reinstall and approve prompts
+./bin/install-agy.sh --uninstall
+./bin/install-agy.sh --check               # print the installed version
+./bin/install-agy.sh --dry-run
+```
+
+Override the directory with `AGY_INSTALL_DIR` or `--dir` (an absolute path). The
+upstream installer's `agy install` step may edit shell startup files (`~/.bashrc`,
+`~/.zshrc`, `~/.profile`, fish config, ...); these dotfiles manage PATH and those
+files are usually symlinks into the repo, so the script snapshots them and restores
+any edit. An update moves the current binary aside and restores it if the new install
+fails. `agy` also self-updates in the background while it runs. An `agy` installed
+any other way (for example the Homebrew `antigravity-cli` cask) is refused rather
+than shadowed. Uninstall removes only the binary, preserving `~/.gemini` (settings
+and sign-in). Symlink targets are never overwritten or removed.
 
 #### install-omp.sh
 
