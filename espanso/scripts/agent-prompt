@@ -27,6 +27,9 @@ TARGET="${ESPANSO_FORM_TARGET:-}"
 SKILLS="${ESPANSO_FORM_SKILLS:-yes}"
 GOAL_PREFIX="yes"
 MAX_CHARS=${AGENT_PROMPT_MAX_CHARS:-4000}
+# Bot reviewers (CodeRabbit, Codex, Claude, Greptile, ...) can comment forever;
+# cap the fix loop. Keep in sync with match/prompts/*.yml (check-prompt-length).
+BOT_REVIEW_CAP='Bots (CodeRabbit/Codex/Claude/Greptile/...): 2 fix rounds max, then only high/P1+; reply to rest'
 
 ISSUE_COUNT=0
 
@@ -195,7 +198,7 @@ render_pick_scope() {
   bugs)
     project="${TARGET:-$BUGS_PROJECT}"
     kind="bug/security issue"
-    rank="Rank: priority; security & data-loss first"
+    rank="Rank: priority; security/data-loss first"
     ;;
   features)
     project="${TARGET:-$FEATURES_PROJECT}"
@@ -306,17 +309,19 @@ EOF
   printf '6. Adversarial review, fix findings%s\n' "$(hint "/ycc:code-review --parallel")"
   printf '7. PR (`Closes %s-N`, `Closes #N`, template, labels)%s\n' \
     "${ISSUE_PREFIX:-<TEAM>}" "$(hint "/ycc:git-workflow --pr --ci --ci-yes")"
-  printf '8. Review PR, fix all%s\n' \
+  printf '8. Review PR, fix%s\n' \
     "$(hint "/ycc:code-review --parallel <pr#>" "/ycc:pr-autofix <pr#> --parallel --severity low --yes --ci --ci-yes")"
+  printf '   - %s' "$BOT_REVIEW_CAP"
   case "$CODEX" in
-  yes) printf '   - Codex review: fix valid, reply to rest, one `@codex review`; skip if limited\n' ;;
-  auto | "") printf '   - Codex review (if present): fix valid, reply to rest, one `@codex review`; skip if limited\n' ;;
+  yes) printf '; one `@codex review`, skip if limited' ;;
+  auto | "") printf '; Codex (if present): one `@codex review`' ;;
   no) ;;
   *) die "profile '$PROFILE': invalid CODEX '$CODEX' (expected yes, no, or auto)" ;;
   esac
+  printf '\n'
   cat <<'EOF'
-9. Squash merge on green CI. Unrelated CI fail: rerun once, fix if small, else stop + report; never mask
-10. Patch-line target (`vX.Y.x`): label `backport:X.Y`, `/ycc:backport <PR#> --ci`, merge its green PR
+9. Squash merge on green CI. Unrelated CI fail: rerun once, fix if small, else stop, report; never mask
+10. Patch-line target (`vX.Y.x`): label `backport:X.Y`, `/ycc:backport <PR#> --ci`, merge it
 11. Remove worktree + merged branches (local+remote); close Linear + GitHub issues; file Linear follow-ups
 EOF
 }

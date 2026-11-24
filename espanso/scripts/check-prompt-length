@@ -27,6 +27,18 @@ SAMPLE_PROJECT="Website and commerce -- Bugs"
 
 failures=0
 worst=0
+# Every prompt that merges a PR must cap bot-review fix rounds (same wording as
+# BOT_REVIEW_CAP in agent-prompt).
+REVIEW_CAP="2 fix rounds max, then only high/P1+"
+
+check_review_cap() {
+  local name="$1" text="$2"
+  [[ "$text" == *"merge on green CI"* ]] || return 0
+  if [[ "$text" != *"$REVIEW_CAP"* ]]; then
+    printf 'FAIL %s: merges a PR but lacks the bot-review cap (%s)\n' "$name" "$REVIEW_CAP" >&2
+    failures=$((failures + 1))
+  fi
+}
 
 check() {
   local name="$1" chars="$2"
@@ -52,6 +64,7 @@ check_renders() {
             continue
           fi
           check "$name" "${#out}"
+          check_review_cap "$name" "$out"
         done
       done
     done
@@ -100,6 +113,7 @@ check_static() {
     body="$(replace_body "$file")"
     [[ -n "$body" ]] || continue
     check "${file##*/}" "${#body}"
+    check_review_cap "${file##*/}" "$body"
   done
 }
 

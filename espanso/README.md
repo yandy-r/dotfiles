@@ -61,6 +61,17 @@ The prompt also makes the agent treat each issue's acceptance criteria as the
 spec (writing them first if missing), start bug fixes with a failing
 regression test, and stop and report when blocked rather than guess.
 
+## Bot review cap
+
+Every prompt that merges a PR (`:e2e`, `:projdone`, `:projinit`, `:release`)
+caps bot reviews (CodeRabbit, Codex, Claude, Greptile, and similar): the agent
+does at most **two rounds** of fixes for bot comments, then fixes only urgent
+findings (high severity or P1 and above) and replies to the rest instead of
+looping. A round is one batch of fixes pushed in response to a review.
+`npm run test:espanso` fails if a prompt that says "merge on green CI" lacks
+the cap (`BOT_REVIEW_CAP` in `scripts/agent-prompt`; the static prompts carry
+the same wording).
+
 The renderer also works outside espanso:
 
 ```bash
@@ -77,7 +88,8 @@ at least 1000 characters for context you append before sending.
 `npm run test:espanso` (`scripts/check-prompt-length`) renders every profile
 (plus `auto`), task, target, and skills combination, measures each
 `match/prompts/*.yml` body, and checks that the `:e2e` profile choices match
-`scripts/profiles/` (it fails over the 3000 budget). Run it after editing a
+`scripts/profiles/` (it fails over the 3000 budget or when a PR-merging prompt
+lacks the bot review cap). Run it after editing a
 prompt or profile.
 
 Prompts use a terse "caveman-lite" style: imperative fragments, no articles or
