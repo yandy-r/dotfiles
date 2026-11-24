@@ -10,7 +10,7 @@ export HOME="$TEST_ROOT/home"
 # Only host tools via symlinks; the stubs in $TEST_ROOT/bin win.
 mkdir -p "$TEST_ROOT/tools"
 for tool in /usr/bin/* /bin/*; do
-	[[ -e "$TEST_ROOT/tools/${tool##*/}" ]] && continue
+	[[ -e "$TEST_ROOT/tools/${tool##*/}" || -L "$TEST_ROOT/tools/${tool##*/}" ]] && continue
 	case "${tool##*/}" in agy | curl | sleep) continue ;; esac
 	ln -s "$tool" "$TEST_ROOT/tools/${tool##*/}"
 done
@@ -68,7 +68,11 @@ dir="$HOME/.local/bin"
 if [ "${1:-}" = --dir ]; then dir="$2"; fi
 if [ -f "$dir/agy" ]; then echo "already installed"; exit 0; fi
 mkdir -p "$dir"
-printf '#!/bin/sh\nprintf "agy %s\\n"\n' "${AGY_FAKE_VERSION:-1.5.16}" >"$dir/agy"
+if [ "${BROKEN_INSTALL:-false}" = true ]; then
+	printf '#!/bin/sh\nexit 1\n' >"$dir/agy"
+else
+	printf '#!/bin/sh\nprintf "agy %s\\n"\n' "${AGY_FAKE_VERSION:-1.5.16}" >"$dir/agy"
+fi
 chmod +x "$dir/agy"
 printf 'export PATH="%s:$PATH"\n' "$dir" >>"$HOME/.bashrc"
 printf 'export PATH="%s:$PATH"\n' "$dir" >>"$HOME/.profile"
@@ -125,6 +129,11 @@ expect_failure env FAIL_INSTALL=true AGY_FAKE_VERSION=9.9.9 bash "$INSTALLER" --
 cmp "$BIN" "$TEST_ROOT/original" || fail 'failed update did not restore the previous binary'
 shell_files_intact
 [[ -z "$(ls -A "$TMPDIR")" ]] || fail 'temporary files leaked on failure'
+# A new binary that installs but cannot start is replaced by the previous one.
+expect_failure env BROKEN_INSTALL=true bash "$INSTALLER" --update
+contains 'the previous agy was restored' "$TEST_ROOT/error"
+cmp "$BIN" "$TEST_ROOT/original" || fail 'broken update did not restore the previous binary'
+[[ -z "$(ls -A "$TMPDIR")" ]] || fail 'temporary files leaked on broken update'
 
 # A foreign agy (e.g. Homebrew cask) is refused, never shadowed.
 mkdir -p "$TEST_ROOT/brew"

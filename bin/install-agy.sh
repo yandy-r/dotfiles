@@ -130,8 +130,11 @@ foreign_agy() {
 TEMP_DIR=""
 BACKUP_BINARY=""
 cleanup() {
-	# An interrupted update puts the previous binary back.
-	if [[ -n "$BACKUP_BINARY" && -f "$BACKUP_BINARY" && ! -e "$(target_path)" ]]; then
+	# Any unsuccessful update (failed, interrupted, or a new binary that fails
+	# validation) puts the previous binary back. A successful update deletes the
+	# backup before getting here.
+	if [[ -n "$BACKUP_BINARY" && -f "$BACKUP_BINARY" ]]; then
+		rm -f -- "$(target_path)" || true
 		mv -f -- "$BACKUP_BINARY" "$(target_path)" || true
 	fi
 	if [[ -n "$TEMP_DIR" ]]; then rm -rf -- "$TEMP_DIR"; fi
@@ -226,8 +229,8 @@ install_binary() {
 	if ! run_official_installer; then
 		error_exit "Official installer failed after 3 attempts${BACKUP_BINARY:+; the previous agy was restored}"
 	fi
-	[[ -x "$target" ]] || error_exit "The official installer did not create $target"
-	"$target" --version >&2 || error_exit "Installed agy cannot start"
+	[[ -x "$target" ]] || error_exit "The official installer did not create $target${BACKUP_BINARY:+; the previous agy was restored}"
+	"$target" --version >&2 || error_exit "Installed agy cannot start${BACKUP_BINARY:+; the previous agy was restored}"
 	if [[ -n "$BACKUP_BINARY" ]]; then rm -f -- "$BACKUP_BINARY"; fi
 	cleanup
 	trap - EXIT
