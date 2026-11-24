@@ -99,6 +99,12 @@ bash "$INSTALLER" --dry-run 2>/dev/null
 expect_failure env NON_INTERACTIVE=false bash "$INSTALLER" </dev/null
 [[ ! -s "$TEST_LOG" ]] || fail 'unapproved install downloaded a script'
 
+# A fresh install whose binary cannot start leaves nothing behind.
+expect_failure env BROKEN_INSTALL=true bash "$INSTALLER"
+[[ ! -e "$BIN" ]] || fail 'failed fresh install left a broken binary'
+shell_files_intact
+: >"$TEST_LOG"
+
 # Fresh install: official installer only, shell profiles restored.
 bash "$INSTALLER" 2>"$TEST_ROOT/install"
 [[ -x "$BIN" ]] || fail 'install did not create agy'

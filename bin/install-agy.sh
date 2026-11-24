@@ -130,6 +130,7 @@ foreign_agy() {
 TEMP_DIR=""
 BACKUP_BINARY=""
 SHELL_SNAPSHOT_PENDING=false
+INSTALL_PENDING=false
 cleanup() {
 	# An interrupted installer (Ctrl+C, SIGTERM) never reaches the normal
 	# restore, so put the shell startup files back before dropping the snapshot.
@@ -137,6 +138,11 @@ cleanup() {
 	# Any unsuccessful update (failed, interrupted, or a new binary that fails
 	# validation) puts the previous binary back. A successful update deletes the
 	# backup before getting here.
+	if [[ "$INSTALL_PENDING" == true && -z "$BACKUP_BINARY" ]]; then
+		# A fresh install that failed or did not validate must not leave a binary
+		# that the next run (and dotf's path probe) would treat as installed.
+		rm -f -- "$(target_path)" || true
+	fi
 	if [[ -n "$BACKUP_BINARY" && -f "$BACKUP_BINARY" ]]; then
 		rm -f -- "$(target_path)" || true
 		if ! mv -f -- "$BACKUP_BINARY" "$(target_path)"; then
@@ -244,11 +250,13 @@ install_binary() {
 		BACKUP_BINARY="$TEMP_DIR/agy.previous"
 		mv -f -- "$target" "$BACKUP_BINARY"
 	fi
+	INSTALL_PENDING=true
 	if ! run_official_installer; then
 		error_exit "Official installer failed after 3 attempts${BACKUP_BINARY:+; the previous agy was restored}"
 	fi
 	[[ -x "$target" ]] || error_exit "The official installer did not create $target${BACKUP_BINARY:+; the previous agy was restored}"
 	"$target" --version >&2 || error_exit "Installed agy cannot start${BACKUP_BINARY:+; the previous agy was restored}"
+	INSTALL_PENDING=false
 	if [[ -n "$BACKUP_BINARY" ]]; then rm -f -- "$BACKUP_BINARY"; fi
 	cleanup
 	trap - EXIT INT TERM
