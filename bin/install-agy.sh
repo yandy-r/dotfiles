@@ -134,7 +134,11 @@ INSTALL_PENDING=false
 cleanup() {
 	# An interrupted installer (Ctrl+C, SIGTERM) never reaches the normal
 	# restore, so put the shell startup files back before dropping the snapshot.
-	if [[ "$SHELL_SNAPSHOT_PENDING" == true ]]; then restore_shell_files || true; fi
+	if [[ "$SHELL_SNAPSHOT_PENDING" == true ]] && ! restore_shell_files; then
+		# Never delete the only copy of a shell file we could not put back.
+		log "ERROR: shell startup file snapshots are kept in $TEMP_DIR/shell; restore them by hand"
+		TEMP_DIR=""
+	fi
 	# Any unsuccessful update (failed, interrupted, or a new binary that fails
 	# validation) puts the previous binary back. A successful update deletes the
 	# backup before getting here.
@@ -178,20 +182,28 @@ snapshot_shell_files() {
 # through the existing path, so a symlink into the dotfiles repo stays a symlink
 # and its target regains the exact bytes it had before.
 restore_shell_files() {
-	local rel file saved
+	local rel file saved failed=false
 	for rel in "${SHELL_FILES[@]}"; do
 		file="$HOME/$rel"
 		saved="$TEMP_DIR/shell/${rel//\//__}"
 		if [[ -f "$saved" ]]; then
 			if ! cmp -s -- "$saved" "$file"; then
 				log "Restoring $file (the upstream installer edited it; these dotfiles manage PATH)"
-				cat -- "$saved" >"$file"
+				cat -- "$saved" >"$file" || {
+					log "ERROR: could not restore $file"
+					failed=true
+				}
 			fi
 		elif [[ -f "$saved.absent" && -f "$file" && ! -L "$file" ]]; then
 			log "Removing $file (created by the upstream installer)"
-			rm -f -- "$file"
+			rm -f -- "$file" || {
+				log "ERROR: could not remove $file"
+				failed=true
+			}
 		fi
 	done
+	# Keep the snapshot pending (and on disk) until every file is restored.
+	[[ "$failed" == false ]] || return 1
 	SHELL_SNAPSHOT_PENDING=false
 }
 
@@ -204,7 +216,7 @@ run_official_installer() {
 		# The install dir goes first on PATH so the installer's setup step sees
 		# agy as already reachable.
 		PATH="$AGY_INSTALL_DIR:$PATH" bash "$TEMP_DIR/install.sh" ${args[@]+"${args[@]}"} && rc=0 || rc=$?
-		restore_shell_files
+		restore_shell_files || error_exit "Could not restore shell startup files after the installer"
 		((rc != 0)) || return 0
 		log "WARNING: official installer failed (exit $rc, attempt $attempt/3)"
 		# A failed attempt must not leave a half-installed binary that the next

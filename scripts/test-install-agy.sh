@@ -151,6 +151,27 @@ contains 'Could not snapshot shell startup files' "$TEST_ROOT/error"
 ! grep -q '^installer' "$TEST_LOG" || fail 'installer ran without a shell snapshot'
 shell_files_intact
 cmp "$BIN" "$TEST_ROOT/original" || fail 'snapshot failure did not restore the previous binary'
+# A shell file that cannot be written back keeps its snapshot on disk.
+cat >"$TEST_ROOT/bin/cat" <<CAT
+#!/usr/bin/env bash
+# Fail only the wrapper's write-back of a shell snapshot.
+case "\$*" in *"/shell/"*) exit 1 ;; esac
+exec "$TEST_ROOT/tools/cat" "\$@"
+CAT
+chmod +x "$TEST_ROOT/bin/cat"
+expect_failure bash "$INSTALLER" --update
+rm "$TEST_ROOT/bin/cat"
+contains 'snapshots are kept in' "$TEST_ROOT/error"
+kept="$(find "$TMPDIR" -path '*/shell/.profile' | head -n 1)"
+[[ -n "$kept" ]] || fail 'failed restore deleted the shell snapshot'
+[[ "$(command cat "$kept")" == 'plain profile' ]] || fail 'kept snapshot is wrong'
+cmp "$BIN" "$TEST_ROOT/original" || fail 'failed restore did not restore the previous binary'
+# Put things back by hand, as the message tells the user to.
+command cat "$kept" >"$HOME/.profile"
+printf 'managed bashrc\n' >"$TEST_ROOT/repo/bashrc"
+rm -f "$HOME/.zshrc"
+rm -rf "${TMPDIR:?}"/*
+shell_files_intact
 # A new binary that installs but cannot start is replaced by the previous one.
 expect_failure env BROKEN_INSTALL=true bash "$INSTALLER" --update
 contains 'the previous agy was restored' "$TEST_ROOT/error"
