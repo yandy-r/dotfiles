@@ -306,7 +306,7 @@ EOF
    - Critical tests only; bug fix: failing regression test first
 5. Verify: lint, type-check, build, tests for change
 EOF
-  printf '6. Adversarial review, fix findings%s\n' "$(hint "/ycc:code-review --parallel")"
+  printf '6. Adversarial review, fix%s\n' "$(hint "/ycc:code-review --parallel")"
   printf '7. PR (`Closes %s-N`, `Closes #N`, template, labels)%s\n' \
     "${ISSUE_PREFIX:-<TEAM>}" "$(hint "/ycc:git-workflow --pr --ci --ci-yes")"
   printf '8. Review PR, fix%s\n' \
@@ -321,7 +321,7 @@ EOF
   printf '\n'
   cat <<'EOF'
 9. Squash merge on green CI. Unrelated CI fail: rerun once, fix if small, else stop, report; never mask
-10. Patch-line target (`vX.Y.x`): label `backport:X.Y`, `/ycc:backport <PR#> --ci`, merge it
+10. Patch-line target (`vX.Y.x`): label `backport:X.Y`, `/ycc:backport <PR#> --ci`, merge its green PR
 11. Remove worktree + merged branches (local+remote); close Linear + GitHub issues; file Linear follow-ups
 EOF
 }

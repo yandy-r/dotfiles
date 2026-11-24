@@ -28,12 +28,14 @@ SAMPLE_PROJECT="Website and commerce -- Bugs"
 failures=0
 worst=0
 # Every prompt that merges a PR must cap bot-review fix rounds (same wording as
-# BOT_REVIEW_CAP in agent-prompt).
+# BOT_REVIEW_CAP in agent-prompt). The known PR-merging prompts are required by
+# name; any other prompt is required once it says "merge on green CI".
 REVIEW_CAP="2 fix rounds max, then only high/P1+"
+REVIEW_CAP_PROMPTS=" agent-prompt project-complete.yml project-init.yml release.yml "
 
 check_review_cap() {
-  local name="$1" text="$2"
-  [[ "$text" == *"merge on green CI"* ]] || return 0
+  local name="$1" text="$2" id="${3:-$1}"
+  [[ "$REVIEW_CAP_PROMPTS" == *" $id "* || "$text" == *"merge on green CI"* ]] || return 0
   if [[ "$text" != *"$REVIEW_CAP"* ]]; then
     printf 'FAIL %s: merges a PR but lacks the bot-review cap (%s)\n' "$name" "$REVIEW_CAP" >&2
     failures=$((failures + 1))
@@ -64,7 +66,7 @@ check_renders() {
             continue
           fi
           check "$name" "${#out}"
-          check_review_cap "$name" "$out"
+          check_review_cap "$name" "$out" agent-prompt
         done
       done
     done
