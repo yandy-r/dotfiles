@@ -126,6 +126,9 @@ force_path_front() {
 #
 # Final order on macOS: Priority paths -> Other -> Homebrew -> System
 # Final order on Linux: Priority paths -> System -> Other -> Homebrew
+#
+# Callers (finalize_path, zsh/zprofile) run this on macOS only: on Linux it
+# would push prepended entries such as mise shims behind /usr/bin.
 fix_homebrew_path_order() {
     local brew_path="$DOTFILES_HOMEBREW_PATH"
 
