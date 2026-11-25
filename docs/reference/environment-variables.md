@@ -184,12 +184,13 @@ Variables for terminal behavior and appearance.
 | Variable      | Default                  | Description                                    |
 | ------------- | ------------------------ | ---------------------------------------------- |
 | `TERM`        | `xterm-256color`         | Terminal type (with Ghostty fallback handling) |
-| `CLICOLOR`    | `1`                      | Enable CLI colors                              |
-| `FORCE_COLOR` | `1`                      | Force color output                             |
+| `CLICOLOR`    | `1`                      | Enable CLI colors for TTY output               |
 | `LSCOLORS`    | `ExFxCxDxBxegedabagacad` | macOS ls colors                                |
 | `LS_COLORS`   | `di=1;34:ln=1;35:...`    | Linux ls colors                                |
 | `GREP_COLOR`  | `1;33`                   | Grep match color (yellow)                      |
 | `GREP_COLORS` | `mt=1;33`                | Grep match text color                          |
+
+**Note:** `FORCE_COLOR` is intentionally not exported globally. `CLICOLOR=1` already enables color on TTYs, whereas a global `FORCE_COLOR=1` causes Python 3.13+ (including `jsonpp` / `python3 -m json.tool` in 3.14+) and many Node tools to emit ANSI escape codes into piped or redirected output. Set `FORCE_COLOR` per command or alias only where forced non-TTY color is wanted.
 
 ### Terminal Type Handling
 

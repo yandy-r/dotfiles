@@ -247,7 +247,10 @@ elif [ -z "$TERM" ]; then
     export TERM="xterm-256color"
 fi
 
-# Enable colors in terminal
+# Enable colors in terminal. Do not export FORCE_COLOR globally: Python 3.13+
+# (including `python3 -m json.tool` / `jsonpp` in 3.14+) and many Node tools
+# honor it even when stdout is piped or redirected, injecting ANSI escapes into
+# data output. Set FORCE_COLOR per command/alias when non-TTY color is wanted.
 export CLICOLOR=1
 
 # Color settings for ls
