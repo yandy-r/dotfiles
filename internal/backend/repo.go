@@ -1,7 +1,9 @@
 package backend
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,8 +45,9 @@ type repoBackend struct {
 	r exec.Runner
 
 	// readFile reads an existing /etc/yum.repos.d/<id>.repo before the dnf file
-	// modes write it. It is os.ReadFile in production; tests inject a fake so
-	// they never read the real /etc.
+	// modes write it, and snapshots the apt keyring and sources file before
+	// installAPT overwrites them. It is os.ReadFile in production; tests inject
+	// a fake so they never read the real /etc.
 	readFile func(string) ([]byte, error)
 
 	// repoIDs reports the dnf repo ids configured on the host (see
@@ -158,6 +161,13 @@ func (b *repoBackend) installAPT(pkg manifest.Package, info platform.Info) error
 		return fmt.Errorf("backend: package %q apt_repo.key_fingerprint is required", pkg.Name)
 	}
 
+	// Render before any download or sudo step: a host the line cannot be
+	// rendered for (unknown codename or apt base) must leave nothing behind.
+	repoLine, err := renderRepoLine(repo.RepoLine, info)
+	if err != nil {
+		return err
+	}
+
 	keyData, err := b.r.Output("curl", "-fsSL", repo.KeyURL)
 	if err != nil {
 		return fmt.Errorf("fetch apt repo key %q: %w", repo.KeyURL, err)
@@ -175,6 +185,18 @@ func (b *repoBackend) installAPT(pkg manifest.Package, info platform.Info) error
 	}
 	defer func() { _ = os.Remove(pinned) }()
 
+	// Snapshot both root-owned files before either is replaced, so a failed
+	// apt-get update can put the host back exactly as it was. A file that
+	// exists but cannot be read would be unrestorable, so refuse to touch it.
+	keyringPrior, err := b.snapshotAptFile(repo.Keyring)
+	if err != nil {
+		return err
+	}
+	sourcesPrior, err := b.snapshotAptFile(repo.SourcesPath)
+	if err != nil {
+		return err
+	}
+
 	keyringDir := filepath.Dir(repo.Keyring)
 	if err := b.r.Run("sudo", "install", "-d", "-m", "0755", keyringDir); err != nil {
 		return fmt.Errorf("create apt keyring directory %q: %w", keyringDir, err)
@@ -182,11 +204,6 @@ func (b *repoBackend) installAPT(pkg manifest.Package, info platform.Info) error
 
 	if err := b.r.Run("sudo", "install", "-m", "0644", pinned, repo.Keyring); err != nil {
 		return fmt.Errorf("install apt repo keyring %q: %w", repo.Keyring, err)
-	}
-
-	repoLine, err := renderRepoLine(repo.RepoLine, info)
-	if err != nil {
-		return err
 	}
 
 	sourcesFile, err := writeTempFile("dotf-apt-sources-*", []byte(repoLine+"\n"))
@@ -200,13 +217,67 @@ func (b *repoBackend) installAPT(pkg manifest.Package, info platform.Info) error
 	}
 
 	if err := b.r.Run("sudo", "apt-get", "update"); err != nil {
-		return fmt.Errorf("apt-get update: %w", err)
+		// A sources entry apt cannot fetch (a 404 suite, a dead mirror) fails
+		// every later apt-get update on the host, including the next apt-repo
+		// package in this run. Roll back the sources file first, then the
+		// keyring, before reporting the failure.
+		updateErr := fmt.Errorf("apt-get update: %w", err)
+		return errors.Join(updateErr,
+			b.restoreAptFile(sourcesPrior, "644"),
+			b.restoreAptFile(keyringPrior, "0644"))
 	}
 
 	if err := b.r.Run("sudo", "apt-get", "install", "-y", aptName); err != nil {
 		return fmt.Errorf("apt-get install %q: %w", aptName, err)
 	}
 
+	return nil
+}
+
+// aptFileSnapshot is what a root-owned apt file held before installAPT
+// overwrote it, so a failed apt-get update can restore it.
+type aptFileSnapshot struct {
+	path string
+	// existed reports the file was present; body is then its prior content.
+	existed bool
+	body    []byte
+}
+
+// snapshotAptFile records path's current content. A missing file snapshots as
+// "created by dotf", so rollback removes it. A file that exists but cannot be
+// read is an error: overwriting it would make rollback impossible.
+func (b *repoBackend) snapshotAptFile(path string) (aptFileSnapshot, error) {
+	body, err := b.readFile(path)
+	switch {
+	case err == nil:
+		if body == nil {
+			body = []byte{}
+		}
+		return aptFileSnapshot{path: path, existed: true, body: body}, nil
+	case errors.Is(err, fs.ErrNotExist):
+		return aptFileSnapshot{path: path}, nil
+	default:
+		return aptFileSnapshot{}, fmt.Errorf("read existing %q before replacing it: %w", path, err)
+	}
+}
+
+// restoreAptFile undoes installAPT's write of s.path: it removes a file dotf
+// created and rewrites a file it replaced with its prior content (mode).
+func (b *repoBackend) restoreAptFile(s aptFileSnapshot, mode string) error {
+	if !s.existed {
+		if err := b.r.Run("sudo", "rm", "-f", s.path); err != nil {
+			return fmt.Errorf("roll back %q: %w", s.path, err)
+		}
+		return nil
+	}
+	tmp, err := writeTempFile("dotf-apt-restore-*", s.body)
+	if err != nil {
+		return fmt.Errorf("roll back %q: %w", s.path, err)
+	}
+	defer func() { _ = os.Remove(tmp) }()
+	if err := b.r.Run("sudo", "install", "-m", mode, tmp, s.path); err != nil {
+		return fmt.Errorf("roll back %q: %w", s.path, err)
+	}
 	return nil
 }
 
@@ -290,17 +361,38 @@ func (b *repoBackend) Installed(pkg manifest.Package, info platform.Info) (bool,
 	}
 }
 
-// renderRepoLine substitutes the {{.Codename}} and {{.Arch}} placeholders in a
-// repo_line with the host's release codename and dpkg release arch, so the
-// suite and arch track the target machine instead of being hardcoded. It
-// errors when the line needs a codename the host does not report (os-release
-// VERSION_CODENAME/UBUNTU_CODENAME absent), since a bare/empty suite would 404
-// on apt-get update.
+// renderRepoLine substitutes the host placeholders in a repo_line so the
+// suite, distro path and arch track the target machine instead of being
+// hardcoded:
+//
+//   - {{.Codename}}: os-release VERSION_CODENAME (fallback UBUNTU_CODENAME).
+//   - {{.UbuntuCodename}}: UBUNTU_CODENAME (fallback VERSION_CODENAME), the
+//     suite for repos that publish Ubuntu dists only, so Mint/elementary/Pop
+//     resolve to their Ubuntu base (wilma -> noble).
+//   - {{.BaseDistro}} / {{.BaseCodename}}: the vendor path ("ubuntu" or
+//     "debian") and matching suite, for repos that publish both trees.
+//   - {{.Arch}}: the dpkg release arch.
+//
+// It errors when the line needs a value the host does not report, since a
+// bare/empty suite or path would 404 on apt-get update.
 func renderRepoLine(line string, info platform.Info) (string, error) {
-	if strings.Contains(line, "{{.Codename}}") && info.Codename == "" {
-		return "", fmt.Errorf("repo: host codename unknown (os-release VERSION_CODENAME/UBUNTU_CODENAME absent); cannot render repo_line %q", line)
+	for _, v := range []struct{ placeholder, value, what, source string }{
+		{"{{.Codename}}", info.Codename, "codename", "os-release VERSION_CODENAME/UBUNTU_CODENAME absent"},
+		{"{{.UbuntuCodename}}", info.UbuntuCodename, "Ubuntu codename", "os-release UBUNTU_CODENAME/VERSION_CODENAME absent"},
+		{"{{.BaseDistro}}", info.BaseDistro, "apt base distro", "host is neither Ubuntu- nor Debian-based"},
+		{"{{.BaseCodename}}", info.BaseCodename, "apt base codename", "no Ubuntu/Debian base codename in os-release"},
+	} {
+		if strings.Contains(line, v.placeholder) && v.value == "" {
+			return "", fmt.Errorf("repo: host %s unknown (%s); cannot render repo_line %q", v.what, v.source, line)
+		}
 	}
-	return strings.NewReplacer("{{.Codename}}", info.Codename, "{{.Arch}}", info.Arch.ReleaseArch()).Replace(line), nil
+	return strings.NewReplacer(
+		"{{.Codename}}", info.Codename,
+		"{{.UbuntuCodename}}", info.UbuntuCodename,
+		"{{.BaseDistro}}", info.BaseDistro,
+		"{{.BaseCodename}}", info.BaseCodename,
+		"{{.Arch}}", info.Arch.ReleaseArch(),
+	).Replace(line), nil
 }
 
 func writeTempFile(pattern string, content []byte) (string, error) {

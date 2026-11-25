@@ -177,6 +177,23 @@ type Info struct {
 	// "jammy". Empty on non-Debian-family hosts and macOS.
 	Codename string
 
+	// UbuntuCodename is os-release UBUNTU_CODENAME, falling back to
+	// VERSION_CODENAME: the Ubuntu base release on Ubuntu derivatives (Mint
+	// "wilma" and elementary "circe" both report "noble"). It is the suite
+	// for apt repos that publish Ubuntu dists only. Not exported to the
+	// platform env cache.
+	UbuntuCodename string
+
+	// BaseDistro is the apt vendor tree the host belongs to: "ubuntu" for
+	// Ubuntu and its derivatives, "debian" for Debian and its non-Ubuntu
+	// derivatives, empty elsewhere. Repos that publish both trees (docker,
+	// dropbox) template their path from it. Not exported to the env cache.
+	BaseDistro string
+
+	// BaseCodename is the release codename within BaseDistro (e.g. "noble" on
+	// Mint 22, "bookworm" on Debian 12 or LMDE 6). Empty when BaseDistro is.
+	BaseCodename string
+
 	// VersionID is the raw /etc/os-release VERSION_ID (e.g. "42" on Fedora 42,
 	// "24.04" on Ubuntu). It is the $releasever the repo backend's dnf_repo
 	// templating consumes, and the fallback signal for the dnf4/dnf5 probe.

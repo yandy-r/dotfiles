@@ -923,6 +923,48 @@ key_fingerprint = "` + tt.fp + `"
 	}
 }
 
+// TestValidate_AptRepoLinePlaceholders: repo_line accepts only the host
+// placeholders the repo backend renders; a typo would be written verbatim to
+// the sources file and break apt-get update.
+func TestValidate_AptRepoLinePlaceholders(t *testing.T) {
+	tests := []struct {
+		name    string
+		line    string
+		wantErr string
+	}{
+		{name: "codename and arch", line: "deb [arch={{.Arch}}] https://example.com {{.Codename}} main"},
+		{name: "ubuntu codename", line: "deb https://example.com/ubuntu {{.UbuntuCodename}} main"},
+		{name: "base distro and codename", line: "deb https://example.com/{{.BaseDistro}} {{.BaseCodename}} main"},
+		{name: "unknown placeholder", line: "deb https://example.com {{.Suite}} main", wantErr: "{{.Suite}}"},
+		{name: "misspelled placeholder", line: "deb https://example.com {{.codename}} main", wantErr: "{{.codename}}"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := `[[package]]
+name = "tool"
+backend = "repo"
+[package.apt_repo]
+key_url = "https://example.com/key.asc"
+keyring = "/usr/share/keyrings/t.gpg"
+repo_line = "` + tt.line + `"
+sources_path = "/etc/apt/sources.list.d/t.list"
+key_fingerprint = "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE"
+`
+			_, err := manifest.Parse(strings.NewReader(data))
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Parse() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Parse() error = %v, want one naming %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 // TestValidate_DNFRepoGPGCheck covers dnf_repo.repo_gpgcheck: accepted only in
 // baseurl mode with a gpgkey, since it is rendered into the dotf-built body
 // and dnf needs the key to verify the metadata signature.

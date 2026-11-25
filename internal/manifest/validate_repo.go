@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -11,6 +12,20 @@ import (
 // the "@" of a COPR group account (e.g. "@caddy/caddy"), which the project half
 // never carries.
 var coprSlugPattern = regexp.MustCompile(`^[A-Za-z0-9._@+-]+/[A-Za-z0-9._+-]+$`)
+
+// AptRepoLinePlaceholders are the host placeholders the repo backend renders
+// in apt_repo.repo_line (see backend.renderRepoLine). An unknown one would be
+// written verbatim into the sources file and 404 on apt-get update.
+var AptRepoLinePlaceholders = []string{
+	"{{.Codename}}",
+	"{{.UbuntuCodename}}",
+	"{{.BaseDistro}}",
+	"{{.BaseCodename}}",
+	"{{.Arch}}",
+}
+
+// templatePlaceholderPattern matches one {{...}} template placeholder.
+var templatePlaceholderPattern = regexp.MustCompile(`\{\{[^{}]*\}\}`)
 
 // validateRepo checks a "repo" package: at least one family sub-table must be
 // present, and each present sub-table is checked on its own terms.
@@ -43,6 +58,11 @@ func validateAptRepo(p Package) []error {
 	}
 	if p.AptRepo.RepoLine == "" {
 		errs = append(errs, &ValidationError{Package: p.Name, Msg: "repo backend requires apt_repo.repo_line"})
+	}
+	for _, ph := range templatePlaceholderPattern.FindAllString(p.AptRepo.RepoLine, -1) {
+		if !slices.Contains(AptRepoLinePlaceholders, ph) {
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("apt_repo.repo_line placeholder %s is not one of %s", ph, strings.Join(AptRepoLinePlaceholders, ", "))})
+		}
 	}
 	if p.AptRepo.SourcesPath == "" {
 		errs = append(errs, &ValidationError{Package: p.Name, Msg: "repo backend requires apt_repo.sources_path"})
