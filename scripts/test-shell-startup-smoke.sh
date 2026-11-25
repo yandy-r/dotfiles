@@ -14,7 +14,10 @@
 #      (bash 5); when the driver's bash lacks it the budget check is skipped
 #      with a message (macOS bash 3.2 has no sub-second clock that is portable
 #      across the tools there). The shells under test are unaffected.
-# zsh cases are skipped when zsh is absent.
+#   5. POSIX login shells: `dash -n bash/profile`, and `dash -l -c 'echo ok'`
+#      in the hermetic HOME (~/.profile -> bash/profile) prints only `ok` with
+#      empty stderr, both without and with ~/.atuin/bin/env (YAN-1559).
+# zsh cases are skipped when zsh is absent; dash cases when dash is absent.
 #
 # TEST_BASH (optional): absolute path of the bash binary under test; defaults
 # to `command -v bash`. Only the shells under test use it, the driver itself
@@ -140,6 +143,34 @@ if [[ -n "$HAVE_ZSH" ]]; then
 	check_quiet "zsh -l -c DOTFILES_OS" "$TMP_DIR/zsh-login"
 fi
 echo "ok: bash -l and zsh -l export a non-empty DOTFILES_OS"
+
+# 5. POSIX sh login shells read ~/.profile (bash/profile), so it must parse and
+# run quietly under dash: no bashisms, no unguarded sources. Checked without
+# and with an atuin env script (the fake one is removed again afterwards so the
+# later cases keep the default hermetic HOME).
+if command -v dash >/dev/null 2>&1; then
+	DASH_BIN="$(command -v dash)"
+	"$DASH_BIN" -n "$REPO_ROOT/bash/profile" || fail "dash -n bash/profile"
+	dash_login_quiet() {
+		local label="$1" out="$2"
+		run "$label" "$out" "$DASH_BIN" -l -c 'echo ok'
+		[[ "$(<"$out.out")" == "ok" ]] ||
+			fail "$label: expected stdout 'ok', got: $(<"$out.out")"
+		[[ ! -s "$out.err" ]] || fail "$label: startup wrote to stderr: $(<"$out.err")"
+	}
+	dash_login_quiet "dash -l (no atuin)" "$TMP_DIR/dash-login"
+	mkdir -p "$HOME_DIR/.atuin/bin"
+	printf 'export ATUIN_SMOKE=1\n' >"$HOME_DIR/.atuin/bin/env"
+	dash_login_quiet "dash -l (atuin env)" "$TMP_DIR/dash-login-atuin"
+	run "dash -l (atuin env sourced)" "$TMP_DIR/dash-login-atuin-var" \
+		"$DASH_BIN" -l -c 'printf "%s" "${ATUIN_SMOKE:-}"'
+	[[ "$(<"$TMP_DIR/dash-login-atuin-var.out")" == "1" ]] ||
+		fail "dash -l: ~/.atuin/bin/env exists but was not sourced"
+	rm -rf "$HOME_DIR/.atuin"
+	echo "ok: dash -l startup via ~/.profile is quiet (with and without atuin)"
+else
+	echo "SKIP: dash not installed; POSIX sh login cases skipped"
+fi
 
 # 4. Startup time budget: best of N timed runs per shell in the hermetic HOME.
 # $EPOCHREALTIME (bash 5) gives microsecond wall clock without forking date;
