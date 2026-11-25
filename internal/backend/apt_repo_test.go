@@ -396,6 +396,11 @@ func TestAptRepoBackend_Install_MissingCodename_Errors(t *testing.T) {
 	if !strings.Contains(err.Error(), "codename") {
 		t.Fatalf("Install() error = %v, want message mentioning codename", err)
 	}
+	// The line is rendered before any fetch or sudo step, so an unrenderable
+	// host leaves no keyring or sources file behind.
+	if calls := r.CallsSnapshot(); len(calls) != 0 {
+		t.Fatalf("calls before the render error = %v, want none", calls)
+	}
 }
 
 func assertCall(t *testing.T, call exec.FakeCall, name string, args ...string) {

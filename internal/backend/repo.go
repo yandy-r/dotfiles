@@ -161,6 +161,13 @@ func (b *repoBackend) installAPT(pkg manifest.Package, info platform.Info) error
 		return fmt.Errorf("backend: package %q apt_repo.key_fingerprint is required", pkg.Name)
 	}
 
+	// Render before any download or sudo step: a host the line cannot be
+	// rendered for (unknown codename or apt base) must leave nothing behind.
+	repoLine, err := renderRepoLine(repo.RepoLine, info)
+	if err != nil {
+		return err
+	}
+
 	keyData, err := b.r.Output("curl", "-fsSL", repo.KeyURL)
 	if err != nil {
 		return fmt.Errorf("fetch apt repo key %q: %w", repo.KeyURL, err)
@@ -188,11 +195,6 @@ func (b *repoBackend) installAPT(pkg manifest.Package, info platform.Info) error
 	keyringPrior := b.snapshotAptFile(repo.Keyring)
 	if err := b.r.Run("sudo", "install", "-m", "0644", pinned, repo.Keyring); err != nil {
 		return fmt.Errorf("install apt repo keyring %q: %w", repo.Keyring, err)
-	}
-
-	repoLine, err := renderRepoLine(repo.RepoLine, info)
-	if err != nil {
-		return err
 	}
 
 	sourcesFile, err := writeTempFile("dotf-apt-sources-*", []byte(repoLine+"\n"))
