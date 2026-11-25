@@ -1,11 +1,9 @@
-# shellcheck shell=sh
+# shellcheck shell=bash
 # ================================================================
 # Bash Profile Loader
 # ================================================================
 # This file is symlinked to ~/.profile and loads the main bash_profile
-# for bash login shells. NVM and Cargo are handled by the modern config system.
-# It is also read by /bin/sh (dash) login shells, so it must stay POSIX sh:
-# no [[ ]], no `source`, and every sourced file guarded by an existence check.
+# for login shells. NVM and Cargo are handled by the modern config system.
 
 # Prevent circular loading. Per-process (PID) guard, never exported: nested
 # login shells load their own config, re-sourcing stays a no-op. POSIX only:
@@ -14,10 +12,9 @@
 unset DOTFILES_PROFILE_LOADED
 DOTFILES_PROFILE_LOADED=$$
 
-# Chain into .bash_profile only under bash: it is bash-only (and dash, the
-# usual /bin/sh, would choke on it). POSIX test and `.` so sh can parse this.
-if [ -n "${BASH_VERSION:-}" ] && [ -f "$HOME/.bash_profile" ]; then
-    . "$HOME/.bash_profile"
+# Source .bash_profile if it exists
+if [[ -f ~/.bash_profile ]]; then
+    source ~/.bash_profile
 fi
 # POSIX only: this file is also read by /bin/sh login shells. Skip when the
 # file is missing or cargo's bin dir is already on PATH (setup_rust_env or a
@@ -29,10 +26,7 @@ if [ -f "$HOME/.cargo/env" ]; then
     esac
 fi
 
-# atuin's env script is optional: skip it on hosts without atuin installed.
-if [ -f "$HOME/.atuin/bin/env" ]; then
-    . "$HOME/.atuin/bin/env"
-fi
+. "$HOME/.atuin/bin/env"
 
 # Added by LM Studio CLI (lms)
 export PATH="$PATH:/Users/yandy/.lmstudio/bin"
