@@ -104,19 +104,6 @@ func TestRepoBackend_Install_AptUpdateFailureRollsBack(t *testing.T) {
 			wantWritten:  map[string]string{rollbackKeyring: priorKeyring},
 			wantErrParts: []string{"apt-get update"},
 		},
-		{
-			name: "unreadable prior keyring is left in place and reported",
-			readFile: func(p string) ([]byte, error) {
-				if p == rollbackKeyring {
-					return nil, fs.ErrPermission
-				}
-				return nil, os.ErrNotExist
-			},
-			tail: [][]string{
-				{"rm", "-f", rollbackSourcesPath},
-			},
-			wantErrParts: []string{"apt-get update", rollbackKeyring, "unreadable"},
-		},
 	}
 
 	for _, tt := range tests {
@@ -173,6 +160,39 @@ func TestRepoBackend_Install_AptUpdateFailureRollsBack(t *testing.T) {
 			for path, want := range tt.wantWritten {
 				if got := r.written[path]; got != want {
 					t.Errorf("%s restored content = %q, want %q", path, got, want)
+				}
+			}
+		})
+	}
+}
+
+// TestRepoBackend_Install_AptUnreadablePriorFileRefused: a keyring or sources
+// file that exists but cannot be read could not be restored after a failed
+// apt-get update, so installAPT refuses before any sudo step touches the host.
+func TestRepoBackend_Install_AptUnreadablePriorFileRefused(t *testing.T) {
+	t.Parallel()
+
+	for _, unreadable := range []string{rollbackKeyring, rollbackSourcesPath} {
+		t.Run(unreadable, func(t *testing.T) {
+			t.Parallel()
+
+			r := pinnedKeyFake(dockerKeyFingerprint)
+			r.AddCommand("curl", []string{"-fsSL", rollbackKeyURL}, []byte("key"), nil)
+
+			b := newRepoBackend(r)
+			b.readFile = func(p string) ([]byte, error) {
+				if p == unreadable {
+					return nil, fs.ErrPermission
+				}
+				return nil, os.ErrNotExist
+			}
+			err := b.Install(rollbackPkg(), rollbackInfo)
+			if err == nil || !strings.Contains(err.Error(), unreadable) {
+				t.Fatalf("Install() error = %v, want a refusal naming %s", err, unreadable)
+			}
+			for _, c := range r.CallsSnapshot() {
+				if c.Name == "sudo" {
+					t.Fatalf("sudo ran despite an unrestorable prior file: %v", c)
 				}
 			}
 		})

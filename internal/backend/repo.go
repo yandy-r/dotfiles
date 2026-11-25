@@ -185,14 +185,23 @@ func (b *repoBackend) installAPT(pkg manifest.Package, info platform.Info) error
 	}
 	defer func() { _ = os.Remove(pinned) }()
 
+	// Snapshot both root-owned files before either is replaced, so a failed
+	// apt-get update can put the host back exactly as it was. A file that
+	// exists but cannot be read would be unrestorable, so refuse to touch it.
+	keyringPrior, err := b.snapshotAptFile(repo.Keyring)
+	if err != nil {
+		return err
+	}
+	sourcesPrior, err := b.snapshotAptFile(repo.SourcesPath)
+	if err != nil {
+		return err
+	}
+
 	keyringDir := filepath.Dir(repo.Keyring)
 	if err := b.r.Run("sudo", "install", "-d", "-m", "0755", keyringDir); err != nil {
 		return fmt.Errorf("create apt keyring directory %q: %w", keyringDir, err)
 	}
 
-	// Snapshot what is already on disk before overwriting, so a failed
-	// apt-get update can put the host back exactly as it was.
-	keyringPrior := b.snapshotAptFile(repo.Keyring)
 	if err := b.r.Run("sudo", "install", "-m", "0644", pinned, repo.Keyring); err != nil {
 		return fmt.Errorf("install apt repo keyring %q: %w", repo.Keyring, err)
 	}
@@ -203,7 +212,6 @@ func (b *repoBackend) installAPT(pkg manifest.Package, info platform.Info) error
 	}
 	defer func() { _ = os.Remove(sourcesFile) }()
 
-	sourcesPrior := b.snapshotAptFile(repo.SourcesPath)
 	if err := b.r.Run("sudo", "install", "-m", "644", sourcesFile, repo.SourcesPath); err != nil {
 		return fmt.Errorf("write apt sources %q: %w", repo.SourcesPath, err)
 	}
@@ -230,43 +238,37 @@ func (b *repoBackend) installAPT(pkg manifest.Package, info platform.Info) error
 // overwrote it, so a failed apt-get update can restore it.
 type aptFileSnapshot struct {
 	path string
-	// existed reports the file was present (or could not be ruled out).
+	// existed reports the file was present; body is then its prior content.
 	existed bool
-	// body is the prior content; nil with existed set means it was unreadable.
-	body []byte
+	body    []byte
 }
 
 // snapshotAptFile records path's current content. A missing file snapshots as
-// "created by dotf", so rollback removes it. Sources files and keyrings are
-// world-readable by apt convention, so an unreadable file is unexpected; it is
-// recorded as existing with unknown content and left alone on rollback.
-func (b *repoBackend) snapshotAptFile(path string) aptFileSnapshot {
+// "created by dotf", so rollback removes it. A file that exists but cannot be
+// read is an error: overwriting it would make rollback impossible.
+func (b *repoBackend) snapshotAptFile(path string) (aptFileSnapshot, error) {
 	body, err := b.readFile(path)
 	switch {
 	case err == nil:
 		if body == nil {
 			body = []byte{}
 		}
-		return aptFileSnapshot{path: path, existed: true, body: body}
+		return aptFileSnapshot{path: path, existed: true, body: body}, nil
 	case errors.Is(err, fs.ErrNotExist):
-		return aptFileSnapshot{path: path}
+		return aptFileSnapshot{path: path}, nil
 	default:
-		return aptFileSnapshot{path: path, existed: true}
+		return aptFileSnapshot{}, fmt.Errorf("read existing %q before replacing it: %w", path, err)
 	}
 }
 
 // restoreAptFile undoes installAPT's write of s.path: it removes a file dotf
-// created and rewrites a file it replaced with its prior content (mode). A
-// file whose prior content could not be read is left in place and reported.
+// created and rewrites a file it replaced with its prior content (mode).
 func (b *repoBackend) restoreAptFile(s aptFileSnapshot, mode string) error {
 	if !s.existed {
 		if err := b.r.Run("sudo", "rm", "-f", s.path); err != nil {
 			return fmt.Errorf("roll back %q: %w", s.path, err)
 		}
 		return nil
-	}
-	if s.body == nil {
-		return fmt.Errorf("roll back %q: prior content was unreadable; left the dotf-written file in place", s.path)
 	}
 	tmp, err := writeTempFile("dotf-apt-restore-*", s.body)
 	if err != nil {
