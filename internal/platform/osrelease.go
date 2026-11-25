@@ -3,6 +3,7 @@ package platform
 import (
 	"bufio"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -68,6 +69,17 @@ type osRelease struct {
 	IDLike string
 	// Codename is VERSION_CODENAME, falling back to UBUNTU_CODENAME.
 	Codename string
+	// UbuntuCodename is UBUNTU_CODENAME, falling back to VERSION_CODENAME: the
+	// Ubuntu base release of an Ubuntu derivative (Mint "wilma" -> "noble").
+	UbuntuCodename string
+	// BaseDistro is the apt vendor tree the host belongs to: "ubuntu" for
+	// Ubuntu and its derivatives, "debian" for Debian and its non-Ubuntu
+	// derivatives, empty otherwise.
+	BaseDistro string
+	// BaseCodename is the release codename within BaseDistro: UbuntuCodename
+	// on an Ubuntu base, DEBIAN_CODENAME (LMDE) or VERSION_CODENAME on a
+	// Debian base, empty otherwise.
+	BaseCodename string
 	// VersionID is the raw VERSION_ID field (e.g. "42", "24.04"). Empty on
 	// rolling distros that set none.
 	VersionID string
@@ -88,7 +100,37 @@ func readOSRelease(path string) osRelease {
 	if rel.Codename == "" {
 		rel.Codename = fields["UBUNTU_CODENAME"]
 	}
+	rel.UbuntuCodename = fields["UBUNTU_CODENAME"]
+	if rel.UbuntuCodename == "" {
+		rel.UbuntuCodename = fields["VERSION_CODENAME"]
+	}
+	rel.BaseDistro, rel.BaseCodename = aptBase(fields)
 	return rel
+}
+
+// aptBase classifies an os-release as Ubuntu-based or Debian-based and
+// returns that base with its release codename. Ubuntu wins over Debian
+// because Ubuntu derivatives list both in ID_LIKE ("ubuntu debian"); a
+// UBUNTU_CODENAME field alone also marks an Ubuntu base (elementary).
+func aptBase(fields map[string]string) (distro, codename string) {
+	id := fields["ID"]
+	like := strings.Fields(fields["ID_LIKE"])
+	switch {
+	case id == "ubuntu" || fields["UBUNTU_CODENAME"] != "" || slices.Contains(like, "ubuntu"):
+		codename = fields["UBUNTU_CODENAME"]
+		if codename == "" {
+			codename = fields["VERSION_CODENAME"]
+		}
+		return "ubuntu", codename
+	case id == "debian" || slices.Contains(like, "debian"):
+		codename = fields["DEBIAN_CODENAME"]
+		if codename == "" {
+			codename = fields["VERSION_CODENAME"]
+		}
+		return "debian", codename
+	default:
+		return "", ""
+	}
 }
 
 // distro returns the raw ID, or "unknown" when os-release defines none,

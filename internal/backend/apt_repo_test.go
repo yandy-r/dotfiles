@@ -271,6 +271,30 @@ func TestRenderRepoLine(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "ubuntu codename resolves a mint host to its ubuntu base",
+			line: "deb https://linux.dropbox.com/ubuntu {{.UbuntuCodename}} main",
+			info: platform.Info{Codename: "wilma", UbuntuCodename: "noble"},
+			want: "deb https://linux.dropbox.com/ubuntu noble main",
+		},
+		{
+			name: "base distro and codename template the debian tree",
+			line: "deb [arch={{.Arch}}] https://download.docker.com/linux/{{.BaseDistro}} {{.BaseCodename}} stable",
+			info: platform.Info{Codename: "trixie", BaseDistro: "debian", BaseCodename: "trixie", Arch: platform.ArchARM64},
+			want: "deb [arch=arm64] https://download.docker.com/linux/debian trixie stable",
+		},
+		{
+			name:    "ubuntu codename placeholder with unknown host value errors",
+			line:    "deb https://linux.dropbox.com/ubuntu {{.UbuntuCodename}} main",
+			info:    platform.Info{},
+			wantErr: true,
+		},
+		{
+			name:    "base distro placeholder on a non-apt-base host errors",
+			line:    "deb https://download.docker.com/linux/{{.BaseDistro}} {{.BaseCodename}} stable",
+			info:    platform.Info{Codename: "kali-rolling"},
+			wantErr: true,
+		},
+		{
 			name: "no placeholders returned verbatim",
 			line: "deb [arch=amd64] https://download.docker.com/linux/ubuntu noble stable",
 			info: platform.Info{},

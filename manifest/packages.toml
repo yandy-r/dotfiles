@@ -607,13 +607,21 @@ names = { dnf = "lutris" }
 # tool = "cargo"
 
 # --- repo: adds a third-party OS repository before installing ------------
-# The repo_line's {{.Codename}} and {{.Arch}} placeholders are templated from
-# the host at apply time — the codename from os-release VERSION_CODENAME (or
-# UBUNTU_CODENAME) and the arch from dpkg (ReleaseArch: e.g. "amd64"). Docker
-# publishes dists/<codename> with component "stable", so tracking the host's
-# release avoids a bare "stable" suite 404 on apt-get update. This entry still
-# targets the Ubuntu repo URL (docker's ubuntu dists), so it is Ubuntu-family;
-# full Debian support would additionally template the distro path (out of scope).
+# The repo_line's placeholders are templated from the host at apply time:
+#   {{.Codename}}       os-release VERSION_CODENAME (fallback UBUNTU_CODENAME)
+#   {{.UbuntuCodename}} UBUNTU_CODENAME (fallback VERSION_CODENAME): the Ubuntu
+#                       base release on Mint/elementary/Pop (wilma -> noble),
+#                       for repos that publish Ubuntu dists only
+#   {{.BaseDistro}}     "ubuntu" on Ubuntu and its derivatives, "debian" on
+#                       Debian and its non-Ubuntu derivatives (LMDE)
+#   {{.BaseCodename}}   the codename within BaseDistro (noble, bookworm, trixie)
+#   {{.Arch}}           the dpkg release arch (e.g. "amd64")
+# Docker publishes both /linux/ubuntu and /linux/debian trees, each with
+# dists/<codename> and component "stable", so templating the path and suite
+# from the host's apt base resolves on Ubuntu, Debian and their derivatives.
+# A plain {{.Codename}} under /linux/ubuntu 404s on Debian (bookworm/trixie)
+# and on Mint/elementary (wilma/circe), and the failed apt-get update would
+# break every later apt-repo package. The key is the same on both trees.
 #
 # One logical tool is one entry: the sub-table matching the host's package
 # manager decides applicability, so this entry is silently not-applicable on
@@ -627,7 +635,7 @@ names = { dnf = "lutris" }
 name = "docker-ce"
 backend = "repo"
 names = { apt = "docker-ce", dnf = "docker-ce" }
-apt_repo = { key_url = "https://download.docker.com/linux/ubuntu/gpg", key_fingerprint = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb [arch={{.Arch}} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{.Codename}} stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
+apt_repo = { key_url = "https://download.docker.com/linux/ubuntu/gpg", key_fingerprint = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb [arch={{.Arch}} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/{{.BaseDistro}} {{.BaseCodename}} stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
 dnf_repo = { id = "docker-ce", repofile = "https://download.docker.com/linux/fedora/docker-ce.repo" }
 
 # --- script-url: downloads and executes an install script over HTTPS --------
@@ -1897,7 +1905,7 @@ backend = "repo"
 os = "linux"
 requires_desktop = true
 names = { apt = "dropbox", dnf = "nautilus-dropbox" }
-apt_repo = { key_url = "https://linux.dropbox.com/fedora/rpm-public-key.asc", key_fingerprint = "1C61A2656FB57B7E4DE0F4C1FC918B335044912E", keyring = "/usr/share/keyrings/dropbox.gpg", repo_line = "deb [signed-by=/usr/share/keyrings/dropbox.gpg] https://linux.dropbox.com/ubuntu {{.Codename}} main", sources_path = "/etc/apt/sources.list.d/dropbox.list" }
+apt_repo = { key_url = "https://linux.dropbox.com/fedora/rpm-public-key.asc", key_fingerprint = "1C61A2656FB57B7E4DE0F4C1FC918B335044912E", keyring = "/usr/share/keyrings/dropbox.gpg", repo_line = "deb [signed-by=/usr/share/keyrings/dropbox.gpg] https://linux.dropbox.com/{{.BaseDistro}} {{.BaseCodename}} main", sources_path = "/etc/apt/sources.list.d/dropbox.list" }
 dnf_repo = { id = "dropbox", baseurl = "https://linux.dropbox.com/fedora/{{.ReleaseVer}}/", gpgkey = "https://linux.dropbox.com/fedora/rpm-public-key.asc" }
 
 [[package]]

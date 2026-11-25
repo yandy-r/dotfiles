@@ -21,7 +21,15 @@ Try these in order; the first that fits is the right one:
    add the sub-table(s) for the families you support and the backend dispatches on
    the host's package manager:
    - `apt_repo` — Debian/Ubuntu: GPG key + `sources.list` line, then a normal install.
-     `repo_line` templates `{{.Codename}}` and `{{.Arch}}` from the host. Required
+     `repo_line` templates host values: `{{.Codename}}` (os-release `VERSION_CODENAME`),
+     `{{.UbuntuCodename}}` (`UBUNTU_CODENAME`, so Mint/elementary resolve to their
+     Ubuntu base), `{{.BaseDistro}}`/`{{.BaseCodename}}` (`ubuntu`+`noble` on Ubuntu
+     and its derivatives, `debian`+`bookworm`/`trixie` on Debian) and `{{.Arch}}`.
+     Use `{{.UbuntuCodename}}` for a vendor that publishes Ubuntu dists only, and the
+     `BaseDistro`/`BaseCodename` pair for one that publishes both trees; other
+     placeholders fail validation. If `apt-get update` fails after the sources entry
+     is written, dotf removes the sources file and keyring it created (or restores
+     the ones it replaced) before reporting the error. Required
      `key_fingerprint` (40 hex) must name a primary key in the fetched key file,
      checked with `gpg --show-keys` before any `sudo` step; only that key (with its
      subkeys) is exported into the `signed-by` keyring.
@@ -136,7 +144,7 @@ dnf_exclude = ["kf6-kmime*"]
 name = "docker-ce"
 backend = "repo"
 names = { apt = "docker-ce", dnf = "docker-ce" }
-apt_repo = { key_url = "…/gpg", key_fingerprint = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb [arch={{.Arch}} signed-by=/etc/apt/keyrings/docker.gpg] …/ubuntu {{.Codename}} stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
+apt_repo = { key_url = "…/gpg", key_fingerprint = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88", keyring = "/etc/apt/keyrings/docker.gpg", repo_line = "deb [arch={{.Arch}} signed-by=/etc/apt/keyrings/docker.gpg] …/{{.BaseDistro}} {{.BaseCodename}} stable", sources_path = "/etc/apt/sources.list.d/docker.list" }
 dnf_repo = { id = "docker-ce", repofile = "https://download.docker.com/linux/fedora/docker-ce.repo" }
 
 # 4. toolchain — a cargo/npm-installed tool

@@ -23,14 +23,17 @@ func Detect(r exec.Runner) Info {
 	os := detectOSFrom(r, rel, defaultProcVersionPath)
 	arch := detectArch(r)
 	return Info{
-		OS:        os,
-		Arch:      arch,
-		PkgMgr:    detectPkgMgr(r, os, arch),
-		Container: detectContainer(),
-		Distro:    rel.distro(),
-		Codename:  rel.Codename,
-		VersionID: rel.VersionID,
-		Desktop:   detectDesktop(os, getenv, hasWaylandSocket),
+		OS:             os,
+		Arch:           arch,
+		PkgMgr:         detectPkgMgr(r, os, arch),
+		Container:      detectContainer(),
+		Distro:         rel.distro(),
+		Codename:       rel.Codename,
+		UbuntuCodename: rel.UbuntuCodename,
+		BaseDistro:     rel.BaseDistro,
+		BaseCodename:   rel.BaseCodename,
+		VersionID:      rel.VersionID,
+		Desktop:        detectDesktop(os, getenv, hasWaylandSocket),
 	}
 }
 
