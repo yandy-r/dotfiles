@@ -41,7 +41,7 @@ matches:
                 - bugs
                 - features
                 - any
-              default: bugs
+              default: any
             skills:
               type: choice
               values:

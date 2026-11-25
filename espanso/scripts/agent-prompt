@@ -22,7 +22,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROFILE_DIR="${AGENT_PROMPT_PROFILES:-$SCRIPT_DIR/profiles}"
 
 PROFILE="${ESPANSO_FORM_PROFILE:-auto}"
-TASK="${ESPANSO_FORM_TASK:-bugs}"
+TASK="${ESPANSO_FORM_TASK:-any}"
 TARGET="${ESPANSO_FORM_TARGET:-}"
 SKILLS="${ESPANSO_FORM_SKILLS:-yes}"
 GOAL_PREFIX="yes"
@@ -56,7 +56,7 @@ Render the end-to-end agent workflow prompt to stdout.
 OPTIONS:
     --profile NAME     Profile from $PROFILE_DIR, or auto (default: auto,
                        use itcn workspace; derive team/projects from the repo)
-    --task TASK        bugs, features, or any (default: bugs)
+    --task TASK        bugs, features, or any (default: any)
     --target TEXT      Issue IDs ("YAN-1, YAN-2") to work exactly those, or a
                        Linear project to pick from; overrides the profile
     --skills yes|no    Include skill hints (default: yes)
