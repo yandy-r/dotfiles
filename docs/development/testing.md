@@ -86,15 +86,16 @@ dotf link --dry-run
 Two hermetic suites cover the shell config; neither depends on the host OS:
 
 ```bash
-bash scripts/test-shell-startup-smoke.sh   # rc syntax, quiet startup, login DOTFILES_OS, dash -l via ~/.profile, startup time budget
+bash scripts/test-shell-startup-smoke.sh   # rc syntax, quiet startup, login DOTFILES_OS, dash via ~/.profile, startup time budget
 bats tests/shell                           # platform detection, PATH cleanup, rc reload guards
 ```
 
 The smoke driver runs every shell under `env -i` with a temp `HOME` (rc files
 symlinked from the checkout, fake no-op tools on `PATH`), so a failure is
-always a dotfiles regression and never host noise. The `dash -l` case
+always a dotfiles regression and never host noise. The dash case
 (skipped when dash is absent) keeps `bash/profile` POSIX, since `/bin/sh`
-login shells read it as `~/.profile`. `TEST_BASH=/bin/bash`
+login shells read it as `~/.profile`; its `dash -l` check is compared against
+an empty-`HOME` baseline so host `/etc/profile` output cancels out. `TEST_BASH=/bin/bash`
 points the bash under test at another binary; `SHELL_STARTUP_BUDGET_MS`
 (default 1000) and `SHELL_STARTUP_RUNS` (default 5) tune the time budget.
 

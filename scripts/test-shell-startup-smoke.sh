@@ -14,9 +14,11 @@
 #      (bash 5); when the driver's bash lacks it the budget check is skipped
 #      with a message (macOS bash 3.2 has no sub-second clock that is portable
 #      across the tools there). The shells under test are unaffected.
-#   5. POSIX login shells: `dash -n bash/profile`, and `dash -l -c 'echo ok'`
-#      in the hermetic HOME (~/.profile -> bash/profile) prints only `ok` with
-#      empty stderr, both without and with ~/.atuin/bin/env (YAN-1559).
+#   5. POSIX login shells: `dash -n bash/profile`; non-login dash sourcing
+#      ~/.profile (-> bash/profile) prints only `ok` with empty stderr; and
+#      `dash -l -c 'echo ok'` matches an empty-HOME `dash -l` baseline (so the
+#      host's /etc/profile cannot fail it). Both without and with
+#      ~/.atuin/bin/env (YAN-1559).
 # zsh cases are skipped when zsh is absent; dash cases when dash is absent.
 #
 # TEST_BASH (optional): absolute path of the bash binary under test; defaults
@@ -148,26 +150,41 @@ echo "ok: bash -l and zsh -l export a non-empty DOTFILES_OS"
 # run quietly under dash: no bashisms, no unguarded sources. Checked without
 # and with an atuin env script (the fake one is removed again afterwards so the
 # later cases keep the default hermetic HOME).
+#   - hermetic: non-login dash sourcing ~/.profile prints exactly `ok`, empty
+#     stderr (no /etc/profile involved, so no host noise is possible).
+#   - login: `dash -l -c 'echo ok'` must match, byte for byte, a baseline
+#     `dash -l` run with an empty HOME, so whatever the host's /etc/profile
+#     prints cancels out and only ~/.profile's own output can fail it.
 if command -v dash >/dev/null 2>&1; then
 	DASH_BIN="$(command -v dash)"
 	"$DASH_BIN" -n "$REPO_ROOT/bash/profile" || fail "dash -n bash/profile"
-	dash_login_quiet() {
+	BASE_HOME="$TMP_DIR/home-empty"
+	mkdir -p "$BASE_HOME"
+	env -i HOME="$BASE_HOME" PATH="$TEST_PATH" TERM=xterm-256color USER="$USER_NAME" \
+		"$DASH_BIN" -l -c 'echo ok' </dev/null >"$TMP_DIR/dash-base.out" 2>"$TMP_DIR/dash-base.err" ||
+		fail "dash -l baseline (empty HOME): exited non-zero (stderr: $(<"$TMP_DIR/dash-base.err"))"
+	dash_profile_quiet() {
 		local label="$1" out="$2"
-		run "$label" "$out" "$DASH_BIN" -l -c 'echo ok'
-		[[ "$(<"$out.out")" == "ok" ]] ||
-			fail "$label: expected stdout 'ok', got: $(<"$out.out")"
-		[[ ! -s "$out.err" ]] || fail "$label: startup wrote to stderr: $(<"$out.err")"
+		run "$label (sourced)" "$out-src" "$DASH_BIN" -c '. "$HOME/.profile"; echo ok'
+		[[ "$(<"$out-src.out")" == "ok" ]] ||
+			fail "$label (sourced): expected stdout 'ok', got: $(<"$out-src.out")"
+		[[ ! -s "$out-src.err" ]] || fail "$label (sourced): ~/.profile wrote to stderr: $(<"$out-src.err")"
+		run "$label (login)" "$out-login" "$DASH_BIN" -l -c 'echo ok'
+		cmp -s "$out-login.out" "$TMP_DIR/dash-base.out" ||
+			fail "$label (login): stdout differs from the empty-HOME baseline: $(<"$out-login.out")"
+		cmp -s "$out-login.err" "$TMP_DIR/dash-base.err" ||
+			fail "$label (login): startup wrote to stderr: $(<"$out-login.err")"
 	}
-	dash_login_quiet "dash -l (no atuin)" "$TMP_DIR/dash-login"
+	dash_profile_quiet "dash ~/.profile (no atuin)" "$TMP_DIR/dash-noatuin"
 	mkdir -p "$HOME_DIR/.atuin/bin"
 	printf 'export ATUIN_SMOKE=1\n' >"$HOME_DIR/.atuin/bin/env"
-	dash_login_quiet "dash -l (atuin env)" "$TMP_DIR/dash-login-atuin"
-	run "dash -l (atuin env sourced)" "$TMP_DIR/dash-login-atuin-var" \
-		"$DASH_BIN" -l -c 'printf "%s" "${ATUIN_SMOKE:-}"'
-	[[ "$(<"$TMP_DIR/dash-login-atuin-var.out")" == "1" ]] ||
-		fail "dash -l: ~/.atuin/bin/env exists but was not sourced"
+	dash_profile_quiet "dash ~/.profile (atuin env)" "$TMP_DIR/dash-atuin"
+	run "dash ~/.profile (atuin env sourced)" "$TMP_DIR/dash-atuin-var" \
+		"$DASH_BIN" -c '. "$HOME/.profile"; printf "%s" "${ATUIN_SMOKE:-}"'
+	[[ "$(<"$TMP_DIR/dash-atuin-var.out")" == "1" ]] ||
+		fail "dash: ~/.atuin/bin/env exists but ~/.profile did not source it"
 	rm -rf "$HOME_DIR/.atuin"
-	echo "ok: dash -l startup via ~/.profile is quiet (with and without atuin)"
+	echo "ok: dash (sourced and -l) startup via ~/.profile is quiet (with and without atuin)"
 else
 	echo "SKIP: dash not installed; POSIX sh login cases skipped"
 fi
