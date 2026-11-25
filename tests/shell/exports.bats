@@ -16,8 +16,22 @@ TEST_BASH="${TEST_BASH:-$(command -v bash)}"
 [[ "$TEST_BASH" == /* ]] || TEST_BASH="$(command -v "$TEST_BASH")"
 TEST_ZSH="$(command -v zsh 2>/dev/null || true)"
 [[ -z "$TEST_ZSH" || "$TEST_ZSH" == /* ]] || TEST_ZSH="$(command -v "$TEST_ZSH")"
-PYTHON3_BIN="$(command -v python3 2>/dev/null || true)"
-[[ -z "$PYTHON3_BIN" || "$PYTHON3_BIN" == /* ]] || PYTHON3_BIN="$(command -v "$PYTHON3_BIN")"
+# Resolve python3 to its real interpreter binary before entering env -i
+# sandboxes: pyenv/mise/asdf shims depend on ambient PATH/HOME and fail once
+# the environment is cleared. Leave PYTHON3_BIN empty if no usable interpreter
+# can start under a minimal env -i environment.
+resolve_python3() {
+	local candidate resolved
+	candidate="$(type -P python3 2>/dev/null || true)"
+	[[ -n "$candidate" ]] || return 0
+	resolved="$("$candidate" -c 'import sys; print(sys.executable)' 2>/dev/null || true)"
+	[[ -n "$resolved" && "$resolved" == /* && -x "$resolved" ]] || resolved="$candidate"
+	if env -i PATH="/usr/bin:/bin" "$resolved" -c 'import json' >/dev/null 2>&1; then
+		printf '%s\n' "$resolved"
+	fi
+}
+
+PYTHON3_BIN="$(resolve_python3)"
 
 write_python3_wrapper() {
 	local dest="$1" q_py
@@ -137,7 +151,7 @@ EOF
 }
 
 @test "redirected jsonpp produces clean JSON with exports.sh and aliases.sh sourced (bash)" {
-	[[ -n "$PYTHON3_BIN" ]] || skip "python3 not installed"
+	[[ -n "$PYTHON3_BIN" ]] || skip "usable python3 not installed"
 	local probe="$BATS_TEST_TMPDIR/jsonpp-bash.sh" out
 	cat >"$probe" <<'EOF'
 export DOTFILES_NO_AUTO_SETUP=1 DOTFILES_NO_AUTO_COMPLETIONS=1 DOTFILES_NO_AUTO_TOOL_SETUP=1
@@ -159,7 +173,7 @@ EOF
 
 @test "redirected jsonpp produces clean JSON with exports.sh and aliases.sh sourced (zsh)" {
 	[[ -n "$TEST_ZSH" ]] || skip "zsh not installed"
-	[[ -n "$PYTHON3_BIN" ]] || skip "python3 not installed"
+	[[ -n "$PYTHON3_BIN" ]] || skip "usable python3 not installed"
 	local probe="$BATS_TEST_TMPDIR/jsonpp-zsh.zsh" out
 	cat >"$probe" <<'EOF'
 export DOTFILES_NO_AUTO_SETUP=1 DOTFILES_NO_AUTO_COMPLETIONS=1 DOTFILES_NO_AUTO_TOOL_SETUP=1
@@ -179,7 +193,7 @@ EOF
 }
 
 @test "interactive bash and zsh startup leave FORCE_COLOR unset and jsonpp clean" {
-	[[ -n "$PYTHON3_BIN" ]] || skip "python3 not installed"
+	[[ -n "$PYTHON3_BIN" ]] || skip "usable python3 not installed"
 	local hermetic_home="$BATS_TEST_TMPDIR/rc-home"
 	local stub_bin="$BATS_TEST_TMPDIR/rc-stubs"
 	mkdir -p "$hermetic_home/bin" "$stub_bin" "$BATS_TEST_TMPDIR/fakebrew"
@@ -228,7 +242,7 @@ EOF
 }
 
 @test "control: Python 3.14+ injects ANSI escapes into redirected json.tool when FORCE_COLOR=1" {
-	[[ -n "$PYTHON3_BIN" ]] || skip "python3 not installed"
+	[[ -n "$PYTHON3_BIN" ]] || skip "usable python3 not installed"
 	if ! "$PYTHON3_BIN" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 14) else 1)'; then
 		skip "requires Python 3.14+ (colorized json.tool)"
 	fi
