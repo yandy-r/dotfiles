@@ -275,7 +275,7 @@ render_must_not() {
 
 ## Never
 
-- Touch changes/worktrees/branches you didn't make
+- Touch others' changes/worktrees/branches
 - Full test suites for non-app changes
 - Long-lived-branch sync PRs; tags/releases/CHANGELOG.md; RELEASING.md edits outside `/ycc:release-model`
 - Direct commit/push to default/release/long-lived branches (docs too)
