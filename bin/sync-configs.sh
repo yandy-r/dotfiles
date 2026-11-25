@@ -51,14 +51,16 @@ ssh_paths=(
 )
 
 # Per-host state (sessions, history, *.db, caches, logs, auth/credentials,
-# settings.local.json) must never be listed here. Keys are the -a names;
+# settings.local.json) must never be listed here. Paths missing on this host
+# (e.g. optional plugin configs like oh-my-opencode-slim.jsonc) are skipped. Keys are the -a names;
 # all_agents fixes the default order.
 all_agents=(claude codex opencode antigravity omp cursor zed)
 declare -A agent_paths=(
   [claude]=".claude/settings.json .claude/CLAUDE.md"
   [codex]=".codex/config.toml"
   [opencode]=".config/opencode/opencode.json .config/opencode/opencode-mem.jsonc
-    .config/opencode/tui.jsonc .config/opencode/cli.json"
+    .config/opencode/tui.jsonc .config/opencode/cli.json
+  .config/opencode/oh-my-opencode-slim.jsonc"
   [antigravity]=".gemini/antigravity-cli/settings.json .gemini/GEMINI.md"
   [omp]=".omp/agent/config.yml .omp/agent/models.yml .omp/agent/AGENTS.md
     .omp/agent/SYSTEM.md .omp/agent/APPEND_SYSTEM.md"
