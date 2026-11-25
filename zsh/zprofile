@@ -22,6 +22,10 @@ if [[ -z "$ZPROFILE_LOADED" ]]; then
     export ZPROFILE_LOADED=1
     
     # After macOS path_helper runs, aggressively fix our Homebrew path order
-    # This is critical for tmux sessions which start as login shells
-    fix_homebrew_path_order
+    # This is critical for tmux sessions which start as login shells.
+    # macOS only, matching finalize_path: the Linux branch moves every "other"
+    # entry (e.g. mise shims) behind /usr/bin, and children inherit that order.
+    if is_macos; then
+        fix_homebrew_path_order
+    fi
 fi
