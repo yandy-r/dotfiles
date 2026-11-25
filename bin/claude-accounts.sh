@@ -28,6 +28,7 @@
 #   claude-accounts.sh mcp --all          only sync MCP servers
 #   claude-accounts.sh run apple [args]   sync MCP, then run claude as that account
 #   claude-accounts.sh mcp --all -r mac,nas   ...here, then on each ssh host
+#   claude-accounts.sh --delete ry -r ubsrv  delete an account here and on ubsrv
 #
 # Account dirs live in ~/.config on Linux/*nix and in
 # ~/Library/Application Support/claude-accounts on macOS (see "platform").
@@ -130,6 +131,8 @@ MERGE=true
 SYNC_MCP=true
 DRY_RUN=false
 ALL=false
+DELETE_BACKUPS=false
+ASSUME_YES=false
 BACKUP_DIR=""      # set lazily, one per run and account
 
 # Per-account record of the MCP server names synced last time, so servers
@@ -211,6 +214,10 @@ Commands:
   run <name> [args...]     Sync MCP servers, then run claude with
                            CLAUDE_CONFIG_DIR set to the account. Everything
                            after <name> is passed to claude.
+  delete <name...>         (or --delete <name...>) Delete the named account
+                           dir(s): login, .claude.json and anything not linked
+                           to main. Names only (no --all); the main config
+                           ($MAIN_DIR) is never touched. Asks first.
 
 MCP sync (link, mcp, run): user-scope servers (mcpServers) and local-scope
 servers (projects[<dir>].mcpServers) from $(main_json)
@@ -230,7 +237,12 @@ Options (link):
   -n, --dry-run    Show what would change.
   -h, --help       Show this help.
 
-Remotes (link, unlink, status, mcp, list):
+Options (delete):
+  --backups        Also delete the account's backups in $BACKUP_ROOT
+                   (local copies replaced by link). Cannot be undone.
+  -y, --yes        Do not ask for confirmation (needed without a terminal).
+
+Remotes (link, unlink, status, mcp, list, delete):
   -r, --remote, --remotes HOST[,HOST...]
                    Also run the same command on each ssh host. Repeat the
                    flag or separate hosts with commas. The script is streamed
@@ -621,6 +633,96 @@ cmd_unlink() {
     done
 }
 
+# ---------------------------------------------------------------- delete
+
+# account_backups NAME lists NAME's backup dirs. Only <name>-YYYYmmdd-HHMMSS
+# matches, so deleting "ry" never touches the backups of an account "ry-work".
+account_backups() {
+    local d
+    for d in "$BACKUP_ROOT/$1-"[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]; do
+        [[ -d "$d" && ! -L "$d" ]] && printf '%s\n' "$d"
+    done
+    return 0
+}
+
+# assert_not_main dies unless ACCT is a real account dir that is neither the
+# main config dir, nor $HOME, nor a dir holding the main config.
+assert_not_main() {
+    local acct="$1" r main
+    [[ ! -L "$acct" ]] || die "$acct is a symlink; refusing to delete it"
+    [[ -d "$acct" ]] || die "$acct is not a directory; refusing to delete it"
+    r="$(resolve "$acct" 2>/dev/null || true)"
+    main="$(resolve "$MAIN_DIR" 2>/dev/null || printf '%s' "$MAIN_DIR")"
+    [[ -n "$r" && "$r" != / ]] || die "cannot resolve $acct; refusing to delete it"
+    [[ "$r" != "$main" && "$r" != "$(resolve "$HOME")" ]] ||
+        die "$acct is the main config dir; refusing to delete it"
+    [[ "$main/" != "$r/"* ]] || die "$acct holds the main config dir; refusing to delete it"
+}
+
+# forget_keychain drops a macOS account's login from the Keychain (see
+# is_logged_in); the Keychain item outlives the dir otherwise.
+forget_keychain() {
+    local acct="$1" svc
+    [[ "$OS" == darwin ]] || return 0
+    command -v security >/dev/null 2>&1 && command -v shasum >/dev/null 2>&1 || return 0
+    svc="Claude Code-credentials-$(printf '%s' "$acct" | shasum -a 256 | cut -c1-8)"
+    security find-generic-password -s "$svc" >/dev/null 2>&1 || return 0
+    log "  delete keychain item $svc"
+    if [[ "$DRY_RUN" == true ]]; then
+        printf '%s  [dry-run] security delete-generic-password -s %q%s\n' "$c_dim" "$svc" "$c_off"
+    else
+        security delete-generic-password -s "$svc" >/dev/null 2>&1 ||
+            warn "could not delete keychain item $svc"
+    fi
+}
+
+# confirm_delete asks before anything is deleted (here or on a remote).
+confirm_delete() {
+    [[ "$DRY_RUN" == true || "$ASSUME_YES" == true ]] && return 0
+    local where="" ans
+    [[ "$LOCAL" == true ]] && where="this machine"
+    ((${#REMOTES[@]} == 0)) || where+="${where:+ and }${REMOTES[*]}"
+    warn "about to delete account(s) $* on $where"
+    log "  Each ${PREFIX}<name> dir goes, with its login, .claude.json and any data"
+    log "  not linked to main. Main ($MAIN_DIR) and what it shares are not touched."
+    if [[ "$DELETE_BACKUPS" == true ]]; then
+        warn "--backups: every backup of these accounts ($BACKUP_ROOT/<name>-*) is"
+        warn "deleted too, including local copies that link replaced. This cannot be undone."
+    fi
+    [[ -t 0 ]] || die "no terminal to confirm on: pass --yes to delete without asking" 2
+    read -r -p "Type 'yes' to delete: " ans || true
+    [[ "$ans" == yes ]] || die "not confirmed; nothing deleted"
+}
+
+cmd_delete() {
+    local name acct d found tag=""
+    [[ "$DELETE_BACKUPS" == true ]] && tag=" + backups"
+    for name in "$@"; do
+        validate_name "$name"
+        acct="$(account_dir "$name")"
+        log "${c_ok}==>${c_off} $name ($acct) [delete$tag]"
+        found=false
+        if [[ -e "$acct" || -L "$acct" ]]; then
+            assert_not_main "$acct"
+            found=true
+            forget_keychain "$acct"
+            log "  delete $acct"
+            # rm -r removes the links into main, never what they point to.
+            run rm -rf -- "$acct"
+        fi
+        if [[ "$DELETE_BACKUPS" == true ]]; then
+            while IFS= read -r d; do
+                found=true
+                log "  delete backup $d"
+                run rm -rf -- "$d"
+            done < <(account_backups "$name")
+        elif [[ -n "$(account_backups "$name")" ]]; then
+            log "  ${c_dim}kept   backups in $BACKUP_ROOT/$name-* (--backups deletes them)${c_off}"
+        fi
+        [[ "$found" == true ]] || log "  ${c_dim}nothing to delete${c_off}"
+    done
+}
+
 # ---------------------------------------------------------------- status
 
 item_state() {
@@ -898,6 +1000,11 @@ dispatch() {
         fi
         "cmd_$cmd" "${args[@]}"
         ;;
+    delete)
+        [[ "$ALL" != true ]] || die "delete does not take --all; name the account(s)" 2
+        ((${#args[@]})) || die "usage: $SCRIPT_NAME delete <name...> [--backups]" 2
+        cmd_delete "${args[@]}"
+        ;;
     list) cmd_list ;;
     run) cmd_run ${args[@]+"${args[@]}"} ;;
     *) die "unknown command: $cmd (see --help)" 2 ;;
@@ -952,6 +1059,12 @@ main() {
         --mcp) SYNC_MCP=true ;;
         --no-mcp) SYNC_MCP=false ;;
         --all) ALL=true ;;
+        --delete)
+            [[ -z "$cmd" || "$cmd" == delete ]] || die "--delete cannot be combined with $cmd" 2
+            cmd="delete"
+            ;;
+        --backups) DELETE_BACKUPS=true ;;
+        -y | --yes) ASSUME_YES=true ;;
         -n | --dry-run) DRY_RUN=true ;;
         --)
             shift
@@ -984,6 +1097,17 @@ main() {
         return 2
     fi
 
+    if [[ "$cmd" == delete ]]; then
+        [[ "$ALL" != true ]] || die "delete does not take --all; name the account(s)" 2
+        ((${#args[@]})) || die "usage: $SCRIPT_NAME delete <name...> [--backups]" 2
+        local n
+        for n in "${args[@]}"; do validate_name "$n"; done
+        confirm_delete "${args[@]}"
+        fwd=(--yes "${fwd[@]}") # confirmed here; the remotes cannot ask
+    elif [[ "$DELETE_BACKUPS" == true ]]; then
+        die "--backups only works with delete" 2
+    fi
+
     if ((${#REMOTES[@]} == 0)); then
         [[ "$LOCAL" == true ]] || die "--no-local needs --remote <host>" 2
         [[ -z "$UPSTREAM_HOME" ]] || apply_upstream "$cmd"
@@ -992,7 +1116,7 @@ main() {
     fi
 
     case "$cmd" in
-    link | unlink | status | mcp | list) ;;
+    link | unlink | status | mcp | list | delete) ;;
     run) die "--remote does not work with run (it starts claude here)" 2 ;;
     *) die "unknown command: $cmd (see --help)" 2 ;;
     esac
