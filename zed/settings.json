@@ -17,6 +17,11 @@
       "projects": [
         {
           "paths": [
+            "/home/yandy/.config/dotfiles"
+          ]
+        },
+        {
+          "paths": [
             "/home/yandy/Projects/github.com/yandy-r/ystack"
           ]
         }
@@ -63,15 +68,21 @@
     },
   },
   "agent_servers": {
+    "opencode": {
+      "type": "registry",
+    },
+    "claude-acp": {
+      "type": "registry",
+    },
     "cursor": {
       "type": "registry",
     },
     "codex-acp": {
       "type": "registry",
     },
-    "OpenCode": {
+    "omp": {
       "type": "custom",
-      "command": "opencode",
+      "command": "omp",
       "args": ["acp"],
     },
   },
@@ -242,7 +253,7 @@
       "effort": "medium",
     },
     "commit_message_model": {
-      "provider": "zed.dev",
+      "provider": "openai-subscribed",
       "model": "gpt-6-luna",
       "enable_thinking": false,
     },
