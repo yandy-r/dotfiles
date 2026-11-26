@@ -61,6 +61,13 @@ OFFICIAL V2 METHODS (tried in order per platform):
       3. Bun: bun install -g --trust @opencode/cli@latest
       4. pnpm: pnpm add -g --allow-build=@opencode/cli @opencode/cli@latest
 
+NPM POSTINSTALL:
+    @opencode/cli installs a stub binary until its postinstall runs, and npm 12
+    skips that script unless the package is allowlisted. The installer adds
+    allow-scripts=@opencode/cli to the user npmrc (so later reinstalls, including
+    \`opencode upgrade\`, keep working) and runs the skipped postinstall for any
+    stub copy it finds (npm/pnpm/Bun globals and every mise Node version).
+
 MIGRATION:
     OpenCode 1 package installations are removed before V2 is installed.
     Existing configuration and data are preserved for V2 migration.
@@ -370,6 +377,89 @@ npm_supports_allow_scripts() {
 	npm install --help 2>/dev/null | command grep -q -- '--allow-scripts'
 }
 
+# Persist the allowlist in the user npmrc. A per-command flag only covers this
+# run: OpenCode's own `opencode upgrade`, a later manual `npm i -g`, or a global
+# install under another mise-managed Node version would otherwise reinstall
+# @opencode/cli with its postinstall skipped and leave the stub binary behind.
+ensure_npm_allow_scripts() {
+	command -v npm >/dev/null 2>&1 || return 0
+	npm_supports_allow_scripts || return 0
+
+	local current
+	current="$(npm config get allow-scripts --location=user 2>/dev/null || true)"
+	case ",${current// /}," in
+	*",${V2_NPM_PACKAGE},"*) return 0 ;;
+	esac
+	if [[ -z "$current" || "$current" == "null" || "$current" == "undefined" ]]; then
+		current="$V2_NPM_PACKAGE"
+	else
+		current="${current},${V2_NPM_PACKAGE}"
+	fi
+
+	log "Allowing $V2_NPM_PACKAGE install scripts in the user npmrc (allow-scripts=$current)..."
+	npm config set --location=user allow-scripts "$current" ||
+		log "WARNING: could not persist allow-scripts; later npm reinstalls may skip the postinstall"
+}
+
+# Every @opencode/cli copy a Node package manager has installed: the active npm
+# global root, each mise-managed Node version (each keeps its own globals), and
+# the pnpm/Bun global stores.
+node_package_dirs() {
+	local root dir
+	{
+		if command -v npm >/dev/null 2>&1; then
+			root="$(npm root -g 2>/dev/null || true)"
+			[[ -n "$root" ]] && printf '%s\n' "$root/$V2_NPM_PACKAGE"
+		fi
+		for dir in "${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}"/installs/node/*/lib/node_modules/"$V2_NPM_PACKAGE"; do
+			printf '%s\n' "$dir"
+		done
+		if command -v pnpm >/dev/null 2>&1; then
+			root="$(pnpm root -g 2>/dev/null || true)"
+			[[ -n "$root" ]] && printf '%s\n' "$root/$V2_NPM_PACKAGE"
+		fi
+		printf '%s\n' "${BUN_INSTALL:-$HOME/.bun}/install/global/node_modules/$V2_NPM_PACKAGE"
+	} | while IFS= read -r dir; do
+		[[ -f "$dir/package.json" ]] || continue
+		# Resolve symlinked version aliases (mise's 26 -> 26.12.0) to one entry.
+		(cd -P -- "$dir" 2>/dev/null && pwd)
+	done | sort -u
+}
+
+# The package ships a tiny shell placeholder as its binary until the postinstall
+# swaps in the real platform build; the placeholder only prints an error.
+is_postinstall_stub() {
+	local binary="$1"
+	[[ -f "$binary" ]] || return 1
+	(($(wc -c <"$binary") < 4096)) || return 1
+	command grep -Fqs "postinstall script was not run" "$binary"
+}
+
+# Run the skipped postinstall in place for any stub copy, so a shadowing stub on
+# PATH cannot break `opencode` even when it was installed outside this script.
+repair_postinstall_stubs() {
+	local dir binary
+	command -v node >/dev/null 2>&1 || return 0
+	while IFS= read -r dir; do
+		[[ -n "$dir" ]] || continue
+		binary="$dir/bin/opencode.exe"
+		is_postinstall_stub "$binary" || continue
+		if [[ ! -f "$dir/postinstall.mjs" ]]; then
+			log "WARNING: $dir has a stub binary but no postinstall.mjs; reinstall $V2_NPM_PACKAGE"
+			continue
+		fi
+		log "Running skipped $V2_NPM_PACKAGE postinstall in $dir..."
+		if ! (cd -- "$dir" && node ./postinstall.mjs); then
+			log "WARNING: postinstall failed in $dir"
+			continue
+		fi
+		if is_postinstall_stub "$binary"; then
+			log "WARNING: postinstall ran but $binary is still the stub"
+		fi
+	done < <(node_package_dirs)
+	return 0
+}
+
 install_opencode_npm() {
 	command -v node >/dev/null 2>&1 || return 1
 	command -v npm >/dev/null 2>&1 || return 1
@@ -377,11 +467,13 @@ install_opencode_npm() {
 	local package="${V2_NPM_PACKAGE}@${OPENCODE_VERSION}"
 
 	log "Installing OpenCode 2 via official npm package..."
+	ensure_npm_allow_scripts
 	if npm_supports_allow_scripts; then
-		npm install -g --allow-scripts="$V2_NPM_PACKAGE" "$package"
+		npm install -g --allow-scripts="$V2_NPM_PACKAGE" "$package" || return 1
 	else
-		npm install -g "$package"
+		npm install -g "$package" || return 1
 	fi
+	repair_postinstall_stubs
 }
 
 # pnpm (v10+) and Bun block dependency build scripts by default, so both need an
@@ -392,7 +484,8 @@ install_opencode_pnpm() {
 	local package="${V2_NPM_PACKAGE}@${OPENCODE_VERSION}"
 
 	log "Installing OpenCode 2 via official pnpm package..."
-	pnpm add -g --allow-build="$V2_NPM_PACKAGE" "$package"
+	pnpm add -g --allow-build="$V2_NPM_PACKAGE" "$package" || return 1
+	repair_postinstall_stubs
 }
 
 install_opencode_bun() {
@@ -401,7 +494,8 @@ install_opencode_bun() {
 	local package="${V2_NPM_PACKAGE}@${OPENCODE_VERSION}"
 
 	log "Installing OpenCode 2 via official Bun package..."
-	bun install -g --trust "$package"
+	bun install -g --trust "$package" || return 1
+	repair_postinstall_stubs
 }
 
 install_opencode_yarn() {
@@ -410,7 +504,8 @@ install_opencode_yarn() {
 	local package="${V2_NPM_PACKAGE}@${OPENCODE_VERSION}"
 
 	log "Installing OpenCode 2 via official Yarn package..."
-	yarn global add "$package"
+	yarn global add "$package" || return 1
+	repair_postinstall_stubs
 }
 
 # Node-toolchain fallback chain, in the order the official docs list them.
@@ -458,6 +553,11 @@ refresh_opencode_path() {
 
 verify_installation() {
 	refresh_opencode_path
+	# Whatever method ran, a stub copy elsewhere (another Node version, an
+	# `opencode upgrade` via npm) can still shadow the real binary on PATH.
+	ensure_npm_allow_scripts
+	repair_postinstall_stubs
+	hash -r
 	if ! command -v opencode >/dev/null 2>&1; then
 		log "ERROR: opencode not found in PATH"
 		log "Expected user-install path: $HOME/.opencode/bin"

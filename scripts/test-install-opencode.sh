@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 INSTALLER="$REPO_ROOT/bin/install-opencode.sh"
 TMP_DIR=""
+# Captured before setup_case narrows PATH, for tests that need a real node.
+REAL_NODE="$(command -v node 2>/dev/null || true)"
 
 cleanup() {
 	[[ -z "$TMP_DIR" ]] || rm -rf "$TMP_DIR"
@@ -34,6 +36,7 @@ setup_case() {
 	export TEST_LOG="$TMP_DIR/commands.log"
 	mkdir -p "$HOME/.config/opencode" "$TEST_BIN"
 	export OPENCODE_V2_MARKER="$TMP_DIR/state/opencode-v2"
+	unset MISE_DATA_DIR XDG_DATA_HOME BUN_INSTALL NPM_CONFIG_USERCONFIG
 	: >"$TEST_LOG"
 	export PATH="$TEST_BIN:/usr/bin:/bin"
 	hash -r
@@ -193,6 +196,66 @@ EOF
 	fi
 }
 
+test_npm_allow_scripts_is_persisted() {
+	setup_case
+	export NPMRC_STATE="$TMP_DIR/npmrc-allow-scripts"
+	cat >"$TEST_BIN/npm" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$1" == "install" && "$2" == "--help" ]]; then
+	echo "  --allow-scripts"
+	exit 0
+fi
+case "$1 $2" in
+  "config get") cat "$NPMRC_STATE" 2>/dev/null; exit 0 ;;
+  "config set") printf '%s' "$5" >"$NPMRC_STATE"; printf 'npm %s\n' "$*" >>"$TEST_LOG"; exit 0 ;;
+esac
+exit 0
+EOF
+	chmod +x "$TEST_BIN/npm"
+
+	# shellcheck source=../bin/install-opencode.sh
+	source "$INSTALLER"
+	ensure_npm_allow_scripts
+	assert_eq "@opencode/cli" "$(cat "$NPMRC_STATE")"
+
+	# Idempotent, and an existing allowlist is extended rather than replaced.
+	ensure_npm_allow_scripts
+	assert_eq "1" "$(grep -c "config set" "$TEST_LOG")"
+	printf 'esbuild' >"$NPMRC_STATE"
+	ensure_npm_allow_scripts
+	assert_eq "esbuild,@opencode/cli" "$(cat "$NPMRC_STATE")"
+}
+
+test_postinstall_stub_is_repaired() {
+	setup_case
+	[[ -n "$REAL_NODE" ]] || { echo "SKIP: node not on PATH" >&2; return 0; }
+	local node_dir pkg
+	node_dir="$(dirname "$REAL_NODE")"
+	export PATH="$TEST_BIN:$node_dir:/usr/bin:/bin"
+	pkg="$HOME/.local/share/mise/installs/node/26.0.0/lib/node_modules/@opencode/cli"
+	mkdir -p "$pkg/bin"
+	ln -s 26.0.0 "$HOME/.local/share/mise/installs/node/26"
+	printf '{"name":"@opencode/cli"}\n' >"$pkg/package.json"
+	cat >"$pkg/bin/opencode.exe" <<'EOF'
+echo "Error: @opencode/cli's postinstall script was not run." >&2
+exit 1
+EOF
+	cat >"$pkg/postinstall.mjs" <<'EOF'
+import fs from "node:fs"
+fs.writeFileSync("bin/opencode.exe", "#!/bin/sh\necho 2.4.2\n")
+fs.appendFileSync(process.env.TEST_LOG, "postinstall ran\n")
+EOF
+
+	# shellcheck source=../bin/install-opencode.sh
+	source "$INSTALLER"
+	is_postinstall_stub "$pkg/bin/opencode.exe" || fail "stub not detected"
+	repair_postinstall_stubs
+
+	is_postinstall_stub "$pkg/bin/opencode.exe" && fail "stub not repaired"
+	# The version alias symlink must not cause a second run.
+	assert_eq "1" "$(grep -c "postinstall ran" "$TEST_LOG")"
+}
+
 test_verification_writes_v2_marker() {
 	setup_case
 	write_opencode "2.0.6"
@@ -265,6 +328,8 @@ test_platform_method_order() {
 (test_official_v2_installer_arguments)
 (test_node_toolchain_allows_postinstall_scripts)
 (test_npm_falls_back_when_allow_scripts_unsupported)
+(test_npm_allow_scripts_is_persisted)
+(test_postinstall_stub_is_repaired)
 (test_verification_writes_v2_marker)
 (test_uninstall_removes_all_binaries_and_keeps_config)
 (test_platform_method_order)
