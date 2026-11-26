@@ -18,6 +18,13 @@
 #   install-orca-server.sh --update    install the latest release if newer
 #   install-orca-server.sh --uninstall remove the install and the symlink
 #
+# After an install or update, active systemd user services that run this
+# install (e.g. orca-serve.service from `orca-server serve service install`)
+# are restarted so they pick up the new build. `--update` also restarts one
+# still running a build an earlier update replaced. The Orca terminal daemon
+# runs in its own scope and is deliberately left alone, so open terminals
+# survive. Opt out with --no-restart or ORCA_SERVER_RESTART=false.
+#
 # ORCA_SERVER_VERSION=1.4.261 pins a release (default: latest).
 #
 # https://orca.dev/docs/remote-servers#install-only-the-server-on-linux
@@ -39,6 +46,7 @@ BIN_DIR="$HOME/.local/bin"
 LINK_PATH="$BIN_DIR/orca-server"
 DRY_RUN="${DRY_RUN:-false}"
 ORCA_SERVER_VERSION="${ORCA_SERVER_VERSION:-latest}"
+ORCA_SERVER_RESTART="${ORCA_SERVER_RESTART:-true}"
 
 log() { echo "${LOG_PREFIX} $*" >&2; }
 log_success() { echo "${LOG_PREFIX} ✓ $*" >&2; }
@@ -234,8 +242,81 @@ install_server() {
     ensure_link
 
     log_success "Orca server v${version} installed to $INSTALL_DIR"
-    log "Start it with: orca-server serve --pairing-address <tailscale-ip-or-hostname>"
-    log "Restart any running 'orca-server serve' to pick up a new version."
+}
+
+# orca_units prints the active systemd user services whose ExecStart runs this
+# install, directly or through the orca-server link. Prints nothing without a
+# reachable user manager (e.g. root over sudo).
+orca_units() {
+    command -v systemctl >/dev/null 2>&1 || return 0
+    local unit
+    systemctl --user list-units --type=service --state=active --no-legend --plain 2>/dev/null |
+        awk '{print $1}' |
+        while IFS= read -r unit; do
+            [[ -n "$unit" ]] || continue
+            if systemctl --user show -p ExecStart --value "$unit" 2>/dev/null |
+                grep -qF -e "path=$INSTALL_DIR/" -e "path=$LINK_PATH "; then
+                echo "$unit"
+            fi
+        done
+}
+
+# is_stale_pid succeeds when pid runs a binary from a replaced install. The
+# swap renames the old tree to .orca-server.old and deletes it, so the kernel
+# reports the executable as "<path> (deleted)" under either location.
+is_stale_pid() {
+    local pid="$1" exe
+    [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
+    exe="$(readlink "/proc/$pid/exe" 2>/dev/null)" || return 1
+    [[ "$exe" == *" (deleted)" ]] || return 1
+    [[ "$exe" == "$INSTALL_DIR/"* || "$exe" == "$DATA_HOME/.orca-server.old/"* ]]
+}
+
+# restart_servers <true|false> restarts the active services running this
+# install: all of them when a new build was just installed (true), otherwise
+# only those still running a replaced build. Failures are warnings: the
+# install itself has already succeeded.
+restart_servers() {
+    local installed="$1"
+    if [[ "$ORCA_SERVER_RESTART" != "true" ]]; then
+        [[ "$installed" == "true" ]] && log "Restart skipped; restart any running 'orca-server serve' to use the new build"
+        return 0
+    fi
+
+    local units unit pid
+    units="$(orca_units)"
+    while IFS= read -r unit; do
+        [[ -n "$unit" ]] || continue
+        pid="$(systemctl --user show -p MainPID --value "$unit" 2>/dev/null || true)"
+        if [[ "$installed" != "true" ]] && ! is_stale_pid "$pid"; then
+            log "$unit already runs the installed build"
+            continue
+        fi
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log "DRY-RUN: Would restart $unit"
+            continue
+        fi
+        log "Restarting $unit to load the new build"
+        if ! systemctl --user restart "$unit"; then
+            log_warning "failed to restart $unit; run: systemctl --user restart $unit"
+            continue
+        fi
+        if systemctl --user is-active --quiet "$unit"; then
+            log_success "$unit restarted"
+        else
+            log_warning "$unit is not active after restart; check: journalctl --user -u $unit"
+        fi
+    done <<<"$units"
+
+    # A server started by hand (not under a service) cannot be restarted safely
+    # from here; name it so the user can. The terminal daemon is excluded.
+    [[ "$DRY_RUN" == "true" ]] && return 0
+    local cmdline
+    for pid in $(pgrep -u "$(id -u)" -f "orcad/out/cli/index.js serve" 2>/dev/null || true); do
+        is_stale_pid "$pid" || continue
+        cmdline="$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null || true)"
+        log_warning "pid $pid still runs the old build outside a service; restart it: ${cmdline% }"
+    done
 }
 
 uninstall_server() {
@@ -259,18 +340,24 @@ uninstall_server() {
 
 show_usage() {
     cat <<EOF
-Usage: $SCRIPT_NAME [--update | --uninstall] [--dry-run] [--help]
+Usage: $SCRIPT_NAME [--update | --uninstall] [--no-restart] [--dry-run] [--help]
 
 Install the official Orca server-only build (orcad + bundled Node + orca-ide
 CLI) into ${INSTALL_DIR} and link it as ${LINK_PATH}.
 Linux x64/arm64 only. Idempotent and non-interactive.
 
-  --update     Install the latest release when it is newer than the installed one
-  --uninstall  Remove the install and the orca-server symlink
-  --dry-run    Print what would be done
+  --update      Install the latest release when it is newer than the installed one
+  --uninstall   Remove the install and the orca-server symlink
+  --no-restart  Do not restart systemd user services running this install
+  --dry-run     Print what would be done
+
+After installing a new build, active systemd user services that run it (such
+as orca-serve.service) are restarted; --update also restarts one left on a
+build an earlier update replaced. Open terminals survive the restart.
 
 Environment:
   ORCA_SERVER_VERSION   Release to install, e.g. 1.4.261 (default: latest)
+  ORCA_SERVER_RESTART   false to skip the service restart (default: true)
 EOF
 }
 
@@ -280,6 +367,7 @@ main() {
         case "$1" in
             --update) action="update"; shift ;;
             --uninstall) action="uninstall"; shift ;;
+            --no-restart) ORCA_SERVER_RESTART=false; shift ;;
             --dry-run) DRY_RUN=true; shift ;;
             --help | -h) show_usage; exit 0 ;;
             *) error_exit "Unknown option: $1. Use --help for usage." ;;
@@ -302,6 +390,7 @@ main() {
                 return 0
             fi
             install_server "$(resolve_version)"
+            restart_servers true
             ;;
         update)
             current="$(installed_version)"
@@ -309,9 +398,11 @@ main() {
             if [[ -n "$current" && "$current" == "$target" && -x "$INSTALL_DIR/bin/orca-ide" ]]; then
                 ensure_link
                 log_success "Orca server v${current} is already the requested release"
+                restart_servers false
                 return 0
             fi
             install_server "$target"
+            restart_servers true
             ;;
         uninstall) uninstall_server ;;
     esac
