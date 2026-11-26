@@ -82,9 +82,44 @@ default = true
 packages = ["jetbrains-mono-nerd-font"]
 
 [intents.gaming]
-description = "Gaming platforms and launchers"
+description = "Gaming platforms, launchers, Proton/Wine tooling, and overlays"
 default = false
-packages = ["lutris", "lutris-pkg"]
+packages = [
+    "lutris",
+    "lutris-pkg",
+    "steam",
+    "heroic",
+    "heroic-aur",
+    "wine",
+    "winetricks",
+    "umu-launcher",
+    "umu-launcher-aur",
+    "protontricks",
+    "protontricks-aur",
+    "protonup-qt-aur",
+    "gamescope",
+    "gamemode",
+    "lib32-gamemode",
+    "mangohud",
+    "lib32-mangohud",
+    "goverlay",
+    "vkbasalt",
+]
+
+# Runs non-game Windows apps: a Wine/Proton runtime plus the prefix managers
+# bin/wine-app.sh (umu-run) and Bottles drive. Shares entries with gaming; the
+# engine dedupes across intents and skips anything already installed.
+[intents.windows-apps]
+description = "Wine/Proton runtime and prefix managers for running Windows apps"
+default = false
+packages = [
+    "wine",
+    "winetricks",
+    "umu-launcher",
+    "umu-launcher-aur",
+    "bottles",
+    "bottles-aur",
+]
 
 [intents.desktop-fonts]
 description = "Additional Nerd Font families used by the Hyprland desktop set"
@@ -595,6 +630,131 @@ name = "lutris-pkg"
 backend = "pkg"
 os = "redhat"
 names = { dnf = "lutris" }
+
+# --- gaming / windows-apps: Wine, Proton and game tooling ---------------
+# All Linux-only (os = "linux"), so a host without a name for its manager is a
+# clean applicable=false skip. Tools that are AUR-only on Arch get a `-aur`
+# sibling; yay also resolves official-repo (and CachyOS-repo) packages, so the
+# sibling is correct either way. On Fedora, steam/umu-launcher/heroic are not in
+# the base repos: they need Terra (umu-launcher, heroic) or Terra/RPM Fusion
+# nonfree (steam) enabled, otherwise the install is a non-fatal failure.
+[[package]]
+name = "wine"
+backend = "pkg"
+os = "linux"
+# Arch: wine-staging matches bin/install-arch-pkgs.sh's choice.
+names = { pacman = "wine-staging", dnf = "wine", apt = "wine", zypper = "wine" }
+
+[[package]]
+name = "winetricks"
+backend = "pkg"
+os = "linux"
+names = { pacman = "winetricks", dnf = "winetricks", apt = "winetricks", zypper = "winetricks" }
+
+[[package]]
+name = "umu-launcher"
+backend = "pkg"
+os = "linux"
+names = { dnf = "umu-launcher" }
+
+[[package]]
+name = "umu-launcher-aur"
+backend = "aur"
+names = { pacman = "umu-launcher" }
+
+[[package]]
+name = "bottles"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { dnf = "bottles" }
+
+[[package]]
+name = "bottles-aur"
+backend = "aur"
+requires_desktop = true
+names = { pacman = "bottles" }
+
+[[package]]
+name = "protontricks"
+backend = "pkg"
+os = "linux"
+names = { dnf = "protontricks", apt = "protontricks" }
+
+[[package]]
+name = "protontricks-aur"
+backend = "aur"
+names = { pacman = "protontricks" }
+
+# ProtonUp-Qt (GE-Proton/CachyOS-Proton manager) has no Fedora/Debian package.
+[[package]]
+name = "protonup-qt-aur"
+backend = "aur"
+requires_desktop = true
+names = { pacman = "protonup-qt" }
+
+[[package]]
+name = "steam"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { pacman = "steam", dnf = "steam", zypper = "steam" }
+
+[[package]]
+name = "heroic"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { dnf = "heroic-games-launcher" }
+
+[[package]]
+name = "heroic-aur"
+backend = "aur"
+requires_desktop = true
+names = { pacman = "heroic-games-launcher-bin" }
+
+[[package]]
+name = "gamescope"
+backend = "pkg"
+os = "linux"
+names = { pacman = "gamescope", dnf = "gamescope" }
+
+[[package]]
+name = "gamemode"
+backend = "pkg"
+os = "linux"
+names = { pacman = "gamemode", dnf = "gamemode", apt = "gamemode", zypper = "gamemode" }
+
+[[package]]
+name = "lib32-gamemode"
+backend = "pkg"
+os = "arch"
+names = { pacman = "lib32-gamemode" }
+
+[[package]]
+name = "mangohud"
+backend = "pkg"
+os = "linux"
+names = { pacman = "mangohud", dnf = "mangohud", apt = "mangohud" }
+
+[[package]]
+name = "lib32-mangohud"
+backend = "pkg"
+os = "arch"
+names = { pacman = "lib32-mangohud" }
+
+[[package]]
+name = "goverlay"
+backend = "pkg"
+os = "linux"
+requires_desktop = true
+names = { pacman = "goverlay", dnf = "goverlay" }
+
+[[package]]
+name = "vkbasalt"
+backend = "pkg"
+os = "linux"
+names = { pacman = "vkbasalt", dnf = "vkBasalt" }
 
 # --- toolchain: installed via a language toolchain manager -------------
 # Reference example (commented out — nothing in the default set uses this

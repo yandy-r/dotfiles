@@ -95,6 +95,7 @@ var optInIntents = map[string]bool{
 	"git-tools":     true,
 	"system":        true,
 	"desktop-fonts": true,
+	"windows-apps":  true, // Wine/Proton runtime for non-game Windows apps; opt in with --intent
 	"desktop":       true, // GUI apps; also gated per package by requires_desktop
 }
 
