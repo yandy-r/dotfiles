@@ -96,6 +96,7 @@ packages = [
     "umu-launcher-aur",
     "protontricks",
     "protontricks-aur",
+    "protonup-qt",
     "protonup-qt-aur",
     "gamescope",
     "gamemode",
@@ -119,6 +120,8 @@ packages = [
     "umu-launcher-aur",
     "bottles",
     "bottles-aur",
+    "protonup-qt",
+    "protonup-qt-aur",
 ]
 
 [intents.desktop-fonts]
@@ -686,7 +689,23 @@ name = "protontricks-aur"
 backend = "aur"
 names = { pacman = "protontricks" }
 
-# ProtonUp-Qt (GE-Proton/CachyOS-Proton manager) has no Fedora/Debian package.
+# ProtonUp-Qt (GE-Proton/CachyOS-Proton manager) has no Fedora/Debian package:
+# Arch takes the AUR build; every other x86_64 Linux takes upstream's rolling
+# AppImage with a dotf-owned launcher. For a headless GE-Proton install use
+# bin/proton-install.sh (or `wine-app.sh proton install`).
+[[package]]
+name = "protonup-qt"
+requires = ["appimage-runtime"]
+arch = ["x86_64"]
+backend = "app-artifact"
+os = "linux"
+exclude_os = ["arch"]
+requires_desktop = true
+app = { icon = "https://raw.githubusercontent.com/DavidoTek/ProtonUp-Qt/main/share/icons/hicolor/256x256/apps/net.davidotek.pupgui2.png", desktop_name = "ProtonUp-Qt", categories = "Game;Utility;" }
+repo = "DavidoTek/ProtonUp-Qt"
+asset = "ProtonUp-Qt-*-x86_64.AppImage"
+class = "rolling"
+
 [[package]]
 name = "protonup-qt-aur"
 backend = "aur"

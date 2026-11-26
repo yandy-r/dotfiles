@@ -69,8 +69,9 @@ _proton_apply_well_known_aliases() {
       bn="$(basename "${d}")"
       k="$(_proton_norm_key "${bn}")"
       _proton_register "${d}" "${k}"
-      # Shorthand: ge-10-34 from GE-Proton10-34
-      if [[ "${bn}" =~ ^GE-Proton([0-9]+)-([0-9]+)$ ]]; then
+      # Shorthand: ge-10-34 from GE-Proton10-34 (newer builds unpack as
+      # GE-Proton11-14-x86_64, so the arch suffix is optional).
+      if [[ "${bn}" =~ ^GE-Proton([0-9]+)-([0-9]+)(-(x86_64|aarch64))?$ ]]; then
         _proton_register "${d}" "ge-${BASH_REMATCH[1]}-${BASH_REMATCH[2]}"
       fi
     done
@@ -221,6 +222,9 @@ resolve_proton() {
 
   echo "Error: unknown proton version '${raw}'" >&2
   echo "Available: $(_proton_list_keys)" >&2
+  case "${key}" in
+  ge | ge-*) echo "Install GE-Proton with: wine-app.sh proton install [latest|GE-ProtonX-Y]" >&2 ;;
+  esac
   return 1
 }
 

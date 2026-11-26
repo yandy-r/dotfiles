@@ -103,6 +103,7 @@ Subcommands:
   install    Install or update an app in a Wine prefix using umu-run
   run        Launch an app in a Wine prefix using umu-run
   trainer    Launch a helper app with Proton run inside Steam compatdata
+  proton     Manage GE-Proton builds (install/list/releases/remove) via proton-install.sh
   help       Show help for all subcommands or one subcommand
 
 Examples:
@@ -499,6 +500,10 @@ main() {
   trainer)
     shift
     run_trainer_subcommand "$@"
+    ;;
+  proton)
+    shift
+    exec "${SCRIPT_DIR}/proton-install.sh" "$@"
     ;;
   help)
     case "${2:-}" in
