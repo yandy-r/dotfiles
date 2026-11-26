@@ -83,6 +83,12 @@ probe() {
 			done
 			value=$(genpass) && [[ ${#value} == 16 ]]
 		'
+		probe "$shell" linux '
+			source "$DOTFILES_ROOT/common/functions.sh"
+			# A filter may wait for EOF; it must receive finite input each time.
+			tr() { cat >/dev/null && printf %s Ab3; }
+			value=$(genpass 8) && [[ "$value" == Ab3Ab3Ab ]]
+		'
 	done
 }
 

@@ -702,21 +702,21 @@ serve() {
 # Generate a random password (alphanumeric, URL-safe)
 # Usage: genpass 24  (defaults to 16 characters)
 genpass() {
-    local length="${1:-16}" password
+    local length="${1:-16}" password='' chunk
     if [[ ! "$length" =~ ^[1-9][0-9]*$ ]]; then
         echo "Usage: genpass [positive length]" >&2
         return 1
     fi
 
-    # head stops once enough characters are read; tr can then get SIGPIPE.
-    if [[ -r /dev/urandom ]] &&
-        password=$(set +o pipefail; LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$length") &&
-        [[ "${#password}" == "$length" ]]; then
-        printf '%s\n' "$password"
-    else
-        echo "Unable to generate password" >&2
-        return 1
-    fi
+    # Filter finite chunks so tr ends at EOF rather than relying on SIGPIPE.
+    while (( ${#password} < length )); do
+        if ! chunk=$(set -o pipefail; head -c 4096 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9') || [[ -z "$chunk" ]]; then
+            echo "Unable to generate password" >&2
+            return 1
+        fi
+        password+="$chunk"
+    done
+    printf '%s\n' "${password:0:$length}"
 }
 
 # Generate QR code in terminal (uses qrencode or web API)
