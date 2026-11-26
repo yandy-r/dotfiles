@@ -516,9 +516,9 @@ brew_which() {
         return 1
     fi
     
-    local path
-    path="$(which "$command" 2>/dev/null)"
-    if [[ -n "$path" && "$path" == *"/opt/homebrew/"* ]]; then
+    local cmd_path
+    cmd_path="$(which "$command" 2>/dev/null)"
+    if [[ -n "$cmd_path" && "$cmd_path" == *"/opt/homebrew/"* ]]; then
         local formula
         formula="$(brew --prefix)/bin/$command"
         brew list | grep -E "$(basename "$formula")"
