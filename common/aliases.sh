@@ -775,6 +775,8 @@ _fabric_load_pattern_aliases() {
 	# `declare -A`) builds one newline-delimited string of "alias -p" names.
 	local _fabric_existing_aliases=""
 	if [[ -n "${ZSH_VERSION:-}" ]]; then
+		# Empty patterns dir must not raise zsh NOMATCH and abort the rest of aliases.sh.
+		setopt local_options null_glob
 		typeset -A _fabric_alias_seen
 		local _fabric_alias_key
 		# Intentional zsh-only key expansion over the aliases assoc array.
@@ -792,8 +794,23 @@ _fabric_load_pattern_aliases() {
 		done < <(alias -p 2>/dev/null)
 	fi
 
+	# Enable nullglob (and temporarily clear failglob) around the glob in bash,
+	# then restore the caller's shell options immediately after the loop.
+	local _fabric_restore_nullglob=0
+	local _fabric_restore_failglob=0
+	if [[ -n "${BASH_VERSION:-}" ]]; then
+		if ! shopt -q nullglob; then
+			shopt -s nullglob
+			_fabric_restore_nullglob=1
+		fi
+		if shopt -q failglob; then
+			shopt -u failglob
+			_fabric_restore_failglob=1
+		fi
+	fi
+
 	for pattern_path in "$patterns_dir"/*; do
-		[[ -d "$pattern_path" ]] || continue
+		[[ -e "$pattern_path" && -d "$pattern_path" ]] || continue
 
 		# Avoid basename(1) — 250+ subshells were ~400ms of startup.
 		pattern_name="${pattern_path##*/}"
@@ -818,6 +835,15 @@ _fabric_load_pattern_aliases() {
 		# shellcheck disable=SC2139 # Capture this pattern name when the alias is generated.
 		alias -- "$alias_name=fabric --pattern $pattern_name"
 	done
+
+	if [[ -n "${BASH_VERSION:-}" ]]; then
+		if (( _fabric_restore_nullglob )); then
+			shopt -u nullglob
+		fi
+		if (( _fabric_restore_failglob )); then
+			shopt -s failglob
+		fi
+	fi
 
 	# Clean up the snapshot vars (unset -f is not used: one may be a zsh assoc).
 	unset -v _fabric_existing_aliases _fabric_alias_seen 2>/dev/null || true
