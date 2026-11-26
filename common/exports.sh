@@ -490,11 +490,9 @@ export DOCKER_SCAN_SUGGEST=false
 export MAKEFLAGS
 MAKEFLAGS="-j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)"
 
-# CMake
-export CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"
-
-# Ninja (if available)
+# CMake: default to Ninja only when available.
 if has_command ninja; then
+    export CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"
     export CMAKE_MAKE_PROGRAM
     CMAKE_MAKE_PROGRAM="$(command -v ninja)"
 fi
@@ -612,13 +610,11 @@ case "$DOTFILES_OS" in
         export HOMEBREW_CELLAR="$HOMEBREW_PREFIX/Cellar"
         export HOMEBREW_REPOSITORY="$HOMEBREW_PREFIX"
 
-        # macOS Java
-        if [[ -d "/Library/Java/JavaVirtualMachines" ]]; then
-            latest_java=$(find /Library/Java/JavaVirtualMachines -maxdepth 1 -mindepth 1 -type d -printf '%f\n' 2>/dev/null | grep -E '^[0-9]+' | sort -V | tail -1)
-            if [[ -n "$latest_java" ]]; then
-                export JAVA_HOME="/Library/Java/JavaVirtualMachines/$latest_java/Contents/Home"
-            fi
+        # -F fails if no matching JVM is installed instead of using a fallback.
+        if _java_home=$(/usr/libexec/java_home -F 2>/dev/null) && [[ -n "$_java_home" ]]; then
+            export JAVA_HOME="$_java_home"
         fi
+        unset _java_home
 
         # macOS specific paths
         if [[ -n "$DOTFILES_HOMEBREW_PATH" ]]; then

@@ -178,7 +178,14 @@ if is_macos; then
         export KEYCHAIN_UNLOCKED=true
     fi
 fi
-ulimit -n 65536
+# Raise only the soft limit, and leave it alone if the hard limit is too low.
+_nofile_soft=$(ulimit -Sn)
+_nofile_hard=$(ulimit -Hn)
+if [[ "$_nofile_soft" != unlimited ]] && (( _nofile_soft < 65536 )) &&
+    { [[ "$_nofile_hard" == unlimited ]] || (( _nofile_hard >= 65536 )); }; then
+    ulimit -Sn 65536 2>/dev/null || true
+fi
+unset _nofile_soft _nofile_hard
 
 # ================================================================
 # FINAL PATH CLEANUP

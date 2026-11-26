@@ -544,18 +544,28 @@ dig_all() {
 # Git log with clickable GitHub URLs (requires iTerm or similar)
 # Shows commits with links to files on GitHub
 git_log_github() {
-    local remote
-    remote="$(git remote -v | awk '/^origin.*\(push\)$/ {print $2}')"
-    [[ -z "$remote" ]] && echo "No origin remote found" && return 1
+    local remote user_repo
+    if ! remote="$(git remote get-url --push origin 2>/dev/null)"; then
+        echo "No origin remote found" >&2
+        return 1
+    fi
 
-    local user_repo
-    user_repo="$(echo "$remote" | perl -pe 's/.*://;s/\.git$//')"
-    git log "$@" --name-status --color | awk "$(cat <<AWK
-        /^.*commit [0-9a-f]{40}/ {sha=substr(\$2,1,7)}
-        /^[MA]\t/ {printf "%s\thttps://github.com/$user_repo/blob/%s/%s\n", \$1, sha, \$2; next}
-        /.*/ {print \$0}
-AWK
-    )" | ${PAGER:-less}
+    case "$remote" in
+        git@*:*) user_repo="${remote#*:}" ;;
+        https://*/*)
+            user_repo="${remote#https://}"
+            user_repo="${user_repo#*/}"
+            ;;
+        *)
+            echo "Unsupported origin remote format" >&2
+            return 1
+            ;;
+    esac
+    git log "$@" --name-status --color | awk -v repo="${user_repo%.git}" '
+        /^.*commit [0-9a-f]{40}/ {sha=substr($2,1,7)}
+        /^[MA]\t/ {printf "%s\thttps://github.com/%s/blob/%s/%s\n", $1, repo, sha, $2; next}
+        {print}
+    ' | ${PAGER:-less}
 }
 
 # Clone a repo and cd into it
@@ -692,13 +702,19 @@ serve() {
 # Generate a random password (alphanumeric, URL-safe)
 # Usage: genpass 24  (defaults to 16 characters)
 genpass() {
-    local length="${1:-16}"
-    if has_command openssl; then
-        openssl rand -base64 32 | tr -d "=+/" | cut -c1-$length
-    elif [[ -c /dev/urandom ]]; then
-        tr -dc A-Za-z0-9 < /dev/urandom | head -c $length && echo
+    local length="${1:-16}" password
+    if [[ ! "$length" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Usage: genpass [positive length]" >&2
+        return 1
+    fi
+
+    # head stops once enough characters are read; tr can then get SIGPIPE.
+    if [[ -r /dev/urandom ]] &&
+        password=$(set +o pipefail; LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$length") &&
+        [[ "${#password}" == "$length" ]]; then
+        printf '%s\n' "$password"
     else
-        echo "Unable to generate password"
+        echo "Unable to generate password" >&2
         return 1
     fi
 }

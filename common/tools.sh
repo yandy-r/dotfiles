@@ -765,7 +765,7 @@ setup_atuin() {
         return 1
     fi
 
-    if [[ ! -d "$HOME/.atuin" ]]; then
+    if [[ -d "$HOME/.atuin" ]]; then
         export PATH="$HOME/.atuin/bin:$PATH"
     fi
 
