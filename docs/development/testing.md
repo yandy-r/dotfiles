@@ -91,13 +91,15 @@ bats tests/shell                           # platform detection, PATH cleanup, r
 ```
 
 The smoke driver runs every shell under `env -i` with a temp `HOME` (rc files
-symlinked from the checkout, fake no-op tools on `PATH`), so a failure is
-always a dotfiles regression and never host noise. The dash case
+symlinked from the checkout, fake no-op tools on `PATH`) to isolate shell
+behavior. Startup timings can still vary with runner load. The dash case
 (skipped when dash is absent) keeps `bash/profile` POSIX, since `/bin/sh`
 login shells read it as `~/.profile`; its `dash -l` check is compared against
 an empty-`HOME` baseline so host `/etc/profile` output cancels out. `TEST_BASH=/bin/bash`
 points the bash under test at another binary; `SHELL_STARTUP_BUDGET_MS`
 (default 1000) and `SHELL_STARTUP_RUNS` (default 5) tune the time budget.
+Both macOS CI smoke steps use a 1300 ms budget to account for hosted runner
+variability. Linux CI and local runs keep the 1000 ms default budget.
 
 bats-core is not vendored: install the pinned release locally under `/tmp`
 (the same commands CI runs) with
