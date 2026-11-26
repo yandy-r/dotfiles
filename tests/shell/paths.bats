@@ -69,3 +69,31 @@ assert_cleaned() {
 @test "nix removal applies on macOS too" {
 	assert_cleaned macos '$H/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/bin' /usr/bin
 }
+
+# Record version probes without invoking a host Python or touching host HOME.
+setup_macos_python() {
+	DOTFILES_OS=macos
+	HOME="$BATS_TEST_TMPDIR"
+	VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
+	python3() {
+		printf 'called\n' >>"$BATS_TEST_TMPDIR/python-probe"
+		printf '3.13\n'
+	}
+}
+
+@test "macOS Python setup skips the version probe without a user Python directory" {
+	setup_macos_python
+	setup_python_env
+	[[ ! -e "$BATS_TEST_TMPDIR/python-probe" ]] || fail "unexpected Python version probe"
+	[[ "$PYTHONUSERBASE" == "$HOME/.local" ]]
+}
+
+@test "macOS Python setup still adds the active version's user bin" {
+	setup_macos_python
+	mkdir -p "$HOME/Library/Python/3.12/bin" "$HOME/Library/Python/3.13/bin"
+	PATH=/usr/bin:/bin
+	setup_python_env
+	[[ -s "$BATS_TEST_TMPDIR/python-probe" ]]
+	[[ ":$PATH:" == *":$HOME/Library/Python/3.13/bin:"* ]]
+	[[ ":$PATH:" != *":$HOME/Library/Python/3.12/bin:"* ]]
+}
