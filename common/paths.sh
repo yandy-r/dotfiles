@@ -583,8 +583,9 @@ setup_python_env() {
     # Pip user installs
     export PYTHONUSERBASE="$HOME/.local"
 
-    # Python path for user packages
-    if is_macos; then
+    # Skip launching Python if there cannot be any macOS user scripts to add.
+    if is_macos && [[ -d "$HOME/Library/Python" ]]; then
+        local python_version
         python_version=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "3.11")
         append_path "$HOME/Library/Python/$python_version/bin"
     fi

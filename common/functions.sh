@@ -60,9 +60,9 @@ opencode() {
             OPENCODE_DISABLE_MOUSE="${OPENCODE_DISABLE_MOUSE:-1}" \
                 OPENCODE_DISABLE_TERMINAL_TITLE="${OPENCODE_DISABLE_TERMINAL_TITLE:-1}" \
                 command opencode "$@"
-            local status=$?
+            local opencode_status=$?
             tmux set-option -p allow-passthrough "$passthrough" 2>/dev/null || true
-            return "$status"
+            return "$opencode_status"
         fi
     fi
 
@@ -298,10 +298,10 @@ filesize() {
 # Recursively delete files by pattern
 cleanup_files() {
     local pattern="${1:-.DS_Store}"
-    local path="${2:-.}"
+    local search_path="${2:-.}"
 
-    echo "Cleaning up $pattern files in $path..."
-    find "$path" -name "$pattern" -type f -print -delete
+    echo "Cleaning up $pattern files in $search_path..."
+    find "$search_path" -name "$pattern" -type f -print -delete
 }
 
 # ================================================================
