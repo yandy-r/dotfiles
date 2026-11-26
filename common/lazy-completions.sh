@@ -34,8 +34,9 @@ _setup_lazy_kubectl() {
     # Skip if already loaded
     [[ -n "$LAZY_LOADED_KUBECTL" ]] && return 0
 
-    # Remove any existing k alias to prevent function definition issues
-    # (bash expands aliases in function definitions, so `k()` becomes `kubectl()`)
+    # Remove any existing k alias: an alias would shadow the permanent k()
+    # function below (and bash expands aliases in function definitions, so
+    # `k()` would become `kubectl()`).
     unalias k 2>/dev/null || true
 
     # The lazy loading wrapper - use 'function' keyword to avoid alias expansion
@@ -43,33 +44,43 @@ _setup_lazy_kubectl() {
         # Remove this function FIRST (critical for reliability)
         unset -f kubectl 2>/dev/null
 
-        # Load completions based on shell (use eval for bash to avoid FD issues)
-        if [[ -n "${ZSH_VERSION:-}" ]]; then
-            source <(command kubectl completion zsh) 2>/dev/null
-            compdef k=kubectl 2>/dev/null
-            compdef kc=kubectl 2>/dev/null
-        elif [[ -n "${BASH_VERSION:-}" ]]; then
-            eval "$(command kubectl completion bash 2>/dev/null)" 2>/dev/null
-            complete -o default -F __start_kubectl k 2>/dev/null
-            complete -o default -F __start_kubectl kc 2>/dev/null
-        fi
-
-        # Mark as loaded
-        LAZY_LOADED_KUBECTL=1
+        _lazy_load_kubectl_completions
 
         # Execute the real command with original args
         command kubectl "$@"
     }
 
-    # Wrapper for 'k' shortcut that triggers kubectl loading
+    # Permanent `k` shortcut (YAN-1426). It must NEVER unset itself: the alias
+    # from common/aliases.sh was removed above, so once this function is gone
+    # nothing named `k` is left. Loads completions on first use, then is a
+    # plain pass-through to the real kubectl.
     function k() {
-        # Load kubectl (which will unset itself)
-        kubectl version --client &>/dev/null 2>&1 || true
-        # Remove this wrapper
-        unset -f k 2>/dev/null
-        # Now call kubectl
+        [[ -n "$LAZY_LOADED_KUBECTL" ]] || _lazy_load_kubectl_completions
         command kubectl "$@"
     }
+}
+
+# Load kubectl completions once and register them for kubectl and k/kc.
+# Shared by the kubectl() and k() wrappers so whichever runs first loads.
+_lazy_load_kubectl_completions() {
+    [[ -n "$LAZY_LOADED_KUBECTL" ]] && return 0
+
+    # The kubectl() wrapper is no longer needed once completions are loaded.
+    unset -f kubectl 2>/dev/null
+
+    # Load completions based on shell (use eval for bash to avoid FD issues)
+    if [[ -n "${ZSH_VERSION:-}" ]]; then
+        source <(command kubectl completion zsh) 2>/dev/null
+        compdef k=kubectl 2>/dev/null
+        compdef kc=kubectl 2>/dev/null
+    elif [[ -n "${BASH_VERSION:-}" ]]; then
+        eval "$(command kubectl completion bash 2>/dev/null)" 2>/dev/null
+        complete -o default -F __start_kubectl k 2>/dev/null
+        complete -o default -F __start_kubectl kc 2>/dev/null
+    fi
+
+    # Mark as loaded
+    LAZY_LOADED_KUBECTL=1
 }
 
 # ================================================================
