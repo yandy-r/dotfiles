@@ -646,20 +646,27 @@ killall_name() {
 # Usage: killport 3000
 killport() {
     local port="$1"
+    local pids pid rc=0
+    # One PID per line, deduplicated: a process listening on both IPv4 and
+    # IPv6 reports one line per socket (YAN-1434).
     if is_macos; then
-        local pid
-        pid=$(lsof -ti tcp:$port)
+        pids=$(lsof -ti "tcp:$port" | sort -u)
     else
-        local pid
-        pid=$(ss -tulpn | grep ":$port " | grep -oP 'pid=\K[0-9]+')
+        pids=$(ss -tulpn | grep ":$port " | grep -o 'pid=[0-9][0-9]*' | cut -d= -f2 | sort -u)
     fi
 
-    if [[ -n "$pid" ]]; then
-        echo "Killing process $pid using port $port"
-        kill "$pid"
-    else
+    if [[ -z "$pids" ]]; then
         echo "No process found using port $port"
+        return 0
     fi
+
+    # Kill each PID on its own; never pass the multi-line string to kill.
+    while IFS= read -r pid; do
+        [[ -n "$pid" ]] || continue
+        echo "Killing process $pid using port $port"
+        kill "$pid" || rc=1
+    done <<<"$pids"
+    return "$rc"
 }
 
 # Show what process is using a specific port
