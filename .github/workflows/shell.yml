@@ -178,12 +178,19 @@ jobs:
         run: bash scripts/test-platform-predicates.sh
 
       - name: Shell startup smoke
+        env:
+          # macOS hosted runners have measured up to 1140 ms on unchanged
+          # startup paths (YAN-2459). Keep a finite cap and the Linux baseline.
+          SHELL_STARTUP_BUDGET_MS: ${{ runner.os == 'macOS' && '1300' || '1000' }}
         run: bash scripts/test-shell-startup-smoke.sh
 
       - name: Shell startup smoke (system bash 3.2)
         # The rc-file edits (bash_profile non-interactive login sources,
         # per-process reload guards) must hold on the stock /bin/bash too.
+        # Use the same hosted-runner budget as the macOS smoke step above.
         if: runner.os == 'macOS'
+        env:
+          SHELL_STARTUP_BUDGET_MS: '1300'
         run: TEST_BASH=/bin/bash bash scripts/test-shell-startup-smoke.sh
 
       # Hermetic tool/installer tests. Linux only: the fixtures lean on GNU
