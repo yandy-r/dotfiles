@@ -33,7 +33,7 @@ run_killport() {
 	tested_shell="$(command -v "$1")" || fail "$1 not found"
 	run env -i HOME="$BATS_TEST_TMPDIR" PATH="$FAKEBIN:/usr/bin:/bin" \
 		REPO_ROOT="$REPO_ROOT" TEST_TMPDIR="$BATS_TEST_TMPDIR" \
-		DOTFILES_OS="$2" DOTFILES_NO_AUTO_SETUP=1 \
+		DOTFILES_OS="$2" DOTFILES_NO_AUTO_SETUP=1 FAIL_PID="${FAIL_PID:-}" \
 		"$tested_shell" -f -c '
 			source "$REPO_ROOT/common/platform.sh" &&
 			source "$REPO_ROOT/common/functions.sh" || exit 1
@@ -43,6 +43,7 @@ run_killport() {
 					*[!0-9]*|"") echo "kill got non-pid: $1" >&2; return 1 ;;
 				esac
 				printf "%s\n" "$1" >>"$TEST_TMPDIR/killed"
+				[ "$1" != "$FAIL_PID" ]
 			}
 			killport '"$3"'
 		'
@@ -60,6 +61,13 @@ check_no_process() {
 	[[ "$status" -eq 0 ]] || fail "exit $status: $output"
 	[[ "$output" == "No process found using port 9999" ]] || fail "$output"
 	[[ ! -e "$BATS_TEST_TMPDIR/killed" ]]
+}
+
+check_failed_kill_continues() {
+	FAIL_PID=239218 run_killport "$1" linux 47123
+	[[ "$status" -eq 1 ]] || fail "exit $status, expected 1: $output"
+	[[ $(cat "$BATS_TEST_TMPDIR/killed") == $'239218\n4242' ]] ||
+		fail "killed: $(cat "$BATS_TEST_TMPDIR/killed" 2>/dev/null)"
 }
 
 @test "killport kills a dual-stack listener once per unique PID on Linux in Bash" {
@@ -84,4 +92,12 @@ check_no_process() {
 
 @test "killport reports when nothing listens on the port in zsh" {
 	check_no_process zsh
+}
+
+@test "killport keeps going after a failed kill and returns 1 in Bash" {
+	check_failed_kill_continues "${TEST_BASH:-bash}"
+}
+
+@test "killport keeps going after a failed kill and returns 1 in zsh" {
+	check_failed_kill_continues zsh
 }
