@@ -495,6 +495,8 @@ if has_command ninja; then
     export CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"
     export CMAKE_MAKE_PROGRAM
     CMAKE_MAKE_PROGRAM="$(command -v ninja)"
+elif [[ -n "${CMAKE_GENERATOR:-}" ]]; then
+    export CMAKE_GENERATOR
 fi
 
 # ================================================================

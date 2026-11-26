@@ -28,9 +28,10 @@ probe() {
 }
 
 @test "CMake defaults to Ninja only when available and preserves an explicit generator" {
-	local check='source "$DOTFILES_ROOT/common/exports.sh"; [[ ${CMAKE_GENERATOR-unset} == "$1" && ${CMAKE_MAKE_PROGRAM-unset} == "$2" ]]'
+	local check='source "$DOTFILES_ROOT/common/exports.sh"; sh -c '\''test "${CMAKE_GENERATOR-unset}" = "$1" && test "${CMAKE_MAKE_PROGRAM-unset}" = "$2"'\'' _ "$@"'
 	for shell in "$TEST_BASH" ${TEST_ZSH:+"$TEST_ZSH"}; do
 		probe "$shell" linux 'has_command() { [[ "$1" != ninja ]] && command -v "$1" >/dev/null; }; '"$check" unset unset
+		probe "$shell" linux 'has_command() { [[ "$1" != ninja ]] && command -v "$1" >/dev/null; }; CMAKE_GENERATOR=Xcode; '"$check" Xcode unset
 		printf '#!/bin/sh\nexit 0\n' >"$FAKEBIN/ninja"
 		chmod +x "$FAKEBIN/ninja"
 		probe "$shell" linux 'has_command() { command -v "$1" >/dev/null; }; '"$check" Ninja "$FAKEBIN/ninja"
