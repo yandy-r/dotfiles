@@ -128,7 +128,7 @@ Each backend needs only its own fields. Worked examples:
 [[package]]
 name = "ripgrep"
 backend = "pkg"
-names = { apt = "ripgrep", dnf = "ripgrep", pacman = "ripgrep", brew = "ripgrep" }
+names = { apt = "ripgrep", dnf = "ripgrep", pacman = "ripgrep", homebrew = "ripgrep" }
 
 # 1b. pkg with a distro-bug workaround — dnf_exclude is passed as --exclude=<glob> on
 #     dnf install/upgrade (other managers ignore it; pkg backend only). Document the
