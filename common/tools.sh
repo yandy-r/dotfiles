@@ -101,6 +101,21 @@ if [[ "${BASH_VERSION%%.*}" -ge 4 ]] 2>/dev/null || [[ -n "$ZSH_VERSION" ]]; the
     )
     fi
 
+# Print the keys of the named associative array, one per line (YAN-1437).
+# Key expansion differs by shell: bash uses ${!ARRAY[@]}, which zsh rejects
+# as a bad substitution; zsh uses ${(k)ARRAY}. An unset or empty array prints
+# nothing. Callers iterate with: for key in $(_tools_keys ARRAY); do ...
+# Usage: _tools_keys MODERN_TOOLS
+_tools_keys() {
+    [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 1
+    if [[ -n "${ZSH_VERSION:-}" ]]; then
+        eval '(( ${#'"$1"'} )) && printf "%s\n" "${(@k)'"$1"'}"'
+    else
+        eval '(( ${#'"$1"'[@]} )) && printf "%s\n" "${!'"$1"'[@]}"'
+    fi
+    return 0
+}
+
 # ================================================================
 # MISE VERSION MANAGER (Replaces NVM)
 # ================================================================
@@ -301,7 +316,7 @@ install_tool() {
 install_modern_tools() {
     echo "Installing modern CLI tools..."
 
-    for tool in "${!MODERN_TOOLS[@]}"; do
+    for tool in $(_tools_keys MODERN_TOOLS); do
         install_tool "$tool"
     done
 }
@@ -681,7 +696,7 @@ system_health() {
     echo
 
     echo "=== Modern CLI Tools ==="
-    for tool in "${!MODERN_TOOLS[@]}"; do
+    for tool in $(_tools_keys MODERN_TOOLS); do
         tool_health "$tool"
     done
     echo
@@ -693,7 +708,7 @@ system_health() {
     echo
 
     echo "=== Language Runtimes ==="
-    for tool in "${!LANG_TOOLS[@]}"; do
+    for tool in $(_tools_keys LANG_TOOLS); do
         tool_health "$tool"
     done
 }
@@ -704,13 +719,13 @@ list_missing_tools() {
     echo "Missing tools that could be installed:"
 
     local missing=()
-    for tool in "${!MODERN_TOOLS[@]}"; do
+    for tool in $(_tools_keys MODERN_TOOLS); do
         if ! tool_exists "$tool"; then
             missing+=("$tool")
         fi
     done
 
-    for tool in "${!DEV_TOOLS[@]}"; do
+    for tool in $(_tools_keys DEV_TOOLS); do
         if ! tool_exists "$tool"; then
             missing+=("$tool")
         fi
