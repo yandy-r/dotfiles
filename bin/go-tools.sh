@@ -111,14 +111,15 @@ linters:
   default: standard
   enable:
     - revive
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
 EOF
 
     print_success "Created: $config_file"
