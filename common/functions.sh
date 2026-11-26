@@ -304,6 +304,19 @@ cleanup_files() {
     find "$search_path" -name "$pattern" -type f -print -delete
 }
 
+# Read a single key into REPLY after printing a prompt, in bash or zsh.
+# zsh's `read -p` reads from a coprocess, and its `read -k` reads the terminal
+# unless told to use stdin (-u0), so each shell gets its own form (YAN-1424).
+# Usage: _read_key "Continue? (y/n) "; [[ $REPLY =~ ^[Yy]$ ]]
+_read_key() {
+    REPLY=
+    if [[ -n "${ZSH_VERSION:-}" ]]; then
+        read -r -k1 -u0 "REPLY?$1"
+    else
+        read -r -n1 -p "$1"
+    fi
+}
+
 # ================================================================
 # ARCHIVE OPERATIONS
 # ================================================================
@@ -327,7 +340,7 @@ extract() {
 
     if [[ -d "$foldername" ]]; then
         didfolderexist=true
-        read -p "$foldername already exists, overwrite it? (y/n) " -n 1 -r
+        _read_key "$foldername already exists, overwrite it? (y/n) "
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             return 0
@@ -626,16 +639,22 @@ compare() {
 # Usage: killall_name node
 killall_name() {
     local name="$1"
-    local pids
-    pids=$(pgrep -f "$name")
+    local pid
+    local -a pids=()
+    # One array element per PID. zsh does not word-split an unquoted string,
+    # so a newline-joined PID list would reach ps and kill as one word (YAN-1424).
+    while IFS= read -r pid; do
+        [[ -n "$pid" ]] && pids+=("$pid")
+    done < <(pgrep -f -- "$name")
 
-    if [[ -n "$pids" ]]; then
+    if ((${#pids[@]} > 0)); then
         echo "Found processes matching '$name':"
-        ps -p $pids -o pid,comm,args
-        read -p "Kill these processes? (y/n) " -n 1 -r
+        # ps -p takes a single comma-separated list on both procps and BSD.
+        ps -p "$(IFS=,; echo "${pids[*]}")" -o pid,comm,args
+        _read_key "Kill these processes? (y/n) "
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            kill $pids
+            kill "${pids[@]}"
         fi
     else
         echo "No processes found matching '$name'"
