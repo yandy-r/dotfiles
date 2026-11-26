@@ -286,3 +286,35 @@ func TestVerifyRPMSignatureParsing(t *testing.T) {
 		}
 	}
 }
+
+// TestPkgURLFormatInference checks the backend infers format exactly as the
+// validator does (YAN-1415): a query string or uppercase extension on the url
+// must still resolve rpm/deb, so a validated entry is not silently skipped.
+// An explicit format always wins.
+func TestPkgURLFormatInference(t *testing.T) {
+	b := newPkgURLBackend(exec.NewFake())
+	for _, tc := range []struct {
+		name string
+		pkg  manifest.Package
+		info platform.Info
+		want string
+	}{
+		{"rpm url with query", manifest.Package{URL: "https://example.com/foo.rpm?download=1"}, rpmInfo, "rpm"},
+		{"uppercase RPM url", manifest.Package{URL: "https://example.com/Foo.RPM"}, rpmInfo, "rpm"},
+		{"uppercase DEB url with query", manifest.Package{URL: "https://example.com/Foo.DEB?x=1"}, debianAPT, "deb"},
+		{"uppercase asset", manifest.Package{Repo: "o/r", Asset: "foo.x86_64.RPM"}, rpmInfo, "rpm"},
+		{"explicit format wins over url suffix", manifest.Package{URL: "https://example.com/foo.deb", Format: "rpm"}, rpmInfo, "rpm"},
+		{"explicit format with suffixless url", manifest.Package{URL: "https://example.com/latest/stable", Format: "deb"}, debianAPT, "deb"},
+	} {
+		tc.pkg.Name, tc.pkg.Backend, tc.pkg.PkgName = "p", manifest.BackendPkgURL, "p"
+		if got := pkgFormat(tc.pkg); got != tc.want {
+			t.Errorf("%s: pkgFormat = %q, want %q", tc.name, got, tc.want)
+		}
+		if got := manifest.InferPkgFormat(tc.pkg.Asset, tc.pkg.URL); tc.pkg.Format == "" && got != tc.want {
+			t.Errorf("%s: backend %q disagrees with manifest.InferPkgFormat %q", tc.name, tc.want, got)
+		}
+		if !b.applicableFor(tc.pkg, tc.info) {
+			t.Errorf("%s: must be applicable on its %s host", tc.name, tc.want)
+		}
+	}
+}

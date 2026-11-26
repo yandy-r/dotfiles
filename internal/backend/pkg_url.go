@@ -34,20 +34,13 @@ func (b *pkgURLBackend) resolve(pkg manifest.Package, target platform.Info) (loc
 	return lockArtifact(pkg, target, []string{"." + pkgFormat(pkg)})
 }
 
-// pkgFormat is the declared format, else inferred from the url/asset suffix.
+// pkgFormat is the declared format, else inferred from the url/asset suffix
+// by manifest.InferPkgFormat (the same rule the manifest validator applies).
 func pkgFormat(pkg manifest.Package) string {
 	if pkg.Format != "" {
 		return pkg.Format
 	}
-	for _, s := range []string{pkg.URL, pkg.Asset} {
-		switch {
-		case strings.HasSuffix(s, ".rpm"):
-			return "rpm"
-		case strings.HasSuffix(s, ".deb"):
-			return "deb"
-		}
-	}
-	return ""
+	return manifest.InferPkgFormat(pkg.Asset, pkg.URL)
 }
 
 // effectiveMgr is the package manager that owns a pkg-url artifact on this

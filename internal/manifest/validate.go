@@ -663,19 +663,27 @@ func validateAppArtifact(p Package) []error {
 	return errs
 }
 
-// pkgURLFormat resolves a pkg-url package's format: the explicit Format, else
-// inferred from the asset suffix, else the URL path suffix. It returns "" when
-// nothing identifies one.
-func pkgURLFormat(p Package) string {
-	if p.Format != "" {
-		return p.Format
-	}
+// InferPkgFormat infers a pkg-url artifact's format ("rpm" or "deb") from its
+// asset name or URL, ignoring case. The URL is matched on its parsed path, so
+// a query string or fragment ("foo.rpm?download=1") does not hide the suffix.
+// It returns "" when neither identifies a format. The manifest validator and
+// the pkg-url backend both call it, so they always agree on the format.
+func InferPkgFormat(asset, rawURL string) string {
 	for _, f := range []string{"rpm", "deb"} {
-		if hasSuffixFold(p.Asset, "."+f) || (p.URL != "" && urlPathHasSuffix(p.URL, "."+f)) {
+		if hasSuffixFold(asset, "."+f) || (rawURL != "" && urlPathHasSuffix(rawURL, "."+f)) {
 			return f
 		}
 	}
 	return ""
+}
+
+// pkgURLFormat resolves a pkg-url package's format: the explicit Format, else
+// InferPkgFormat. It returns "" when nothing identifies one.
+func pkgURLFormat(p Package) string {
+	if p.Format != "" {
+		return p.Format
+	}
+	return InferPkgFormat(p.Asset, p.URL)
 }
 
 // validatePkgURL checks a pkg-url package. The source is exactly one of repo or

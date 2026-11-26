@@ -342,6 +342,24 @@ pkg_name = "slack"`,
 			wantErr: "",
 		},
 		{
+			name: "rpm url with query string inferred accepted",
+			pkg: `
+name = "slack"
+backend = "pkg-url"
+url = "https://example.com/foo.rpm?download=1"
+pkg_name = "slack"`,
+			wantErr: "",
+		},
+		{
+			name: "uppercase RPM url suffix inferred accepted",
+			pkg: `
+name = "slack"
+backend = "pkg-url"
+url = "https://example.com/Foo.RPM"
+pkg_name = "slack"`,
+			wantErr: "",
+		},
+		{
 			name: "deb url with sha256 accepted",
 			pkg: `
 name = "code"
@@ -1228,5 +1246,29 @@ func TestValidate_RequiresCycle(t *testing.T) {
 				t.Errorf("Validate() error = %q, want substring %q", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// TestInferPkgFormat pins the shared rpm/deb inference used by both the
+// validator and the pkg-url backend: case-insensitive, URL matched on its
+// parsed path (query/fragment ignored), asset matched on its name.
+func TestInferPkgFormat(t *testing.T) {
+	for _, tc := range []struct {
+		asset, url, want string
+	}{
+		{"", "https://example.com/foo.rpm", "rpm"},
+		{"", "https://example.com/foo.rpm?download=1", "rpm"},
+		{"", "https://example.com/Foo.RPM", "rpm"},
+		{"", "https://example.com/foo.deb#frag", "deb"},
+		{"", "https://example.com/Foo.DEB?x=y", "deb"},
+		{"Foo-1.0.x86_64.RPM", "", "rpm"},
+		{"foo_amd64.deb", "", "deb"},
+		{"", "https://example.com/download?file=foo.rpm", ""},
+		{"", "https://example.com/latest/linux-deb-x64/stable", ""},
+		{"", "", ""},
+	} {
+		if got := manifest.InferPkgFormat(tc.asset, tc.url); got != tc.want {
+			t.Errorf("InferPkgFormat(%q, %q) = %q, want %q", tc.asset, tc.url, got, tc.want)
+		}
 	}
 }
