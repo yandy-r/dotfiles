@@ -63,7 +63,7 @@ has_assoc() {
 				[[ "$k" == "a b" || "$k" == c ]] || exit 1
 				n=$((n + 1))
 			done < <(_tools_keys T)
-			[[ $n -eq 2 ]]
+			[[ $n -eq 2 ]] || exit 1
 			typeset -A E=()
 			[[ -z "$(_tools_keys E)" ]]
 		'
@@ -81,7 +81,7 @@ has_assoc() {
 		grep -qx '✓ node 9.9.9' "$PROBE_LOG" || fail "${shell##*/}: node missing"
 		grep -qx '✗ cargo (not installed)' "$PROBE_LOG" || fail "${shell##*/}: cargo missing"
 		probe "$shell" '
-			[[ $(system_health | sed -n "/^=== Modern CLI Tools ===$/,/^$/p" | grep -cE "^(✓|✗) ") -eq ${#MODERN_TOOLS[@]} ]]
+			[[ $(system_health | sed -n "/^=== Modern CLI Tools ===$/,/^$/p" | grep -cE "^(✓|✗) ") -eq ${#MODERN_TOOLS[@]} ]] || exit 1
 			[[ $(system_health | sed -n "/^=== Language Runtimes ===$/,\$p" | grep -cE "^(✓|✗) ") -eq ${#LANG_TOOLS[@]} ]]
 		'
 	done
@@ -97,7 +97,7 @@ has_assoc() {
 			fail "${shell##*/}: installed tool listed as missing"
 		fi
 		probe "$shell" '
-			[[ $(list_missing_tools | grep -c "^[a-z]") -gt 0 ]]
+			[[ $(list_missing_tools | grep -c "^[a-z]") -gt 0 ]] || exit 1
 			want=$(( ${#MODERN_TOOLS[@]} + ${#DEV_TOOLS[@]} - 2 ))
 			[[ $(list_missing_tools | sed -n "2,/^$/p" | grep -c .) -eq $want ]]
 		'
