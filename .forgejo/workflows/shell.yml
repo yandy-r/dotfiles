@@ -139,6 +139,9 @@ jobs:
         run: bash scripts/test-platform-predicates.sh
 
       - name: Shell startup smoke
+        env:
+          # Keep the Linux budget in sync with the GitHub twin (YAN-2459).
+          SHELL_STARTUP_BUDGET_MS: '1000'
         run: bash scripts/test-shell-startup-smoke.sh
 
       # Hermetic tool/installer tests (mirrors the GitHub twin's Linux steps).
