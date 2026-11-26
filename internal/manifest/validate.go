@@ -293,6 +293,8 @@ func validatePackage(p Package) []error {
 		errs = append(errs, validateAppArtifact(p)...)
 	case BackendPkgURL:
 		errs = append(errs, validatePkgURL(p)...)
+	case BackendFlatpak:
+		errs = append(errs, validateFlatpak(p)...)
 	case BackendPkg, BackendAUR:
 		// No backend-specific required fields beyond what's checked below.
 	}
@@ -761,6 +763,44 @@ func validateArtifactOnlyFields(p Package) []error {
 		}
 	}
 
+	if p.Backend != BackendFlatpak {
+		if p.FlatpakID != "" {
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: "flatpak_id is only valid for the flatpak backend"})
+		}
+		if p.FlatpakRemote != "" {
+			errs = append(errs, &ValidationError{Package: p.Name, Msg: "flatpak_remote is only valid for the flatpak backend"})
+		}
+	}
+
+	return errs
+}
+
+// flatpakIDPattern matches a Flatpak application ID: at least three
+// dot-separated segments of letters, digits, '_' or '-', none starting with a
+// digit (the flatpak naming rules), e.g. com.usebottles.bottles.
+var flatpakIDPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*(\.[A-Za-z_][A-Za-z0-9_-]*){2,}$`)
+
+// flatpakRemotePattern bounds a remote name to a plain token so it can never
+// be read as a flag or a path by the flatpak CLI.
+var flatpakRemotePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+
+// validateFlatpak checks a flatpak package: flatpak_id is required and must be
+// a well-formed application ID; flatpak_remote, when set, must be a plain
+// remote name. names are meaningless here (the ID is the install identifier).
+func validateFlatpak(p Package) []error {
+	var errs []error
+	switch {
+	case p.FlatpakID == "":
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: "flatpak backend requires flatpak_id"})
+	case !flatpakIDPattern.MatchString(p.FlatpakID):
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("flatpak_id %q is not a valid application ID (reverse-DNS, e.g. com.usebottles.bottles)", p.FlatpakID)})
+	}
+	if p.FlatpakRemote != "" && !flatpakRemotePattern.MatchString(p.FlatpakRemote) {
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: fmt.Sprintf("flatpak_remote %q is not a valid remote name", p.FlatpakRemote)})
+	}
+	if len(p.Names) > 0 {
+		errs = append(errs, &ValidationError{Package: p.Name, Msg: "names is not valid for the flatpak backend; set flatpak_id"})
+	}
 	return errs
 }
 

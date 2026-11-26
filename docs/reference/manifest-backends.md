@@ -86,6 +86,17 @@ Try these in order; the first that fits is the right one:
    silent, not an error. The former `apt-repo` alias was removed: set `backend = "repo"`
    (a manifest entry still naming `apt-repo` fails validation).
 
+   **`flatpak`** — Linux GUI apps whose upstream ships only (or best) on Flathub
+   (e.g. Bottles). Set `flatpak_id` (the reverse-DNS application ID) and declare
+   `requires = ["flatpak"]` so the runtime is installed first. Installs go to the
+   user installation (`flatpak install --user`, no `sudo`); `flathub` is the
+   default remote and is added with `--if-not-exists`, while any other
+   `flatpak_remote` must already be configured. The installed probe is
+   `flatpak info <id>`, so an app already installed system-wide is recognised and
+   skipped; `--update`/`--remove` act on whichever installation holds it. `names`
+   is rejected (the ID is the identifier), and the backend refuses to run as root.
+   Applicable on Linux only.
+
 4. **`toolchain`** — installable via a language toolchain (`cargo`, `npm`). Set `tool`.
 5. **`github-release`** — a GitHub release ships a checksummed binary/asset. Supports
    asset auto-detection and a shared `checksums.txt` sidecar (`checksums_asset`).

@@ -49,6 +49,7 @@ var classByBackend = map[Backend]map[Class]bool{
 	BackendToolchain:     {ClassManaged: true},
 	BackendGitClone:      {ClassManaged: true},
 	BackendFont:          {ClassManaged: true},
+	BackendFlatpak:       {ClassManaged: true},
 	BackendGitHubRelease: {ClassPinned: true},
 	BackendScriptURL:     {ClassPinned: true, ClassRolling: true},
 	BackendCustomScript:  {ClassPinned: true, ClassRolling: true, ClassManaged: true},
@@ -94,7 +95,7 @@ func (p Package) EffectiveClass() Class {
 		return p.Class
 	}
 	switch p.Backend {
-	case BackendPkg, BackendAUR, BackendRepo, BackendToolchain, BackendGitClone, BackendFont:
+	case BackendPkg, BackendAUR, BackendRepo, BackendToolchain, BackendGitClone, BackendFont, BackendFlatpak:
 		return ClassManaged
 	case BackendGitHubRelease:
 		return ClassPinned

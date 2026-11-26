@@ -25,5 +25,6 @@ func Default(r exec.Runner, drop privilege.Dropper, repoRoot string, lock *lockf
 		manifest.BackendFont:          newFontBackend(r),
 		manifest.BackendAppArtifact:   newAppArtifactBackend(r).withLock(lock),
 		manifest.BackendPkgURL:        newPkgURLBackend(r).withLock(lock),
+		manifest.BackendFlatpak:       newFlatpakBackend(r),
 	})
 }

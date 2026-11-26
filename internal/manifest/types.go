@@ -236,6 +236,17 @@ type Package struct {
 	Preview               bool   `toml:"preview"`
 	URLJSONField          string `toml:"url_json_field"`
 
+	// FlatpakID is the reverse-DNS application ID (e.g.
+	// "com.usebottles.bottles"), for the "flatpak" backend. Required there and
+	// rejected on every other backend.
+	FlatpakID string `toml:"flatpak_id"`
+
+	// FlatpakRemote names the flatpak remote to install FlatpakID from, for the
+	// "flatpak" backend. Empty means "flathub", which the backend adds to the
+	// user installation (--if-not-exists) before installing; any other remote
+	// must already be configured on the host.
+	FlatpakRemote string `toml:"flatpak_remote"`
+
 	// Provides lists the executable names this package installs onto PATH.
 	// When set it is the authoritative installed-state probe: the package
 	// counts as installed only when EVERY listed binary resolves on PATH (the
@@ -567,12 +578,17 @@ const (
 	// BackendPkgURL downloads a vendor .rpm/.deb over HTTPS (Repo or URL) and
 	// installs it via dnf/apt; Package.PkgName names the installed package.
 	BackendPkgURL Backend = "pkg-url"
+
+	// BackendFlatpak installs a Flatpak application (Package.FlatpakID) into
+	// the user installation from Package.FlatpakRemote (default flathub).
+	// Linux only.
+	BackendFlatpak Backend = "flatpak"
 )
 
 // Valid reports whether b is one of the canonical Backend values.
 func (b Backend) Valid() bool {
 	switch b {
-	case BackendPkg, BackendGitHubRelease, BackendAUR, BackendToolchain, BackendRepo, BackendScriptURL, BackendCustomScript, BackendGitClone, BackendFont, BackendAppArtifact, BackendPkgURL:
+	case BackendPkg, BackendGitHubRelease, BackendAUR, BackendToolchain, BackendRepo, BackendScriptURL, BackendCustomScript, BackendGitClone, BackendFont, BackendAppArtifact, BackendPkgURL, BackendFlatpak:
 		return true
 	default:
 		return false

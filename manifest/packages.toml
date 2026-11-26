@@ -12,7 +12,7 @@
 # Symlink/Backend). Keep this file in sync with that package — it is the
 # frozen source of truth for field names and the Backend values
 # (pkg, github-release, aur, toolchain, repo, script-url,
-# custom-script, git-clone, font).
+# custom-script, git-clone, font, app-artifact, pkg-url, flatpak).
 #
 # The `names` table on a [[package]] maps a platform.PkgMgr key
 # (internal/platform/types.go) to the package name used by that manager.
@@ -665,12 +665,23 @@ name = "umu-launcher-aur"
 backend = "aur"
 names = { pacman = "umu-launcher" }
 
+# Bottles upstream ships only the Flathub build; distro repos lag badly (Fedora
+# is frozen at 52.0, whose connection check hangs onboarding when
+# ping.usebottles.com is down). Arch keeps the AUR build, which tracks upstream.
 [[package]]
 name = "bottles"
+backend = "flatpak"
+requires = ["flatpak"]
+os = "linux"
+exclude_os = ["arch"]
+requires_desktop = true
+flatpak_id = "com.usebottles.bottles"
+
+[[package]]
+name = "flatpak"
 backend = "pkg"
 os = "linux"
-requires_desktop = true
-names = { dnf = "bottles" }
+names = { pacman = "flatpak", dnf = "flatpak", apt = "flatpak", zypper = "flatpak" }
 
 [[package]]
 name = "bottles-aur"
