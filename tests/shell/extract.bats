@@ -30,7 +30,14 @@ make_single() {
 	case "$1" in
 		gz) gzip "$WORK/again.txt" ;;
 		bz2) bzip2 "$WORK/again.txt" ;;
-		xz) xz "$WORK/again.txt" ;;
+		xz)
+			# macOS ships xz only through Homebrew, which the isolated
+			# PATH leaves out, so link the inherited unxz into FAKEBIN.
+			local unxz_bin
+			unxz_bin="$(command -v unxz)" || skip "unxz not installed"
+			ln -s "$unxz_bin" "$FAKEBIN/unxz"
+			xz "$WORK/again.txt"
+			;;
 		Z)
 			# compress(1) is rarely installed; a stub uncompress that
 			# honours -c stands in for it.
