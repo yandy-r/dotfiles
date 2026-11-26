@@ -201,9 +201,9 @@ install_hadolint() {
     print_status "Latest version: $version"
     
     if is_macos; then
-        os="Darwin"
+        os="macos"
     else
-        os="Linux"
+        os="linux"
     fi
     
     arch=$(detect_arch)
