@@ -322,6 +322,17 @@ _read_key() {
 # ================================================================
 # Universal archive extraction and creation.
 
+# Run "$@" and write its stdout to $1; remove the partial output on failure.
+# Usage: _extract_to_file out.txt gunzip -c in.txt.gz
+_extract_to_file() {
+    local out="$1"
+    shift
+    if ! "$@" >"$out"; then
+        rm -f "$out"
+        return 1
+    fi
+}
+
 # Extract archives - auto-detects format and extracts to named folder
 # Supports: tar.gz, tar.bz2, tar.xz, zip, rar, 7z, gz, bz2, xz, Z
 # Usage: extract archive.tar.gz
@@ -359,10 +370,12 @@ extract() {
         *.zip) unzip -q "$fullpath" ;;
         *.rar) unrar x "$fullpath" ;;
         *.7z) 7z x "$fullpath" ;;
-        *.gz) gunzip "$fullpath" ;;
-        *.bz2) bunzip2 "$fullpath" ;;
-        *.xz) unxz "$fullpath" ;;
-        *.Z) uncompress "$fullpath" ;;
+        # Single-file formats: decompress to stdout so the output lands in
+        # the new folder and the original archive is kept (YAN-2490).
+        *.gz) _extract_to_file "${filename%.*}" gunzip -c "$fullpath" ;;
+        *.bz2) _extract_to_file "${filename%.*}" bunzip2 -c "$fullpath" ;;
+        *.xz) _extract_to_file "${filename%.*}" unxz -c "$fullpath" ;;
+        *.Z) _extract_to_file "${filename%.*}" uncompress -c "$fullpath" ;;
         *)
             echo "Error: '$1' cannot be extracted via extract()"
             cd ..
