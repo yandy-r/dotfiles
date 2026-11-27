@@ -3,7 +3,7 @@
 # --uninstall pass the headless flags to paru/yay when NON_INTERACTIVE is set
 # (--noconfirm, plus --needed for -S), matching the install path, and leave the
 # argv unchanged for interactive runs.
-# Hermetic: paru/yay/fabric are stubs that record argv to STUB_LOG, the script
+# Hermetic: paru/yay/brew/fabric are stubs that record argv to STUB_LOG, the script
 # is sourced with detect_os pinned to arch and verify_installation stubbed, and
 # HOME/FABRIC_INSTALL_DIR/GOBIN point into the test tmpdir.
 
@@ -16,18 +16,28 @@ setup() {
 	: >"$STUB_LOG"
 
 	printf '#!/bin/sh\necho "fabric 1.0.0"\n' >"$FAKEBIN/fabric"
-	chmod +x "$FAKEBIN/fabric"
+	# brew and both AUR helpers are always stubbed so a host install is never
+	# reached: brew and the unselected helper report fabric-ai as absent.
+	printf '#!/bin/sh\nexit 1\n' >"$FAKEBIN/brew"
+	write_helper paru 1
+	write_helper yay 1
+	chmod +x "$FAKEBIN/fabric" "$FAKEBIN/brew"
 }
 
-# make_helper <name>: an AUR helper stub that reports fabric-ai installed for
-# -Q and records every other invocation's argv.
-make_helper() {
+# write_helper <name> <-Q exit status>: an AUR helper stub whose -Q query
+# exits with the given status and which records every other invocation's argv.
+write_helper() {
 	cat >"$FAKEBIN/$1" <<STUB
 #!/bin/sh
-[ "\$1" = "-Q" ] && exit 0
+[ "\$1" = "-Q" ] && exit $2
 echo "$1 \$*" >>"\$STUB_LOG"
 STUB
 	chmod +x "$FAKEBIN/$1"
+}
+
+# make_helper <name>: select the helper that reports fabric-ai installed.
+make_helper() {
+	write_helper "$1" 0
 }
 
 # run_fabric <NON_INTERACTIVE value or ""> [args...]
