@@ -125,6 +125,9 @@ func lockArtifact(pkg manifest.Package, info platform.Info, allowExts []string) 
 		return lockfile.Artifact{SHA256: a.SHA256}, nil
 	}
 	osTok, archTok := releaseTokens(info)
+	if a.SHA256 == "" {
+		return lockfile.Artifact{}, unresolvedChecksumErr(pkg.Name, osTok, archTok)
+	}
 	return lockfile.Artifact{OS: osTok, Arch: archTok, Asset: a.Asset, Binary: pkg.Binary, SHA256: a.SHA256}, nil
 }
 

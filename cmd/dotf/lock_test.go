@@ -545,3 +545,50 @@ names = { pacman = "git", apt = "git", dnf = "git", zypper = "git", homebrew = "
 		t.Errorf("stderr = %q, want it to mention the missing repo root", errb.String())
 	}
 }
+
+// TestRunLock_UncoveredTargetRecordsFailure is the end-to-end YAN-1417 repro:
+// a pinned github-release whose checksums table covers only linux/x86_64 locks
+// that target, records linux/arm64 as a per-target failure (exit 1), and never
+// writes an empty sha256 row.
+func TestRunLock_UncoveredTargetRecordsFailure(t *testing.T) {
+	repoRoot := t.TempDir()
+	t.Setenv("DOTFILES_ROOT", repoRoot)
+	covered := strings.Repeat("e", 64)
+	manifestPath := writeLockManifest(t, fmt.Sprintf(`[[package]]
+name = "ghtool"
+backend = "github-release"
+repo = "owner/ghtool"
+tag = "v1.0.0"
+asset = "ghtool-{{.Arch}}.tar.gz"
+checksums = { "linux/x86_64" = "%s" }
+`, covered))
+
+	var out, errb bytes.Buffer
+	code := runLock([]string{"--manifest", manifestPath, "--only", "ghtool",
+		"--platform", "linux/x86_64", "--platform", "linux/arm64"}, &out, &errb, exec.NewFake())
+	if code != 1 {
+		t.Fatalf("runLock() code = %d, want 1 on the uncovered target (stderr=%q)", code, errb.String())
+	}
+	if !strings.Contains(errb.String(), "ghtool") || !strings.Contains(errb.String(), "linux/arm64") {
+		t.Errorf("stderr = %q, want a failure naming ghtool on linux/arm64", errb.String())
+	}
+
+	data, err := os.ReadFile(filepath.Join(repoRoot, "manifest", "dotf.lock"))
+	if err != nil {
+		t.Fatalf("reading written lock: %v", err)
+	}
+	l, err := lockfile.Parse(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("Parse(written lock) error = %v\n%s", err, data)
+	}
+	art, ok := l.Artifact("ghtool", "linux", "amd64")
+	if !ok || art.SHA256 != covered {
+		t.Errorf("linux/amd64 artifact = %+v (ok=%v), want the covered sha %q", art, ok, covered)
+	}
+	if art, ok := l.Artifact("ghtool", "linux", "arm64"); ok {
+		t.Errorf("lock recorded uncovered linux/arm64 artifact %+v, want no row", art)
+	}
+	if strings.Contains(string(data), `sha256 = ""`) {
+		t.Errorf("written lock carries an empty sha256:\n%s", data)
+	}
+}

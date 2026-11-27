@@ -398,3 +398,70 @@ func TestScriptURL_Install_RollingUnverified(t *testing.T) {
 		t.Fatalf("Run calls = %d, want 1", len(fake.CallsSnapshot()))
 	}
 }
+
+// TestGitHubRelease_Resolve_UncoveredTargetErrors is the YAN-1417 repro: a
+// pinned package whose checksums table covers only linux/x86_64 must not
+// resolve debian/arm64 to an empty sha256 with a nil error. The covered target
+// still resolves to its declared checksum.
+func TestGitHubRelease_Resolve_UncoveredTargetErrors(t *testing.T) {
+	called := false
+	origHTTPGet := httpGet
+	httpGet = func(url string) (*http.Response, error) {
+		called = true
+		return origHTTPGet(url)
+	}
+	t.Cleanup(func() { httpGet = origHTTPGet })
+
+	covered := strings.Repeat("a", 64)
+	b := newGitHubReleaseBackend(exec.NewFake(), nil)
+	pkg := manifest.Package{
+		Name:      "tool",
+		Backend:   manifest.BackendGitHubRelease,
+		Repo:      "owner/tool",
+		Tag:       "v1.2.3",
+		Asset:     "tool-{{.Arch}}.tar.gz",
+		Checksums: map[string]string{"linux/x86_64": covered},
+	}
+
+	art, err := b.resolve(pkg, platform.Info{OS: platform.OSDebian, Arch: platform.ArchARM64})
+	if err == nil {
+		t.Fatalf("resolve(debian/arm64) = %+v, nil; want an unresolved-checksum error", art)
+	}
+	if !strings.Contains(err.Error(), "resolves no checksum") || !strings.Contains(err.Error(), "debian/arm64") {
+		t.Errorf("resolve(debian/arm64) error = %v, want it to name the uncovered target", err)
+	}
+	if art.SHA256 != "" || art.Asset != "" {
+		t.Errorf("resolve(debian/arm64) artifact = %+v, want the zero artifact on error", art)
+	}
+
+	art, err = b.resolve(pkg, platform.Info{OS: platform.OSDebian, Arch: platform.ArchX86_64})
+	if err != nil {
+		t.Fatalf("resolve(debian/x86_64) error = %v, want nil for a covered target", err)
+	}
+	if art.SHA256 != covered {
+		t.Errorf("resolve(debian/x86_64) sha256 = %q, want %q", art.SHA256, covered)
+	}
+	if called {
+		t.Error("resolve() downloaded; a declared checksum needs no download")
+	}
+}
+
+// emptySHAResolver is a lockable backend stub that resolves an artifact with no
+// checksum, exercising Engine.Resolve's backstop.
+type emptySHAResolver struct{ Backend }
+
+func (emptySHAResolver) resolve(manifest.Package, platform.Info) (lockfile.Artifact, error) {
+	return lockfile.Artifact{OS: "linux", Arch: "amd64", Asset: "a"}, nil
+}
+
+// TestEngineResolve_EmptySHAIsError asserts the engine never hands `dotf lock`
+// an artifact without a checksum, whichever lockable backend produced it.
+func TestEngineResolve_EmptySHAIsError(t *testing.T) {
+	e := NewEngine(map[manifest.Backend]Backend{manifest.BackendGitHubRelease: emptySHAResolver{}})
+	pkg := manifest.Package{Name: "tool", Backend: manifest.BackendGitHubRelease}
+
+	_, err := e.Resolve(pkg, platform.Info{OS: platform.OSArch, Arch: platform.ArchX86_64})
+	if err == nil || !strings.Contains(err.Error(), "resolves no checksum") {
+		t.Fatalf("Engine.Resolve() error = %v, want an unresolved-checksum error", err)
+	}
+}

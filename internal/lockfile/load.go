@@ -12,8 +12,9 @@ import (
 )
 
 // Parse decodes a TOML-encoded lock from r with strict unknown-field checking
-// and rejects an unsupported Version. It returns (nil, err) on ANY failure —
-// decode or version — so callers never receive a half-populated *Lock,
+// and rejects an unsupported Version or an artifact with an empty sha256 (see
+// Validate). It returns (nil, err) on ANY failure — decode, version or
+// validation — so callers never receive a half-populated *Lock,
 // mirroring manifest.Parse's fail-fast contract.
 //
 // The decode error is wrapped with %w so callers can recover the underlying
@@ -30,6 +31,10 @@ func Parse(r io.Reader) (*Lock, error) {
 
 	if l.Version != Version {
 		return nil, fmt.Errorf("lockfile: unsupported version %d, want %d", l.Version, Version)
+	}
+
+	if err := l.Validate(); err != nil {
+		return nil, err
 	}
 
 	return &l, nil

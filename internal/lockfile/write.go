@@ -12,8 +12,12 @@ import (
 // package's artifacts sorted by os then arch. The ordering is stable so a
 // re-lock of a converged repo produces byte-identical output (the diff a CI
 // freshness gate relies on) and Parse(Write(l)) round-trips l. It sorts a copy,
-// never mutating the caller's Lock.
+// never mutating the caller's Lock. A lock that fails Validate (an artifact
+// with an empty sha256) is refused before anything is encoded.
 func Write(w io.Writer, l *Lock) error {
+	if err := l.Validate(); err != nil {
+		return err
+	}
 	out := Lock{Version: l.Version}
 	out.Packages = append(out.Packages, l.Packages...)
 	sort.Slice(out.Packages, func(i, j int) bool {

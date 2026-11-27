@@ -159,7 +159,8 @@ func (b *githubReleaseBackend) resolveAsset(pkg manifest.Package, info platform.
 // resolve records a frozen Artifact for target by routing through resolveAsset —
 // the SAME resolver Install uses — so a recorded artifact always matches the
 // verify-time lookup. Unlike the pre-#45 path it records the DECLARED/sidecar
-// sha256 without a full asset download.
+// sha256 without a full asset download. A target no checksum source covers is
+// an error, so `dotf lock` records a per-target failure instead of an empty sha.
 func (b *githubReleaseBackend) resolve(pkg manifest.Package, target platform.Info) (lockfile.Artifact, error) {
 	ra, err := b.resolveAsset(pkg, target)
 	if err != nil {
@@ -167,6 +168,9 @@ func (b *githubReleaseBackend) resolve(pkg manifest.Package, target platform.Inf
 	}
 
 	osToken, archToken := releaseTokens(target)
+	if ra.SHA256 == "" {
+		return lockfile.Artifact{}, unresolvedChecksumErr(pkg.Name, osToken, archToken)
+	}
 	return lockfile.Artifact{
 		OS:     osToken,
 		Arch:   archToken,
