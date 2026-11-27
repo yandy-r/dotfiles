@@ -162,6 +162,7 @@ _op_secret_refs=(
     "GEMINI_API_KEY=op://EnvSecrets/Shell Env Secrets/env/GEMINI_API_KEY"
     "OPENCODE_PASSWORD=op://EnvSecrets/Shell Env Secrets/env/OPENCODE_PASSWORD"
     "CARTIO_LAB_MCP_TOKEN=op://EnvSecrets/Cartio Lab Secrets/ctrl/CARTIO_LAB_MCP_TOKEN"
+    "META_API_KEY=op://EnvSecrets/Shell Env Secrets/Shell environment/META_API_KEY"
 )
 
 _op_template=""
