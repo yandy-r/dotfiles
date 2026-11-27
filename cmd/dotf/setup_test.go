@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/yandy-r/dotfiles/internal/backend"
 	"github.com/yandy-r/dotfiles/internal/exec"
 	"github.com/yandy-r/dotfiles/internal/manifest"
 	"github.com/yandy-r/dotfiles/internal/platform"
@@ -43,7 +44,7 @@ func (f *fakeStepEngines) record(kind, target string) error {
 	return nil
 }
 
-func (f *fakeStepEngines) customScript(_ string, script string, _ platform.Info) error {
+func (f *fakeStepEngines) customScript(_ string, script, _ string, _ platform.Info) error {
 	return f.record("custom-script", script)
 }
 func (f *fakeStepEngines) pkg(name string, _ platform.Info) error { return f.record("pkg", name) }
@@ -303,5 +304,127 @@ func TestRealStepEngines_SymlinkStepsShareOneBackupDir(t *testing.T) {
 	}
 	if strings.Join(dests, ",") != ".bashrc,.zshrc" {
 		t.Errorf("manifest dests = %v, want [.bashrc .zshrc]", dests)
+	}
+}
+
+// writeScript creates an executable stub at root/rel.
+func writeScript(t *testing.T, root, rel string) string {
+	t.Helper()
+	path := filepath.Join(root, rel)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(path, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	return path
+}
+
+// ranScripts returns the script path of every custom-script invocation
+// (`env NON_INTERACTIVE=true bash <script>`) the fake runner recorded.
+func ranScripts(t *testing.T, fake *exec.Fake) []string {
+	t.Helper()
+	var out []string
+	for _, c := range fake.CallsSnapshot() {
+		if c.Name == "env" && len(c.Args) >= 3 && c.Args[1] == "bash" {
+			out = append(out, c.Args[2])
+		}
+	}
+	return out
+}
+
+// TestRealStepEngines_OverlayModuleScriptResolvesFromOverlayRoot is the
+// YAN-1418 regression: an overlay [[module]] custom-script step resolves
+// against the overlay config root, not the repo root. It covers a script that
+// exists ONLY in the overlay dir, a same-named script in both places (the
+// overlay's runs, never the repo's), a base module that stays repo-rooted, and
+// the unchanged no-".." containment applied to the overlay root.
+func TestRealStepEngines_OverlayModuleScriptResolvesFromOverlayRoot(t *testing.T) {
+	repoRoot := t.TempDir()
+	configRoot := t.TempDir()
+
+	repoShared := writeScript(t, repoRoot, "bin/shared.sh")
+	overlayOnly := writeScript(t, configRoot, "bin/overlay-only.sh")
+	overlayShared := writeScript(t, configRoot, "bin/shared.sh")
+
+	base, err := manifest.Parse(strings.NewReader(`[[module]]
+name = "base-mod"
+steps = [{ custom-script = "bin/shared.sh" }]
+`))
+	if err != nil {
+		t.Fatalf("Parse(base) error = %v", err)
+	}
+	fragDir := filepath.Join(configRoot, "packages.d")
+	if err := os.MkdirAll(fragDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(fragDir, "mine.toml"), []byte(`[[module]]
+name = "user-mod"
+steps = [
+  { custom-script = "bin/overlay-only.sh" },
+  { custom-script = "bin/shared.sh" },
+]
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	layers, err := manifest.DiscoverOverlays(configRoot)
+	if err != nil {
+		t.Fatalf("DiscoverOverlays() error = %v", err)
+	}
+	m, _, err := manifest.Merge(base, layers...)
+	if err != nil {
+		t.Fatalf("Merge() error = %v", err)
+	}
+
+	mods := map[string]manifest.Module{}
+	for _, mod := range m.Modules {
+		mods[mod.Name] = mod
+	}
+
+	run := func(mod manifest.Module) ([]setupStepResult, []string) {
+		fake := exec.NewFake()
+		eng := &realStepEngines{
+			m:        m,
+			engine:   backend.Default(fake, nil, repoRoot, nil),
+			repoRoot: repoRoot,
+		}
+		return runModuleSteps(mod, eng, platform.Info{}), ranScripts(t, fake)
+	}
+
+	// Overlay module: both steps run from the overlay root.
+	results, scripts := run(mods["user-mod"])
+	for _, r := range results {
+		if r.status != "ok" {
+			t.Fatalf("user-mod step %d status = %q (err %v), want ok", r.index, r.status, r.err)
+		}
+	}
+	want := []string{overlayOnly, overlayShared}
+	if strings.Join(scripts, "\n") != strings.Join(want, "\n") {
+		t.Errorf("user-mod ran %v, want %v (overlay root, never the repo's %s)", scripts, want, repoShared)
+	}
+
+	// Base module: stays repo-rooted.
+	results, scripts = run(mods["base-mod"])
+	if len(results) != 1 || results[0].status != "ok" {
+		t.Fatalf("base-mod results = %+v, want one ok step", results)
+	}
+	if len(scripts) != 1 || scripts[0] != repoShared {
+		t.Errorf("base-mod ran %v, want [%s] (repo root)", scripts, repoShared)
+	}
+
+	// Containment is unchanged under the overlay root: a parent escape and an
+	// absolute path still fail and run nothing.
+	escape := manifest.Module{Name: "escape", Steps: []manifest.ModuleStep{
+		{CustomScript: "../outside.sh", ScriptRoot: configRoot},
+		{CustomScript: overlayOnly, ScriptRoot: configRoot},
+	}}
+	results, scripts = run(escape)
+	for _, r := range results {
+		if r.status != "failed" {
+			t.Errorf("escape step %d status = %q, want failed", r.index, r.status)
+		}
+	}
+	if len(scripts) != 0 {
+		t.Errorf("escape ran %v, want nothing", scripts)
 	}
 }

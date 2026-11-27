@@ -59,6 +59,16 @@ type ModuleStep struct {
 	// Ports lists firewall ports to open; it is only valid together with a
 	// Sysconfig == "firewall" step.
 	Ports []string `toml:"ports"`
+
+	// ScriptRoot is engine-internal provenance, NOT a user-settable field: the
+	// containment root a CustomScript step is resolved against, mirroring
+	// Package.ScriptRoot. DiscoverOverlays stamps it with the XDG user config
+	// root (~/.config/dotf) on every step of an overlay-sourced module; it is
+	// empty for base modules, which fall back to the repo root. `dotf setup`
+	// copies it onto the synthetic custom-script package it builds for the
+	// step. The `toml:"-"` tag keeps it out of the decoder, so strict
+	// DisallowUnknownFields rejects a `script_root` key in a fragment.
+	ScriptRoot string `toml:"-"`
 }
 
 // StepKind is the typed kind of a module step: exactly one per step.

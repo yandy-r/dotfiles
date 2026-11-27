@@ -215,3 +215,90 @@ func contains(list []string, s string) bool {
 	}
 	return false
 }
+
+// TestDiscoverOverlays_StampsModuleStepScriptRoot pins YAN-1418: every step of
+// an overlay [[module]] carries the overlay's configRoot as its ScriptRoot, the
+// same provenance overlay packages get, so `dotf setup` resolves a module
+// custom-script under ~/.config/dotf rather than the repo root.
+func TestDiscoverOverlays_StampsModuleStepScriptRoot(t *testing.T) {
+	root := t.TempDir()
+	writeFragment(t, root, "mods.toml", `[[module]]
+name = "mine"
+description = "user module"
+steps = [
+  { custom-script = "bin/foo.sh" },
+  { custom-script = "bin/bar.sh" },
+]
+`)
+
+	layers, err := manifest.DiscoverOverlays(root)
+	if err != nil {
+		t.Fatalf("DiscoverOverlays() error = %v", err)
+	}
+	if len(layers) != 1 || len(layers[0].Manifest.Modules) != 1 {
+		t.Fatalf("layers = %+v, want one layer with one module", layers)
+	}
+	steps := layers[0].Manifest.Modules[0].Steps
+	if len(steps) != 2 {
+		t.Fatalf("steps = %d, want 2", len(steps))
+	}
+	for i, s := range steps {
+		if s.ScriptRoot != root {
+			t.Errorf("steps[%d].ScriptRoot = %q, want %q (overlay configRoot)", i, s.ScriptRoot, root)
+		}
+	}
+}
+
+// TestDiscoverOverlays_ModuleStepScriptRootNotUserSettable proves a fragment
+// cannot pick its own step root: ModuleStep.ScriptRoot is toml:"-", so a
+// `script_root` key is an unknown field the strict decoder rejects.
+func TestDiscoverOverlays_ModuleStepScriptRootNotUserSettable(t *testing.T) {
+	root := t.TempDir()
+	writeFragment(t, root, "smuggle.toml", `[[module]]
+name = "mine"
+steps = [{ custom-script = "bin/foo.sh", script_root = "/etc" }]
+`)
+
+	_, err := manifest.DiscoverOverlays(root)
+	if err == nil {
+		t.Fatal("DiscoverOverlays() error = nil, want a strict-decode error for script_root on a step")
+	}
+	if !strings.Contains(err.Error(), "smuggle.toml") {
+		t.Errorf("DiscoverOverlays() error = %v, want it to name the offending fragment", err)
+	}
+}
+
+// TestMerge_BaseModuleStepsStayRepoRooted pins that only overlay modules are
+// stamped: a base-manifest module keeps an empty step ScriptRoot (repo-rooted)
+// through the merge, while the overlay module's steps keep the overlay root.
+func TestMerge_BaseModuleStepsStayRepoRooted(t *testing.T) {
+	base, err := manifest.LoadFS(embeddedBase(`[[module]]
+name = "base-mod"
+steps = [{ custom-script = "bin/base.sh" }]
+`), "manifest/packages.toml")
+	if err != nil {
+		t.Fatalf("LoadFS() error = %v", err)
+	}
+
+	root := t.TempDir()
+	writeFragment(t, root, "mods.toml", "[[module]]\nname = \"user-mod\"\nsteps = [{ custom-script = \"bin/user.sh\" }]\n")
+	layers, err := manifest.DiscoverOverlays(root)
+	if err != nil {
+		t.Fatalf("DiscoverOverlays() error = %v", err)
+	}
+
+	merged, _, err := manifest.Merge(base, layers...)
+	if err != nil {
+		t.Fatalf("Merge() error = %v", err)
+	}
+	got := map[string]string{}
+	for _, mod := range merged.Modules {
+		got[mod.Name] = mod.Steps[0].ScriptRoot
+	}
+	if got["base-mod"] != "" {
+		t.Errorf("base-mod step ScriptRoot = %q, want empty (repo-rooted)", got["base-mod"])
+	}
+	if got["user-mod"] != root {
+		t.Errorf("user-mod step ScriptRoot = %q, want %q", got["user-mod"], root)
+	}
+}

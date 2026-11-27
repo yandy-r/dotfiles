@@ -151,7 +151,7 @@ type setupStepResult struct {
 // implementation (realStepEngines) wires the shipped engines, and tests inject a
 // fake to assert steps run in declaration order.
 type stepEngines interface {
-	customScript(name, script string, info platform.Info) error
+	customScript(name, script, scriptRoot string, info platform.Info) error
 	pkg(name string, info platform.Info) error
 	symlink(src string, info platform.Info) error
 	sysconfig(domain string, ports []string, info platform.Info) error
@@ -175,7 +175,7 @@ func runModuleSteps(mod manifest.Module, eng stepEngines, info platform.Info) []
 		var err error
 		switch kind {
 		case manifest.StepCustomScript:
-			err = eng.customScript(mod.Name, target, info)
+			err = eng.customScript(mod.Name, target, step.ScriptRoot, info)
 		case manifest.StepPkg:
 			err = eng.pkg(target, info)
 		case manifest.StepSymlink:
@@ -212,10 +212,19 @@ type realStepEngines struct {
 
 // customScript runs a contained repo/overlay-relative script via the
 // custom-script backend (the primary path the seed modules use). It builds a
-// synthetic package so the same containment fence (repo-root/no-".."/no-absolute)
-// and NON_INTERACTIVE handling apply unchanged.
-func (e *realStepEngines) customScript(name, script string, info platform.Info) error {
-	pkg := manifest.Package{Name: name, Backend: manifest.BackendCustomScript, Script: script}
+// synthetic package so the same containment fence (no-".."/no-absolute) and
+// NON_INTERACTIVE handling apply unchanged. scriptRoot is the step's
+// load-time-stamped ScriptRoot: the overlay config root (~/.config/dotf) for an
+// overlay-sourced module, empty for a base module (which falls back to the repo
+// root). Copying it onto the synthetic package only picks the root the fence
+// applies to; the fence itself stays the backend's.
+func (e *realStepEngines) customScript(name, script, scriptRoot string, info platform.Info) error {
+	pkg := manifest.Package{
+		Name:       name,
+		Backend:    manifest.BackendCustomScript,
+		Script:     script,
+		ScriptRoot: scriptRoot,
+	}
 	return e.engine.Install(pkg, info)
 }
 
