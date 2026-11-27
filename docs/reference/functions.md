@@ -1247,6 +1247,9 @@ Functions for tmux session management.
 ### fix_tmux_path
 
 Update the PATH environment variable in tmux to prefer Homebrew tools.
+Rebuilds PATH by re-running `common/paths.sh` from `${DOTFILES_ROOT:-~/.config/dotfiles}`
+(clearing its load guard first), then sets it as the tmux global `PATH`. Returns non-zero
+without touching tmux when `DOTFILES_NO_AUTO_PATH_SETUP` keeps that setup from running.
 
 ```bash
 fix_tmux_path

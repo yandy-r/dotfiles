@@ -902,14 +902,26 @@ copypath() {
 # Fix tmux PATH ordering when Homebrew tools aren't being found
 # Call this if wrong version of a tool is being used in tmux
 fix_tmux_path() {
-    if [[ -n "$TMUX" ]]; then
-        source "$HOME/.config/dotfiles/common/platform.sh"
-        source "$HOME/.config/dotfiles/common/paths.sh"
-        tmux set-environment -g PATH "$PATH"
-        echo "Tmux PATH updated with Homebrew tools preferred"
-    else
+    if [[ -z "$TMUX" ]]; then
         echo "Not in tmux session"
+        return 0
     fi
+
+    local dotfiles_root="${DOTFILES_ROOT:-$HOME/.config/dotfiles}"
+    source "$dotfiles_root/common/platform.sh" || return 1
+
+    # paths.sh only rebuilds PATH while its load guard is clear, and the guard is
+    # always set in an already-configured shell. Clear it so the re-source runs;
+    # paths.sh sets it again only if setup_all_paths actually ran.
+    unset DOTFILES_PATHS_LOADED
+    source "$dotfiles_root/common/paths.sh" || return 1
+    if [[ -z "${DOTFILES_PATHS_LOADED:-}" ]]; then
+        echo "Tmux PATH not updated: paths.sh skipped PATH setup (DOTFILES_NO_AUTO_PATH_SETUP is set)" >&2
+        return 1
+    fi
+
+    tmux set-environment -g PATH "$PATH"
+    echo "Tmux PATH updated with Homebrew tools preferred"
 }
 
 # Create or attach to a tmux session by name
