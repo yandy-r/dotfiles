@@ -72,11 +72,32 @@ error_exit() {
 
 is_interactive() { [[ -t 0 ]] && [[ -t 1 ]]; }
 
+is_non_interactive() {
+	[[ "${NON_INTERACTIVE:-false}" == "true" ]] || [[ "${NON_INTERACTIVE:-0}" == "1" ]] || [[ "${NONINTERACTIVE:-0}" == "1" ]]
+}
+
+# aur_helper_run <helper> <-S|-R> <package>: run paru/yay, adding the headless
+# flags (--noconfirm, plus --needed for -S) when NON_INTERACTIVE is set so the
+# update/uninstall paths never block on a confirmation prompt (YAN-1398).
+aur_helper_run() {
+	local helper="$1" op="$2" pkg="$3"
+	local -a args=("$op")
+
+	if is_non_interactive; then
+		if [[ "$op" == "-S" ]]; then
+			args+=(--needed)
+		fi
+		args+=(--noconfirm)
+	fi
+
+	"$helper" "${args[@]}" "$pkg"
+}
+
 prompt_confirmation() {
 	local prompt_message="$1"
 	local response
 
-	if [[ "${NON_INTERACTIVE:-false}" == "true" ]] || [[ "${NON_INTERACTIVE:-0}" == "1" ]] || [[ "${NONINTERACTIVE:-0}" == "1" ]] || [[ "${FORCE_INSTALL:-false}" == "true" ]]; then
+	if is_non_interactive || [[ "${FORCE_INSTALL:-false}" == "true" ]]; then
 		log "Non-interactive mode: auto-approving prompt"
 		return 0
 	fi
@@ -184,11 +205,11 @@ uninstall_fabric() {
 	if [[ "$os_type" == "arch" ]]; then
 		if command -v paru &>/dev/null && paru -Q fabric-ai &>/dev/null; then
 			log "Uninstalling Fabric via Paru..."
-			paru -R fabric-ai
+			aur_helper_run paru -R fabric-ai
 			removed=true
 		elif command -v yay &>/dev/null && yay -Q fabric-ai &>/dev/null; then
 			log "Uninstalling Fabric via Yay..."
-			yay -R fabric-ai
+			aur_helper_run yay -R fabric-ai
 			removed=true
 		fi
 	fi
@@ -234,7 +255,7 @@ update_fabric() {
 	if [[ "$os_type" == "arch" ]]; then
 		if command -v paru &>/dev/null && paru -Q fabric-ai &>/dev/null; then
 			log "Updating Fabric via Paru..."
-			if ! paru -S fabric-ai; then
+			if ! aur_helper_run paru -S fabric-ai; then
 				log "Failed to update Fabric via Paru"
 				return 1
 			fi
@@ -242,7 +263,7 @@ update_fabric() {
 			return 0
 		elif command -v yay &>/dev/null && yay -Q fabric-ai &>/dev/null; then
 			log "Updating Fabric via Yay..."
-			if ! yay -S fabric-ai; then
+			if ! aur_helper_run yay -S fabric-ai; then
 				log "Failed to update Fabric via Yay"
 				return 1
 			fi
