@@ -16,7 +16,8 @@ setup() {
 # PATH to /usr/bin:/bin:X and call fix_tmux_path. tmux is a shell function that
 # records its arguments. Prints "rc=<n>", the function output, "PATH=<path>" and
 # the recorded tmux call (or "tmux=none"). SKIP_PATH_SETUP_AT_FIX=1 sets
-# DOTFILES_NO_AUTO_PATH_SETUP just before the call.
+# DOTFILES_NO_AUTO_PATH_SETUP just before the call; TMUX_FAILS=1 makes the
+# tmux stub exit non-zero (server gone).
 run_fix() {
 	local tested_shell
 	tested_shell="$(command -v "$1")" || fail "$1 not found"
@@ -29,7 +30,7 @@ run_fix() {
 			source "$REPO_ROOT/common/paths.sh" &&
 			source "$REPO_ROOT/common/functions.sh" || exit 1
 			[ -n "$DOTFILES_PATHS_LOADED" ] || { echo "guard not set by initial load"; exit 1; }
-			tmux() { printf "%s\n" "$*" >"$TEST_TMPDIR/tmux-call"; }
+			tmux() { printf "%s\n" "$*" >"$TEST_TMPDIR/tmux-call"; [ -z "$TMUX_FAILS" ]; }
 			TMUX=/tmp/tmux-test/default,1,0
 			PATH=/usr/bin:/bin:X
 			[ -n "$SKIP_PATH_SETUP_AT_FIX" ] && DOTFILES_NO_AUTO_PATH_SETUP=1
@@ -85,6 +86,13 @@ assert_rebuilt() {
 	[[ "$output" != *"Tmux PATH updated"* ]] || fail "false success reported: $output"
 	[[ "$output" != *"rc=0"* ]] || fail "returned success on a no-op: $output"
 	[[ "$output" == *"tmux=none"* ]] || fail "tmux PATH was overwritten on a no-op: $output"
+}
+
+@test "tmux set-environment failure: returns non-zero without reporting success" {
+	run_fix bash DOTFILES_ROOT="$REPO_ROOT" TMUX_FAILS=1
+	[ "$status" -eq 0 ] || fail "shell exited $status: $output"
+	[[ "$output" != *"Tmux PATH updated"* ]] || fail "false success reported: $output"
+	[[ "$output" != *"rc=0"* ]] || fail "returned success after tmux failed: $output"
 }
 
 @test "outside tmux: does nothing and says so" {

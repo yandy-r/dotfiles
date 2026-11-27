@@ -920,7 +920,7 @@ fix_tmux_path() {
         return 1
     fi
 
-    tmux set-environment -g PATH "$PATH"
+    tmux set-environment -g PATH "$PATH" || return 1
     echo "Tmux PATH updated with Homebrew tools preferred"
 }
 
