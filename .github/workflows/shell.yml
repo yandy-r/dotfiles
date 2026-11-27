@@ -212,6 +212,10 @@ jobs:
         if: runner.os == 'Linux'
         run: bash scripts/test-install-agy.sh
 
+      - name: Muse Code installer lifecycle
+        if: runner.os == 'Linux'
+        run: bash scripts/test-install-muse-code.sh
+
       - name: OpenCode installer lifecycle
         if: runner.os == 'Linux'
         run: bash scripts/test-install-opencode.sh

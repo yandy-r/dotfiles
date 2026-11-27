@@ -144,7 +144,7 @@ packages = ["mise", "rust", "lua"]
 [intents.ai]
 description = "AI coding assistants and CLIs"
 default = false
-packages = ["claude", "codex", "opencode", "omp", "agy", "fabric", "coderabbit", "playwright-cli", "github-mcp-server", "t3-code-server", "orca-server", "claude-desktop", "claude-desktop-macos", "claude-desktop-fedora", "orca", "orca-arm64", "orca-debian", "orca-arch", "orca-macos"]
+packages = ["claude", "codex", "opencode", "omp", "agy", "muse-code", "muse-code-macos", "fabric", "coderabbit", "playwright-cli", "github-mcp-server", "t3-code-server", "orca-server", "claude-desktop", "claude-desktop-macos", "claude-desktop-fedora", "orca", "orca-arm64", "orca-debian", "orca-arch", "orca-macos"]
 
 [intents.desktop]
 description = "Desktop GUI apps (terminals, editors, media, virt); skipped without a graphical session"
@@ -1474,6 +1474,35 @@ installed_when = { path = "~/.local/bin/agy" }
 actions = ["update", "remove"]
 class = "rolling"
 justification = "official checksum-verifying installer (native on macOS and Linux) plus update/remove and shell-profile protection, unsupported by script-url"
+
+# Muse Code (`muse`): Meta's terminal coding agent (https://dev.meta.ai/products/muse-code).
+# Native route per OS:
+#   - Linux (every distro): Meta's official installer (https://dev.meta.ai/install.sh),
+#     the only vendor-published Linux route. It drops a self-updating launcher at
+#     ~/.local/bin/muse that fetches the SHA256-verified release binary next to it.
+#     No distro ships it; the AUR `muse-code-bin` is a single-maintainer repack with
+#     its own wrapper scripts, so it is deliberately not used on Arch.
+#   - macOS: the official homebrew/cask `muse-code` (Meta's binary from Meta's CDN).
+# custom-script rather than script-url: the installer is bash (script-url runs `sh`)
+# and needs MUSE_NO_MODIFY_PATH=1 so it never edits the repo-managed shell profiles;
+# the wrapper also refuses to shadow a foreign muse and adds update/remove.
+# `dotf install --only muse-code` selects both (muse-code-macos is a platform sibling).
+[[package]]
+name = "muse-code"
+backend = "custom-script"
+os = "linux"
+arch = ["x86_64", "arm64"]
+script = "bin/install-muse-code.sh"
+installed_when = { path = "~/.local/bin/muse" }
+actions = ["update", "remove"]
+class = "rolling"
+justification = "official bash installer for a self-updating, checksum-verifying launcher; needs MUSE_NO_MODIFY_PATH and update/remove, unsupported by script-url"
+
+[[package]]
+name = "muse-code-macos"
+backend = "pkg"
+os = "macos"
+names = { homebrew = "muse-code" }
 
 # fabric installs a binary whose name varies by platform: `fabric` via the
 # official installer / `go install .../cmd/fabric`, or `fabric-ai` via Homebrew

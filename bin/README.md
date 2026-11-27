@@ -12,7 +12,7 @@ repository. All scripts are designed to be cross-platform and follow consistent 
 | Cloud Tools      | `install-aws-tools.sh`, `install-azure-cli.sh`, `install-1password-cli.sh`           | Cloud CLI tools             |
 | DevOps           | `install-hashicorp-tools.sh`                                                         | Infrastructure tools        |
 | Modern CLI       | `install-espanso.sh`, `install-blesh.sh`                                             | Modern command-line tools   |
-| AI/Development   | `install-claude.sh`, `install-codex.sh`, `install-opencode.sh`, `install-omp.sh`, `install-agy.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-graphify.sh`, `install-neovim.sh` | Development tools           |
+| AI/Development   | `install-claude.sh`, `install-codex.sh`, `install-opencode.sh`, `install-omp.sh`, `install-agy.sh`, `install-muse-code.sh`, `install-playwright-cli.sh`, `install-fabric.sh`, `install-graphify.sh`, `install-neovim.sh` | Development tools           |
 | Utilities        | `sync-configs.sh`, `cursor-export-secrets.sh`, `cleanup-*.sh`                        | System utilities            |
 | Style / Lint     | `style.sh`, `lint.sh`, `format.sh`                                                   | Multi-language lint/format  |
 
@@ -331,6 +331,40 @@ fails. `agy` also self-updates in the background while it runs. An `agy` install
 any other way (for example the Homebrew `antigravity-cli` cask) is refused rather
 than shadowed. Uninstall removes only the binary, preserving `~/.gemini` (settings
 and sign-in). Symlink targets are never overwritten or removed.
+
+#### install-muse-code.sh
+
+Install Meta's [Muse Code](https://dev.meta.ai/products/muse-code) CLI (`muse`) on
+Linux with Meta's official installer (`https://dev.meta.ai/install.sh`), the only
+vendor-published Linux route. It installs a self-updating launcher at
+`~/.local/bin/muse` that downloads the SHA256-verified release binary next to it
+(`muse-bin-<version>`). On macOS, dotf uses the official Homebrew cask `muse-code`
+instead (the `muse-code-macos` manifest entry). The single-maintainer AUR
+`muse-code-bin` repack is deliberately not used. Both entries are in dotf's opt-in
+`ai` intent, and `--only muse-code` selects the right one for the host.
+
+```bash
+dotf install --only muse-code
+dotf install --only muse-code --update
+dotf install --only muse-code --remove
+# Or install it with the rest of the AI tools:
+dotf apply --intent ai
+
+./bin/install-muse-code.sh                 # no-op when installed
+./bin/install-muse-code.sh --update        # re-run the installer for the latest release
+./bin/install-muse-code.sh --uninstall
+./bin/install-muse-code.sh --check         # print the installed version
+./bin/install-muse-code.sh --dry-run
+muse login                                 # sign in after installing
+```
+
+Override the directory with `MUSE_CODE_INSTALL_DIR` or `--dir` (an absolute path).
+The installer runs with `MUSE_NO_MODIFY_PATH=1`, so it never edits shell startup
+files (these dotfiles already put `~/.local/bin` on PATH). The launcher checks for
+updates hourly; set `MUSE_NO_AUTO_UPDATE=1` to pin. A `muse` installed any other way
+(a Homebrew cask, the AUR package) is refused rather than shadowed. Uninstall removes
+the launcher, its release binaries and its state files, preserving `~/.config/muse`
+(settings and sign-in) and `~/.local/share/muse`.
 
 #### install-omp.sh
 
