@@ -148,16 +148,37 @@ type lockable interface {
 // Resolve resolves pkg for the target platform to a frozen lockfile.Artifact,
 // dispatching to the backend registered for pkg.Backend. It backs `dotf lock`.
 // A backend that does not implement lockable is not lockable and yields a typed
-// error, mirroring Applicable's optional-interface dispatch.
+// error, mirroring Applicable's optional-interface dispatch. An artifact that
+// resolves with an empty sha256 is an error, never a lock row.
 func (e *Engine) Resolve(pkg manifest.Package, target platform.Info) (lockfile.Artifact, error) {
 	b, ok := e.backends[pkg.Backend]
 	if !ok {
 		return lockfile.Artifact{}, &UnknownBackendError{Backend: pkg.Backend}
 	}
-	if l, ok := b.(lockable); ok {
-		return l.resolve(pkg, target)
+	l, ok := b.(lockable)
+	if !ok {
+		return lockfile.Artifact{}, fmt.Errorf("backend %q is not lockable", pkg.Backend)
 	}
-	return lockfile.Artifact{}, fmt.Errorf("backend %q is not lockable", pkg.Backend)
+	art, err := l.resolve(pkg, target)
+	if err != nil {
+		return lockfile.Artifact{}, err
+	}
+	// Backstop for every lockable backend: a locked artifact must carry a
+	// checksum, so an unresolved one is a per-target lock failure, never a row.
+	if art.SHA256 == "" {
+		osToken, archToken := releaseTokens(target)
+		return lockfile.Artifact{}, unresolvedChecksumErr(pkg.Name, osToken, archToken)
+	}
+	return art, nil
+}
+
+// unresolvedChecksumErr is returned when `dotf lock` resolves no checksum for a
+// pinned package on a target (no per-target checksums entry, no inline sha256,
+// no checksums_asset). Recording an empty sha256 would wedge Install on that
+// host, so the target fails instead. The message names the manifest remedy
+// (re-running `dotf lock` cannot fix it).
+func unresolvedChecksumErr(name, osToken, archToken string) error {
+	return fmt.Errorf("pinned artifact %q resolves no checksum for %s/%s; add a checksums entry for this target (or sha256 / checksums_asset) to the manifest", name, osToken, archToken)
 }
 
 // pinnedNoChecksumErr is the shared fail-fast error returned when a Pinnable

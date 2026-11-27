@@ -300,3 +300,84 @@ func TestPinnable(t *testing.T) {
 		})
 	}
 }
+
+// TestParse_EmptySHARejected pins YAN-1417: a lock artifact with an empty,
+// blank or missing sha256 is rejected rather than accepted as a lock hit with
+// nothing to verify.
+func TestParse_EmptySHARejected(t *testing.T) {
+	cases := map[string]string{
+		"empty": `version = 1
+
+[[package]]
+name = "tool"
+backend = "github-release"
+tag = "v1"
+
+[[package.artifact]]
+os = "debian"
+arch = "arm64"
+asset = "tool-arm64.tar.gz"
+binary = "tool"
+sha256 = ""
+`,
+		"blank": `version = 1
+
+[[package]]
+name = "tool"
+backend = "github-release"
+tag = "v1"
+
+[[package.artifact]]
+os = "debian"
+arch = "arm64"
+asset = "tool-arm64.tar.gz"
+sha256 = "   "
+`,
+		"missing": `version = 1
+
+[[package]]
+name = "pin"
+backend = "script-url"
+url = "https://example.com/install.sh"
+
+[[package.artifact]]
+`,
+	}
+	for name, doc := range cases {
+		t.Run(name, func(t *testing.T) {
+			l, err := lockfile.Parse(strings.NewReader(doc))
+			if err == nil {
+				t.Fatalf("Parse() = %+v, nil; want an empty-sha256 error", l)
+			}
+			if l != nil {
+				t.Errorf("Parse() lock = %+v, want nil on error", l)
+			}
+			if !strings.Contains(err.Error(), "empty sha256") {
+				t.Errorf("Parse() error = %v, want it to name the empty sha256", err)
+			}
+		})
+	}
+}
+
+// TestWrite_EmptySHARejected asserts the write side refuses an empty checksum
+// too, so `dotf lock` can never emit a row Parse would reject.
+func TestWrite_EmptySHARejected(t *testing.T) {
+	l := &lockfile.Lock{
+		Version: lockfile.Version,
+		Packages: []lockfile.LockedPackage{{
+			Name: "tool", Backend: "github-release", Tag: "v1",
+			Artifacts: []lockfile.Artifact{
+				{OS: "linux", Arch: "amd64", Asset: "a", Binary: "tool", SHA256: strings.Repeat("a", 64)},
+				{OS: "debian", Arch: "arm64", Asset: "b", Binary: "tool"},
+			},
+		}},
+	}
+	var buf bytes.Buffer
+	err := lockfile.Write(&buf, l)
+	if err == nil || !strings.Contains(err.Error(), "debian/arm64") {
+		t.Fatalf("Write() error = %v, want an empty-sha256 error naming debian/arm64", err)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("Write() emitted %q despite the validation error", buf.String())
+	}
+}
