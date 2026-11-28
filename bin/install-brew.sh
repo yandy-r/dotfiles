@@ -146,7 +146,6 @@ function brews() {
   brew install coreutils
   brew install curl
   brew install direnv
-  brew install dotenvx/brew/dotenvx
   brew install exiftool
   brew install eza
   brew install fd

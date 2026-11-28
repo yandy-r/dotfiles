@@ -62,10 +62,13 @@ envrc my-project-name    # Specify custom project name
 
 # This creates:
 # - .envrc with PROJECT_NAME export
-# - .env for actual environment variables
+# - .env for non-secret local values (gitignored)
 # - .env.example as template
-# - .gitignore entries
+# - op/local.env, a committed template of 1Password op:// references
+# - .gitignore entries (.env, .env.*, !.env.example)
 ```
+
+See [Secrets with 1Password](#secrets-with-1password) for how secrets are loaded.
 
 #### Manual Setup
 
@@ -140,6 +143,51 @@ exact = [
 - `prefix` matches the directory and all subdirectories
 - `exact` matches only the specific directory
 - **Security Warning**: Only whitelist directories you completely trust
+
+### Secrets with 1Password
+
+Secrets live in 1Password, never in a file. A project commits only templates of
+`op://` references, one per environment (`op/local.env`, `op/staging.env`,
+`op/prod.env`):
+
+```bash
+# op/local.env (committed; references only, never values)
+DB_PASSWORD=op://EnvSecrets/MYAPP_LOCAL_SECRETS/DB_PASSWORD
+API_KEY=op://EnvSecrets/MYAPP_LOCAL_SECRETS/API_KEY
+```
+
+Run commands that need secrets through `with-secrets` (`bin/with-secrets`, on
+`PATH` via `~/.bin`):
+
+```bash
+with-secrets -- npm run dev                # op/local.env
+with-secrets -e prod -- npm run migrate    # op/prod.env
+with-secrets -f op/a.env -f op/b.env -- make test
+```
+
+- The template holds `op://` references: the command runs under
+  `op run --env-file=<template> -- <cmd>` (output masking stays on; pass
+  `--no-masking` for interactive use).
+- No template, or no references in it: the command runs as-is.
+- References but `op` is missing or not signed in: it fails fast (exit 1) with a
+  hint. It never signs in for you.
+
+The shell helpers stay available for ad-hoc use: `opr -- <cmd>` is
+`op run --no-masking --`, and `ope <file> -- <cmd>` is
+`op run --no-masking --env-file <file>`. To export resolved secrets into the
+shell on `cd` instead (slower, may prompt the 1Password app), uncomment the
+`op inject` block that `envrc` writes into `.envrc`.
+
+Local setup for a new machine:
+
+1. Install the CLI (`bin/install-1password-cli.sh`, part of the default setup).
+2. Turn on 1Password app integration (Settings → Developer → Integrate with
+   1Password CLI), or export `OP_SERVICE_ACCOUNT_TOKEN` for headless hosts.
+3. Check with `op whoami`, then run `with-secrets -- <cmd>`.
+
+`scripts/secrets-policy-check.sh` (in `npm run lint`, the pre-push hook, and the
+`Secrets policy` CI workflow) fails on the retired encrypted-env tooling,
+tracked env files, and `op/*.env` lines that are not `op://` references.
 
 ### Common .envrc Patterns
 

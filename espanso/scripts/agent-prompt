@@ -330,19 +330,15 @@ render_secrets() {
 	none) return 0 ;;
 	auto | "")
 		printf '\n## Secrets\n\n'
-		printf -- "- Repo tooling (dotenvx: encrypted \`.env*\`; op: \`op://\` refs)\n"
+		printf -- '- 1Password: `op://` refs in `op/<env>.env`, run via `op run`\n'
 		;;
 	op)
 		printf '\n## Secrets\n\n'
-		printf -- '- **op** CLI (`op read`, `op run`)\n'
-		;;
-	dotenvx)
-		printf '\n## Secrets\n\n'
-		printf -- '- dotenvx (`dotenvx run`, `dotenvx get`)'
+		printf -- '- **op** CLI (`op read`, `op run --env-file`)'
 		[[ -n "$SECRETS_FILES" ]] && printf ' w/ git-tracked %s' "$SECRETS_FILES"
 		printf '\n'
 		;;
-	*) die "profile '$PROFILE': invalid SECRETS '$SECRETS' (expected op, dotenvx, none, or auto)" ;;
+	*) die "profile '$PROFILE': invalid SECRETS '$SECRETS' (expected op, none, or auto)" ;;
 	esac
 	printf -- '- Never print/log/commit secret values\n'
 }

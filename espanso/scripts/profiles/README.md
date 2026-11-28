@@ -24,8 +24,8 @@ the repo can't say for itself.
 | `BUGS_PROJECT`     | Linear project for task `bugs`                               |
 | `FEATURES_PROJECT` | Linear project for task `features`                           |
 | `CODEX`            | `yes`, `no`, or `auto` (Codex review rules "if present")     |
-| `SECRETS`          | `op`, `dotenvx`, `none`, or `auto` (detect from repo files)  |
-| `SECRETS_FILES`    | dotenvx files to use (`.env.encrypted.*`)                    |
+| `SECRETS`          | `op`, `none`, or `auto` (detect from repo files)             |
+| `SECRETS_FILES`    | `op://` reference templates to use (`op/<env>.env`)          |
 
 Lookup order for the work source: Target, then `BUGS_PROJECT`/`FEATURES_PROJECT`
 (both for task `any`), then `POOL`, then the repo's own Linear projects.

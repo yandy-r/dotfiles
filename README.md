@@ -549,7 +549,10 @@ The new common configuration system provides:
 
 3. **SSH Keys**: Add your SSH keys to `~/.ssh/` if needed
 4. **Terminal Themes**: Import color schemes from `iterm2/` directory
-5. **1Password**: Configure service account token if using 1Password CLI
+5. **1Password**: Turn on 1Password app integration for the CLI (or configure a service account
+   token on headless hosts). Project secrets are `op://` references in committed `op/<env>.env`
+   templates, run with `with-secrets -- <cmd>`; see
+   [Secrets with 1Password](docs/features/environment-management.md#secrets-with-1password)
 
 ### Optional: Enable the Hyprland desktop config set
 

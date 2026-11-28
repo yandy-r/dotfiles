@@ -3,7 +3,11 @@
 # .envrc Generator
 # ================================================================
 # Creates a .envrc file in the current directory that loads .env
-# and provides a template for project-specific environment setup
+# (non-secret local settings) and provides a template for project-specific
+# environment setup. Secrets stay in 1Password: it also scaffolds
+# op/local.env, a committed template of op:// references that
+# `with-secrets -- <cmd>` (or `op run --env-file=op/local.env -- <cmd>`)
+# resolves at run time. Secret values are never written to disk.
 
 set -euo pipefail
 
@@ -35,6 +39,8 @@ PROJECT_NAME="${1:-$(basename "$PWD")}"
 ENVRC_FILE=".envrc"
 ENV_FILE=".env"
 ENV_EXAMPLE_FILE=".env.example"
+OP_DIR="op"
+OP_TEMPLATE_FILE="$OP_DIR/local.env"
 
 # Check if .envrc already exists
 if [[ -f "$ENVRC_FILE" ]]; then
@@ -58,18 +64,26 @@ cat > "$ENVRC_FILE" << 'EOF'
 # Automatically loads environment variables when entering directory
 # Run 'direnv allow' after creating/modifying this file
 
-# Load .env file if it exists
+# Load .env (non-secret local settings) if it exists
 if [[ -f .env ]]; then
     set -a  # Mark all variables for export
     source .env
     set +a  # Stop marking for export
 fi
 
-# Load .env file if it exists using dotenvx
-# if [[ -f .env ]]; then
-#     set -a  # Mark all variables for export
-#     eval "$(dotenvx get -q -f .env --format eval)"
-#     set +a  # Stop marking for export
+# ================================================================
+# Secrets (1Password)
+# ================================================================
+# Secrets live in 1Password. op/local.env (committed) lists op:// references
+# only; run commands that need them through the loader:
+#     with-secrets -- npm run dev           # op/local.env
+#     with-secrets -e prod -- npm run migrate   # op/prod.env
+# or directly: op run --env-file=op/local.env -- npm run dev
+#
+# Opt-in: export the resolved secrets into this shell on cd (slower, may
+# prompt the 1Password app; values then live in the shell environment):
+# if has op && [[ -f op/local.env ]]; then
+#     dotenv <(op inject --in-file op/local.env)
 # fi
 
 # ================================================================
@@ -126,13 +140,6 @@ fi
 # Helper functions
 # ================================================================
 
-# Example: Load secrets from 1Password
-# load_1password_secrets() {
-#     if command -v op &> /dev/null; then
-#         export DB_PASSWORD=$(op read "op://vault/item/field")
-#     fi
-# }
-
 # Example: Verify required tools are installed
 # check_dependencies() {
 #     local deps=("node" "docker" "kubectl")
@@ -185,10 +192,8 @@ if [[ ! -f "$ENV_EXAMPLE_FILE" ]]; then
 # DB_USER=postgres
 # DB_PASSWORD=
 
-# API Keys and Secrets (use 1Password or similar)
-# API_KEY=
-# SECRET_KEY=
-# JWT_SECRET=
+# API keys and secrets do NOT go here: add them as op:// references in
+# op/local.env and run commands with: with-secrets -- <cmd>
 
 # External services
 # REDIS_URL=redis://localhost:6379
@@ -209,20 +214,44 @@ if [[ ! -f "$ENV_FILE" ]] && [[ -f "$ENV_EXAMPLE_FILE" ]]; then
     warn "Remember to fill in actual values in .env"
 fi
 
-# Check if .gitignore exists and add .env if needed
+# Create the 1Password reference template if it doesn't exist
+if [[ ! -f "$OP_TEMPLATE_FILE" ]]; then
+    info "Creating $OP_TEMPLATE_FILE (1Password op:// references)..."
+    mkdir -p "$OP_DIR"
+    cat > "$OP_TEMPLATE_FILE" << EOF
+# ==================================================
+# $PROJECT_NAME - 1Password secret references (local)
+# ==================================================
+# Commit this file. It holds op:// references only, never values:
+#     NAME=op://<vault>/<item>/<field>
+# Run commands with the secrets injected:
+#     with-secrets -- <cmd>            (dotfiles loader, fails fast if op is
+#                                       missing or signed out)
+#     op run --env-file=$OP_TEMPLATE_FILE -- <cmd>
+# Other environments get their own file: op/staging.env, op/prod.env
+# (with-secrets -e prod -- <cmd>).
+
+# DB_PASSWORD=op://EnvSecrets/${PROJECT_NAME}_LOCAL_SECRETS/DB_PASSWORD
+# API_KEY=op://EnvSecrets/${PROJECT_NAME}_LOCAL_SECRETS/API_KEY
+EOF
+    success "$OP_TEMPLATE_FILE created!"
+fi
+
+# Keep real env files out of git (templates and op/*.env stay tracked)
 if [[ -f .gitignore ]]; then
-    if ! grep -q "^\.env$" .gitignore; then
-        info "Adding .env to .gitignore..."
-        echo "" >> .gitignore
-        echo "# Environment variables" >> .gitignore
-        echo ".env" >> .gitignore
-        success ".env added to .gitignore"
-    fi
+    for pattern in ".env" ".env.*" "!.env.example"; do
+        if ! grep -qxF -- "$pattern" .gitignore; then
+            info "Adding $pattern to .gitignore..."
+            printf '%s\n' "$pattern" >> .gitignore
+        fi
+    done
 else
-    info "Creating .gitignore with .env entry..."
+    info "Creating .gitignore with .env entries..."
     cat > .gitignore << 'EOF'
-# Environment variables
+# Environment variables (secrets live in 1Password; op/*.env is committed)
 .env
+.env.*
+!.env.example
 
 # OS files
 .DS_Store
@@ -240,9 +269,10 @@ fi
 
 echo
 info "Next steps:"
-echo "  1. Edit .env with your actual values"
-echo "  2. Customize .envrc with project-specific configuration"
-echo "  3. Run: direnv allow"
-echo "  4. Environment will auto-load when entering this directory"
+echo "  1. Edit .env with non-secret local values"
+echo "  2. Add secrets to 1Password and list them as op:// references in $OP_TEMPLATE_FILE"
+echo "  3. Customize .envrc with project-specific configuration"
+echo "  4. Run: direnv allow"
+echo "  5. Run commands that need secrets with: with-secrets -- <cmd>"
 echo
-warn "Security reminder: Never commit .env files to version control!"
+warn "Security reminder: never commit .env files or secret values; commit only op:// references."

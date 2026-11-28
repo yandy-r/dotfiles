@@ -26,7 +26,6 @@ Research completed: 2025-11-05
 | coreutils               | coreutils               | official   | GNU core utilities (native on Linux)            |
 | curl                    | curl                    | official   | URL transfer tool                               |
 | direnv                  | direnv                  | official   | Environment variable manager                    |
-| dotenvx                 | dotenvx                 | AUR        | Enhanced dotenv tool                            |
 | exiftool                | perl-image-exiftool     | official   | Image metadata tool                             |
 | eza                     | eza                     | official   | Modern ls replacement                           |
 | fd                      | fd                      | official   | Fast find alternative                           |
