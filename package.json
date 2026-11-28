@@ -6,7 +6,8 @@
   "private": true,
   "scripts": {
     "install-deps": "npm install",
-    "lint": "bin/lint.sh --python --shell --go",
+    "lint": "scripts/secrets-policy-check.sh && bin/lint.sh --python --shell --go",
+    "lint:secrets": "scripts/secrets-policy-check.sh",
     "lint:modified": "bin/lint.sh --modified --python --shell --go",
     "lint:staged": "bin/lint.sh --staged --python --shell --go",
     "lint:unstaged": "bin/lint.sh --unstaged --python --shell --go",

@@ -58,7 +58,7 @@ matches:
       - Edit RELEASING.md by hand (only `/ycc:release-model`)
       - Delete/rename existing labels, workflows, branches (except yours), tags
       - Direct commit/push to default/release/long-lived branches (except step 1's empty commit)
-      - Commit secrets; `.env*` stays out of git (encrypted dotenvx files excepted)
+      - Commit secrets; `.env*` stays out of git; commit only `op://` refs (`op/<env>.env`)
 
       ## Manual Follow-Ups
 

@@ -171,7 +171,7 @@ path (used for testing).
 - Development: flow, golangci-lint, carapace-bin
 - Security: bitwarden-cli
 - Git extensions: gitflow-avh
-- Utilities: asciinema, dotenvx
+- Utilities: asciinema
 
 ## How It Works
 

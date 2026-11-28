@@ -3,8 +3,11 @@
 hypr/shaders
 # Hyprland auto-generates this stub when hyprland.lua is the active root
 hypr/hyprland.conf
-.env.encrypted
-.env.local
+# Env files hold real values and are never committed. Secrets live in
+# 1Password; commit only op/*.env templates of op:// references (bin/with-secrets).
+.env
+.env.*
+!.env.example
 
 # macOS
 .DS_Store
@@ -66,9 +69,6 @@ node_modules
 .ansible/**
 /tasks/
 
-# Un-ignore encrypted .env file
-!.env
-.env.keys
 .gemini/installation_id
 .gemini/history/praxrr/.project_root
 .gemini/projects.json
