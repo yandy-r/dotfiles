@@ -239,6 +239,10 @@ fi
 
 # Keep real env files out of git (templates and op/*.env stay tracked)
 if [[ -f .gitignore ]]; then
+    # Start on a fresh line if the file does not end with a newline
+    if [[ -s .gitignore && -n "$(tail -c 1 .gitignore)" ]]; then
+        echo >> .gitignore
+    fi
     for pattern in ".env" ".env.*" "!.env.example"; do
         if ! grep -qxF -- "$pattern" .gitignore; then
             info "Adding $pattern to .gitignore..."

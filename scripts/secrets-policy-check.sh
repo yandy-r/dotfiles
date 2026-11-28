@@ -48,8 +48,10 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
 retired_tool='dotenv''x'
 historical=(':!CHANGELOG.md' ':!docs/prps/**' ':!docs/plans/**' ':!docs/internal/**'
     ':!docs/research/**' ':!package-lock.json')
-retired_hit() { fail "retired env tooling referenced: ${1:0:160}"; }
-hits=$(tracked_grep -n -I -i -E "${retired_tool}|DOTENV_(PRIVATE|PUBLIC)_KEY|\\.env\\.keys" -- . "${historical[@]}")
+retired_hit() { fail "retired env tooling referenced: $1"; }
+# -o prints file:line:match only, never the rest of the line: a hit may be a
+# committed key assignment, and CI logs must not copy its value.
+hits=$(tracked_grep -n -o -I -i -E "${retired_tool}|DOTENV_(PRIVATE|PUBLIC)_KEY|\\.env\\.keys" -- . "${historical[@]}")
 each_line "$hits" retired_hit
 
 # --- 2. tracked env files ----------------------------------------------------

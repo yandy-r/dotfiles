@@ -36,12 +36,13 @@ track() {
 }
 
 @test "a retired key variable or key file name fails" {
-	printf '%s_PRIVATE_KEY_PRODUCTION=x\n' "DOTENV" >"$FIXTURE/ci.yml"
+	printf '%s_PRIVATE_KEY_PRODUCTION=not-a-real-key-value\n' "DOTENV" >"$FIXTURE/ci.yml"
 	printf '.env.%s\n' "keys" >"$FIXTURE/.gitignore"
 	track
 	run "$CHECK" "$FIXTURE"
 	[[ $status -eq 1 ]] || fail "status $status: $output"
-	[[ $output == *"ci.yml"* && $output == *".gitignore"* ]] || fail "missing hits: $output"
+	[[ $output == *"ci.yml:1:"* && $output == *".gitignore:1:"* ]] || fail "missing hits: $output"
+	[[ $output != *not-a-real-key-value* ]] || fail "value leaked: $output"
 }
 
 @test "historical records may mention the retired tool" {
