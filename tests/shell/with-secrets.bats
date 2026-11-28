@@ -90,6 +90,23 @@ without_op() {
 	[[ ! -e $OP_LOG ]] || fail "op run was called: $(cat "$OP_LOG")"
 }
 
+@test "spaced NAME = op:// references still count as references" {
+	printf 'API_KEY = op://EnvSecrets/DEMO_LOCAL/API_KEY\n' >"$PROJECT/op/local.env"
+	run with_op -- true
+	[[ $status -eq 0 ]] || fail "status $status: $output"
+	grep -qx 'run --env-file=op/local.env -- true' "$OP_LOG" || fail "op not used: $(cat "$OP_LOG" 2>/dev/null)"
+}
+
+@test "an unreadable template fails instead of running without secrets" {
+	[[ $(id -u) -ne 0 ]] || skip "root reads any file"
+	printf 'API_KEY=op://EnvSecrets/DEMO_LOCAL/API_KEY\n' >"$PROJECT/op/local.env"
+	chmod 000 "$PROJECT/op/local.env"
+	run with_op -- echo should-not-run
+	chmod 600 "$PROJECT/op/local.env"
+	[[ $status -eq 1 && $output == *"cannot read env template"* ]] || fail "status $status: $output"
+	[[ $output != *should-not-run* ]] || fail "command ran: $output"
+}
+
 @test "an explicit -f template that does not exist is an error" {
 	run with_op -f op/missing.env -- true
 	[[ $status -eq 1 && $output == *"env template not found"* ]] || fail "status $status: $output"

@@ -63,12 +63,16 @@ each_line "$files" tracked_env
 # --- 3. op:// reference templates --------------------------------------------
 
 templates=$(git ls-files -- 'op/*.env' '*/op/*.env')
+ref_value='(op://[^[:space:]"'\'']+|"op://[^"]+"|'\''op://[^'\'']+'\'')'
+ref_line_re="^[[:space:]]*(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*${ref_value}[[:space:]]*\$"
 check_template() {
     local file=$1 line lineno=0
     while IFS= read -r line || [[ -n $line ]]; do
         lineno=$((lineno + 1))
         [[ $line =~ ^[[:space:]]*(#.*)?$ ]] && continue
-        if [[ $line =~ ^([A-Z_][A-Z0-9_]*)=op://[^[:space:]]+$ ]]; then
+        # NAME=op://..., optionally `export`ed, spaced around `=`, or quoted:
+        # the env-file forms `op run --env-file` accepts.
+        if [[ $line =~ $ref_line_re ]]; then
             continue
         elif [[ $line =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)= ]]; then
             # Print only the name: the value might be a pasted secret.

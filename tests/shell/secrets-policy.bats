@@ -28,6 +28,17 @@ track() {
 	[[ $status -eq 0 && $output == *"secrets policy: ok"* ]] || fail "status $status: $output"
 }
 
+@test "quoted, exported and spaced op:// references pass" {
+	cat >"$FIXTURE/op/prod.env" <<'EOF'
+export DB_URL="op://EnvSecrets/DEMO_PROD/DB_URL"
+API_KEY = 'op://EnvSecrets/DEMO_PROD/API_KEY'
+TOKEN=op://EnvSecrets/DEMO_PROD/TOKEN
+EOF
+	track
+	run "$CHECK" "$FIXTURE"
+	[[ $status -eq 0 ]] || fail "status $status: $output"
+}
+
 @test "a reference to the retired tool fails" {
 	printf 'brew install %s\n' "$RETIRED" >"$FIXTURE/install.sh"
 	track

@@ -249,6 +249,13 @@ if [[ -f .gitignore ]]; then
             printf '%s\n' "$pattern" >> .gitignore
         fi
     done
+    # A later .env/.env.* line would re-ignore .env.example: keep the
+    # exception after the last exclusion.
+    last_exclude=$(grep -nxE '\.env(\.\*)?' .gitignore | tail -n 1 | cut -d: -f1)
+    last_keep=$(grep -nxF -- '!.env.example' .gitignore | tail -n 1 | cut -d: -f1)
+    if (( ${last_keep:-0} < ${last_exclude:-0} )); then
+        printf '%s\n' '!.env.example' >> .gitignore
+    fi
 else
     info "Creating .gitignore with .env entries..."
     cat > .gitignore << 'EOF'
